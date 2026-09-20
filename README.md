@@ -33,6 +33,7 @@ vault today.*
 | 🗂️ **Sort** | **A-Z**, **Amount**, **Progress** or **Type**. Click the same one twice to flip it. |
 | 🫴 **Take** | `1`, `10`, `All` on every row. No room in your pack? It lands at your feet instead of vanishing. |
 | 🔨 **Craft** | Stations, the build hammer and repairs spend straight out of the Kist. Stop running home for two nails. |
+| 🔥 **Feed** | Smelters, kilns, fireplaces, cooking stations and fermenters take their coal, ore and food from the Kist too. |
 | 🗺️ **Find** | A chest pin on every member's map that can't be deleted by hand. It follows the Kist and disappears when you leave the hird. |
 
 ---

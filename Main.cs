@@ -15,7 +15,7 @@ namespace ThorsKist
         public const string MODNAME = "Thor's Kist";
         public const string AUTHOR = "posixone";
         public const string GUID = "posixone_ThorsKist";
-        public const string VERSION = "0.8.2";
+        public const string VERSION = "0.8.3";
 
         public static Main Instance;
         public static ManualLogSource Log;
@@ -105,7 +105,8 @@ namespace ThorsKist
                 new ConfigDescription("Metres from the Kist anchor within which you may take.",
                     new AcceptableValueRange<float>(1f, 100000f)));
             CraftRadius = Config.Bind("Range", "craftRadius", 100f,
-                new ConfigDescription("Metres from the Kist anchor within which crafting stations may draw on the Kist.",
+                new ConfigDescription("Metres from the Kist anchor within which crafting stations, smelters, " +
+                    "kilns, fires and fermenters may draw on the Kist.",
                     new AcceptableValueRange<float>(1f, 100000f)));
             AnchorRadius = Config.Bind("Range", "anchorRadius", 100f,
                 new ConfigDescription(
@@ -114,7 +115,8 @@ namespace ThorsKist
                     new AcceptableValueRange<float>(1f, 100000f)));
 
             CraftFromKist = Config.Bind("Crafting", "craftFromKist", true,
-                "Let crafting stations, the build hammer and repairs consume materials straight out of the Kist.");
+                "Let crafting stations, the build hammer and repairs consume materials straight out of the Kist. " +
+                "Also covers feeding smelters, kilns, fireplaces, cooking stations and fermenters.");
 
             KistRows = Config.Bind("Vault", "kistRows", 64,
                 new ConfigDescription("Rows of 8 slots in the vault. 64 rows = 512 stacks. Server-side setting.",
@@ -223,6 +225,9 @@ namespace ThorsKist
         private void Update()
         {
             if (!ModEnable.Value) return;
+            // Before anything else: a station scope that outlived its frame
+            // leaked, and must not be allowed to move items outside a station.
+            StationScope.FrameReset();
             KistConflicts.Tick();
             KistDialog.Tick();
             KistUI.Tick();

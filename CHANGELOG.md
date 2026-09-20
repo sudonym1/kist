@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.3
+
+**Smelters, kilns, fireplaces, cooking stations and fermenters now feed from
+the Kist.**
+
+Stations never touched the recipe machinery, so none of the crafting work
+reached them — coal and ore had to be carried by hand even with a full vault
+one step away. They now draw on the Kist like everything else:
+
+- **Fuel** — coal into smelters, kilns and blast furnaces; wood into fireplaces
+  and cooking stations.
+- **Ore and food** — ore into smelters, raw food onto the cooking station,
+  fermenter ingredients.
+
+Items are moved one at a time, as the station consumes them, so nothing is left
+stranded in your pack afterwards. Nothing is moved while a station is merely
+being looked at — only when you actually feed it.
+
+Known rough edge: a smelter decides what to take before it checks whether it is
+full, so feeding a full smelter moves one ore into your inventory rather than
+refusing outright. It is not lost, just carried.
+
 ## 0.8.2
 
 **Thor's Kist now tells you when another mod has taken its crafting hooks.**
