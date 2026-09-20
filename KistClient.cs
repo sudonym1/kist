@@ -247,6 +247,9 @@ namespace ThorsKist
                     case Wire.S2C.DepositRejected:
                         RollBack(pkg.ReadInt(), pkg.ReadString());
                         break;
+                    case Wire.S2C.AnchorSet:
+                        KistFx.Anchor(pkg.ReadVector3());
+                        break;
                     case Wire.S2C.TakeResult:
                         ReceiveTake(pkg.ReadInt(), pkg.ReadPackage());
                         break;

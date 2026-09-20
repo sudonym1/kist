@@ -15,7 +15,7 @@ namespace ThorsKist
         public const string MODNAME = "Thor's Kist";
         public const string AUTHOR = "posixone";
         public const string GUID = "posixone_ThorsKist";
-        public const string VERSION = "0.2.0";
+        public const string VERSION = "0.3.0";
 
         public static Main Instance;
         public static ManualLogSource Log;
@@ -48,6 +48,15 @@ namespace ThorsKist
         public static ConfigEntry<string> DepositSfxPrefab;
         public static ConfigEntry<string> DepositVfxPrefab;
         public static ConfigEntry<bool> TakeSound;
+        public static ConfigEntry<float> DepositVolume;
+        public static ConfigEntry<float> TakeVolume;
+        public static ConfigEntry<bool> AnchorEffects;
+        public static ConfigEntry<string> AnchorSfxPrefab;
+        public static ConfigEntry<string> AnchorVfxPrefab;
+        public static ConfigEntry<string> AnchorFallVfxPrefab;
+        public static ConfigEntry<float> AnchorVolume;
+        public static ConfigEntry<float> AnchorDropHeight;
+        public static ConfigEntry<float> AnchorDropSeconds;
 
         // ---- Interface -----------------------------------------------------
         public static ConfigEntry<float> UiScale;
@@ -94,10 +103,36 @@ namespace ThorsKist
             DepositVfx = Config.Bind("Feedback", "depositVfx", true, "Show an effect when you store an item.");
             DepositSfxPrefab = Config.Bind("Feedback", "depositSfxPrefab", "sfx_lootspawn",
                 "Name of the game sound prefab played on deposit. Any prefab in ZNetScene works.");
-            DepositVfxPrefab = Config.Bind("Feedback", "depositVfxPrefab", "vfx_Potion_health_medium",
-                "Name of the game effect prefab shown on deposit. Any prefab in ZNetScene works.");
+            DepositVfxPrefab = Config.Bind("Feedback", "depositVfxPrefab", "vfx_Potion_eitr_minor",
+                "Name of the game effect prefab shown on deposit. Any prefab in ZNetScene works. " +
+                "The eitr effect is blue; vfx_Potion_health_medium is red and vfx_Potion_stamina_medium yellow.");
             TakeSound = Config.Bind("Feedback", "takeSound", true,
                 "Play the usual pickup sound when an item arrives from the Kist.");
+            DepositVolume = Config.Bind("Feedback", "depositVolume", 1.5f,
+                new ConfigDescription("Multiplies the deposit sound's volume.",
+                    new AcceptableValueRange<float>(0.1f, 10f)));
+            TakeVolume = Config.Bind("Feedback", "takeVolume", 4f,
+                new ConfigDescription("Multiplies the pickup sound's volume. The vanilla pickup effect is quiet " +
+                    "by design because you are usually standing on the item.",
+                    new AcceptableValueRange<float>(0.1f, 10f)));
+
+            AnchorEffects = Config.Bind("Feedback", "anchorEffects", true,
+                "Play the slam when a hird is founded or its Kist is re-anchored.");
+            AnchorSfxPrefab = Config.Bind("Feedback", "anchorSfxPrefab", "sfx_frozenking_doubleslam_explosion",
+                "Sound prefab for the Kist landing.");
+            AnchorVfxPrefab = Config.Bind("Feedback", "anchorVfxPrefab", "vfx_trollsnow_groundslam",
+                "Effect prefab for the impact where the Kist lands.");
+            AnchorFallVfxPrefab = Config.Bind("Feedback", "anchorFallVfxPrefab", "vfx_Potion_eitr_minor",
+                "Effect prefab that falls from the sky before the impact.");
+            AnchorVolume = Config.Bind("Feedback", "anchorVolume", 1.5f,
+                new ConfigDescription("Multiplies the anchor slam's volume.",
+                    new AcceptableValueRange<float>(0.1f, 10f)));
+            AnchorDropHeight = Config.Bind("Feedback", "anchorDropHeight", 12f,
+                new ConfigDescription("How far above the ground the Kist starts its fall, in metres.",
+                    new AcceptableValueRange<float>(1f, 60f)));
+            AnchorDropSeconds = Config.Bind("Feedback", "anchorDropSeconds", 0.45f,
+                new ConfigDescription("How long the fall takes.",
+                    new AcceptableValueRange<float>(0.05f, 3f)));
 
             UiScale = Config.Bind("Interface", "uiScale", 1f,
                 new ConfigDescription("Scales the Kist window's text and rows. Below 1 fits more on screen.",

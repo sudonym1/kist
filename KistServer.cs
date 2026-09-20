@@ -71,10 +71,10 @@ namespace ThorsKist
                 byte[] bytes = File.ReadAllBytes(path);
                 ZPackage pkg = new ZPackage(bytes);
                 int version = pkg.ReadInt();
-                if (version != Wire.Protocol)
+                if (version != Wire.SaveFormat)
                 {
                     Main.Log.LogError("ThorsKist: vault file is protocol " + version +
-                                      ", this build speaks " + Wire.Protocol + ". Refusing to load it.");
+                                      ", this build speaks " + Wire.SaveFormat + ". Refusing to load it.");
                     return;
                 }
                 int count = pkg.ReadInt();
@@ -106,7 +106,7 @@ namespace ThorsKist
             {
                 Directory.CreateDirectory(SaveDir);
                 ZPackage pkg = new ZPackage();
-                pkg.Write(Wire.Protocol);
+                pkg.Write(Wire.SaveFormat);
                 pkg.Write(Vaults.Count);
                 foreach (Vault v in Vaults)
                 {
@@ -291,8 +291,10 @@ namespace ThorsKist
                 Anchor = pos,
             };
             h.Members.Add(new HirdMember(playerId, playerName));
-            Vaults.Add(new Vault { Hird = h, Inventory = NewInventory(h) });
+            Vault created = new Vault { Hird = h, Inventory = NewInventory(h) };
+            Vaults.Add(created);
             MarkDirty();
+            AnnounceAnchor(created);
             Toast(peer, "Hird \"" + name + "\" founded. Invite at least " +
                         (Main.MinHirdSize.Value - 1) + " more to unlock the Kist.");
             SendState(playerId);
@@ -402,7 +404,8 @@ namespace ThorsKist
             if (v.Hird.OwnerId != playerId) { Deny(peer, "Only the hird's founder may move the Kist."); return; }
             v.Hird.Anchor = pos;
             MarkDirty();
-            ToastHird(v, "The Kist has been moved.");
+            ToastHird(v, "The Kist has been anchored to a new location.");
+            AnnounceAnchor(v);
             SendStateToHird(v);
         }
 
@@ -572,6 +575,20 @@ namespace ThorsKist
             {
                 ZPackage pkg = NewReply(Wire.S2C.Toast);
                 pkg.Write(message);
+                SendToPlayer(m.PlayerId, pkg);
+            }
+        }
+
+        /// <summary>
+        /// Tells the hird a Kist anchor was planted, so everyone nearby sees and
+        /// hears it land rather than only the person who pressed the button.
+        /// </summary>
+        private static void AnnounceAnchor(Vault v)
+        {
+            foreach (HirdMember m in v.Hird.Members)
+            {
+                ZPackage pkg = NewReply(Wire.S2C.AnchorSet);
+                pkg.Write(v.Hird.Anchor);
                 SendToPlayer(m.PlayerId, pkg);
             }
         }

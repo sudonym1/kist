@@ -46,14 +46,27 @@ move at any time. Every radius below is measured from there.
 | Feedback | `depositSound` | `true` | Sound on deposit. |
 | Feedback | `depositVfx` | `true` | Effect on deposit. |
 | Feedback | `depositSfxPrefab` | `sfx_lootspawn` | Any sound prefab in ZNetScene. |
-| Feedback | `depositVfxPrefab` | `vfx_Potion_health_medium` | Any effect prefab in ZNetScene. |
+| Feedback | `depositVfxPrefab` | `vfx_Potion_eitr_minor` | Any effect prefab. Eitr is blue; `_health_` red, `_stamina_` yellow. |
+| Feedback | `depositVolume` | `1.5` | Multiplies the deposit sound. |
 | Feedback | `takeSound` | `true` | Pickup sound when an item arrives from the Kist. |
+| Feedback | `takeVolume` | `4.0` | Multiplies the pickup sound. |
+| Feedback | `anchorEffects` | `true` | The slam when a Kist is planted or re-anchored. |
+| Feedback | `anchorSfxPrefab` | `sfx_frozenking_doubleslam_explosion` | Sound of the landing. |
+| Feedback | `anchorVfxPrefab` | `vfx_trollsnow_groundslam` | Impact effect at the landing point. |
+| Feedback | `anchorFallVfxPrefab` | `vfx_Potion_eitr_minor` | What falls out of the sky. |
+| Feedback | `anchorVolume` | `1.5` | Multiplies the slam. |
+| Feedback | `anchorDropHeight` | `12` | Metres the Kist falls from. |
+| Feedback | `anchorDropSeconds` | `0.45` | How long the fall takes. |
 | Interface | `uiScale` | `1.0` | Scales the window's text and rows. Below 1 fits more on screen. |
 | Interface | `scrollRowsPerNotch` | `5` | Rows moved per notch of the mouse wheel. |
 | Server | `minHirdSize` | `2` | Members needed before a Kist unlocks. **Server-side.** |
 
 Settings marked **server-side** are read from the host's config only. Everything
 else is per-player.
+
+Every prefab name above is a real entry in the game's own asset manifest. The
+full list of 1,487 sound and effect prefabs is in `notes/prefab-names.txt` if
+you want to try something else — no rebuild needed, they are read from config.
 
 ## Installing
 

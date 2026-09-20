@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.3.0
+
+- **The stack count is back.** 0.2.0 drew it underneath the take buttons: the
+  strip width was measured to the leftmost button's right edge instead of its
+  left, so the number rendered behind the `1` button. Button positions and the
+  strip width now come from one place.
+- **Rows are much tighter** — 18px instead of 24px, with smaller text and
+  icons. Roughly 45 rows at 1080p. The Hird tab was condensed the same way.
+- **Take is far louder.** `AudioSource.volume` was never the right knob:
+  Valheim's `ZSFX` recomputes it every frame, so setting it directly survives
+  one frame and is silently overwritten. It now uses `ZSFX.SetVolumeModifier`,
+  which is a factor inside that same calculation. Deposit, take and anchor each
+  have their own volume multiplier.
+- **Deposit effect is blue**, not red — `vfx_Potion_eitr_minor` instead of
+  `vfx_Potion_health_medium`.
+- **Planting a Kist now slams.** Founding a hird or re-anchoring drops a blue
+  effect from 12 metres up, accelerating, then lands with
+  `vfx_trollsnow_groundslam` and a heavy impact sound. Everyone in the hird
+  sees and hears it at the anchor, so distance attenuation does the rest.
+- "Move the Kist here" is now **"Anchor Kist to this location"**.
+- `notes/prefab-names.txt` lists all 1,487 sound and effect prefabs the game
+  ships, pulled from its own asset manifest. Every default above was checked
+  against it rather than guessed, and all of them are config.
+
+Internal: the on-disk vault format now has its own version number, separate
+from the wire protocol. They shared one constant, so adding this release's new
+message would have made the server refuse to load existing vaults.
+
 ## 0.2.0
 
 First round of feedback from a live game.

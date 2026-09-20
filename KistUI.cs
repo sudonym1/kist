@@ -47,12 +47,22 @@ namespace ThorsKist
         // One scale knob drives every size, so uiScale actually means something
         // rather than shrinking the text inside fixed-height rows.
         private static float S { get { return Mathf.Clamp(Main.UiScale.Value, 0.6f, 1.6f); } }
-        private static float RowH { get { return Mathf.Round(24f * S); } }
-        private static float FontRow { get { return 13f * S; } }
-        private static float FontSmall { get { return 11f * S; } }
-        private static float FontHead { get { return 22f * S; } }
-        private static float IconSize { get { return Mathf.Round(20f * S); } }
-        private const float RowGap = 1f;
+        private static float RowH { get { return Mathf.Round(18f * S); } }
+        private static float FontRow { get { return 12f * S; } }
+        private static float FontSmall { get { return 10.5f * S; } }
+        private static float FontHead { get { return 20f * S; } }
+        private static float IconSize { get { return Mathf.Round(16f * S); } }
+        private const float RowGap = 0f;
+
+        // ---- Row geometry --------------------------------------------------
+        // One place decides where the take buttons sit and where the strip ends,
+        // because computing those separately is what put the stack count
+        // underneath the buttons in 0.2.0.
+        private static float BtnW { get { return Mathf.Round(30f * S); } }
+        private static float BtnGap { get { return 2f; } }
+        private static float BtnEdge { get { return 3f; } }
+        /// <summary>Distance from the row's right edge to the LEFT edge of the button strip.</summary>
+        private static float BtnStripW { get { return BtnEdge + BtnW * 3f + BtnGap * 2f; } }
 
         // Valheim's palette, close enough to sit beside the vanilla panels.
         private static readonly Color Parchment = new Color(0.87f, 0.82f, 0.70f, 1f);
@@ -395,35 +405,33 @@ namespace ThorsKist
             string quality = item.m_shared.m_maxQuality > 1
                 ? "  <color=#8C8677>q" + item.m_quality + "</color>" : "";
             TMP_Text name = NewText(row.transform, label + quality, FontRow, Parchment, TextAlignmentOptions.Left);
-            Place(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(IconSize + 12f, 0f),
-                  new Vector2(420f * S, RowH), new Vector2(0f, 0.5f));
+            Place(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(IconSize + 8f, 0f),
+                  new Vector2(380f * S, RowH), new Vector2(0f, 0.5f));
 
             TMP_Text count = NewText(row.transform, "x" + item.m_stack, FontRow, Accent, TextAlignmentOptions.Right);
-            Place(count.rectTransform, new Vector2(1f, 0.5f), new Vector2(-(BtnStripW + 12f), 0f),
-                  new Vector2(110f * S, RowH));
+            Place(count.rectTransform, new Vector2(1f, 0.5f), new Vector2(-(BtnStripW + 8f), 0f),
+                  new Vector2(90f * S, RowH));
 
             Vector2i slot = item.m_gridPos;
             string itemName = item.m_shared.m_name;
             int stack = item.m_stack;
 
-            float bw = Mathf.Round(38f * S);
-            float bh = RowH - 4f;
-            AddTakeButton(row, "1", -(bw * 3f + 12f), bw, bh, canTake, slot, itemName, 1);
-            AddTakeButton(row, "10", -(bw * 2f + 8f), bw, bh, canTake && stack > 1, slot, itemName,
+            float bh = RowH - 2f;
+            // Right edges, measured from the row's right edge outwards.
+            AddTakeButton(row, "All", -BtnEdge, bh, canTake, slot, itemName, stack);
+            AddTakeButton(row, "10", -(BtnEdge + BtnW + BtnGap), bh, canTake && stack > 1, slot, itemName,
                           stack < 10 ? stack : 10);
-            AddTakeButton(row, "All", -(bw + 4f), bw, bh, canTake, slot, itemName, stack);
+            AddTakeButton(row, "1", -(BtnEdge + (BtnW + BtnGap) * 2f), bh, canTake, slot, itemName, 1);
         }
 
-        private static float BtnStripW { get { return Mathf.Round(38f * S) * 3f + 12f; } }
-
-        private static void AddTakeButton(GameObject row, string label, float x, float w, float h, bool enabled,
+        private static void AddTakeButton(GameObject row, string label, float x, float h, bool enabled,
                                           Vector2i slot, string itemName, int amount)
         {
             Button b = NewButton(row.transform, label, FontSmall, delegate
             {
                 KistClient.Take(slot, itemName, amount);
             });
-            Place(b.transform as RectTransform, new Vector2(1f, 0.5f), new Vector2(x, 0f), new Vector2(w, h));
+            Place(b.transform as RectTransform, new Vector2(1f, 0.5f), new Vector2(x, 0f), new Vector2(BtnW, h));
             b.interactable = enabled;
             if (!enabled) Tint(b, new Color(0.16f, 0.15f, 0.13f, 1f));
         }
@@ -441,13 +449,13 @@ namespace ThorsKist
                 AddSection("INVITATION");
                 AddNotice(_hirdContent, KistClient.PendingInviteFrom + " invites you to join \"" +
                                         KistClient.PendingInviteHird + "\".");
-                GameObject row = AddRow(RowH + 8f);
+                GameObject row = AddRow(RowH + 4f);
                 Button accept = NewButton(row.transform, "Accept", FontRow, KistClient.AcceptInvite);
                 Place(accept.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(14f, 0f),
-                      new Vector2(100f * S, RowH));
+                      new Vector2(78f * S, RowH));
                 Button decline = NewButton(row.transform, "Decline", FontRow, KistClient.DeclineInvite);
-                Place(decline.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(120f * S + 14f, 0f),
-                      new Vector2(100f * S, RowH));
+                Place(decline.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(84f * S + 14f, 0f),
+                      new Vector2(78f * S, RowH));
             }
 
             if (!KistClient.InHird)
@@ -457,16 +465,16 @@ namespace ThorsKist
                     "A Kist belongs to a hird, never to one person. Found one, then invite at least " +
                     (KistClient.MinHirdSize - 1) + " more — the Kist stays shut until then.");
 
-                GameObject row = AddRow(RowH + 10f);
+                GameObject row = AddRow(RowH + 4f);
                 _hirdName = NewInput(row.transform, "Name your hird...");
                 Place(_hirdName.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(14f, 0f),
-                      new Vector2(320f * S, RowH));
+                      new Vector2(260f * S, RowH));
                 Button create = NewButton(row.transform, "Found", FontRow, delegate
                 {
                     KistClient.CreateHird(_hirdName != null ? _hirdName.text : "");
                 });
-                Place(create.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(340f * S + 20f, 0f),
-                      new Vector2(100f * S, RowH));
+                Place(create.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(266f * S + 18f, 0f),
+                      new Vector2(78f * S, RowH));
                 return;
             }
 
@@ -488,7 +496,7 @@ namespace ThorsKist
                     long id = m.PlayerId;
                     Button kick = NewButton(row.transform, "Remove", FontSmall, delegate { KistClient.Kick(id); });
                     Place(kick.transform as RectTransform, new Vector2(1f, 0.5f), new Vector2(-14f, 0f),
-                          new Vector2(84f * S, RowH - 4f));
+                          new Vector2(68f * S, RowH - 2f));
                 }
             }
 
@@ -535,31 +543,31 @@ namespace ThorsKist
             AddNotice(_hirdContent, "The Kist sits at " + Mathf.RoundToInt(h.Anchor.x) + ", " +
                                     Mathf.RoundToInt(h.Anchor.z) + ". Everything reaches it from within the " +
                                     "configured radius.");
-            GameObject actions = AddRow(RowH + 10f);
+            GameObject actions = AddRow(RowH + 4f);
             float x = 14f;
             if (owner)
             {
-                Button move = NewButton(actions.transform, "Move the Kist here", FontSmall, KistClient.SetAnchorHere);
+                Button move = NewButton(actions.transform, "Anchor Kist to this location", FontSmall, KistClient.SetAnchorHere);
                 Place(move.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(x, 0f),
-                      new Vector2(160f * S, RowH));
-                x += 170f * S;
+                      new Vector2(190f * S, RowH));
+                x += 196f * S;
             }
             Button leave = NewButton(actions.transform, "Leave hird", FontSmall, KistClient.Leave);
             Place(leave.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(x, 0f),
-                  new Vector2(120f * S, RowH));
-            x += 130f * S;
+                  new Vector2(92f * S, RowH));
+            x += 98f * S;
             if (owner)
             {
                 Button disband = NewButton(actions.transform, "Disband", FontSmall, KistClient.Disband);
                 Place(disband.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(x, 0f),
-                      new Vector2(100f * S, RowH));
+                      new Vector2(80f * S, RowH));
                 Tint(disband, new Color(0.34f, 0.16f, 0.14f, 1f));
             }
         }
 
         private static GameObject AddSection(string label)
         {
-            GameObject row = AddRow(RowH + 6f, Color.clear);
+            GameObject row = AddRow(RowH + 3f, Color.clear);
             TMP_Text t = NewText(row.transform, label, FontSmall, Accent, TextAlignmentOptions.BottomLeft);
             Place(t.rectTransform, new Vector2(0f, 0.5f), new Vector2(8f, 0f),
                   new Vector2(500f * S, RowH), new Vector2(0f, 0.5f));
@@ -582,8 +590,8 @@ namespace ThorsKist
         {
             GameObject row = NewPanel("notice", parent, Color.clear);
             LayoutElement le = row.AddComponent<LayoutElement>();
-            le.minHeight = RowH * 1.8f;
-            le.preferredHeight = RowH * 1.8f;
+            le.minHeight = RowH * 1.6f;
+            le.preferredHeight = RowH * 1.6f;
             _rows.Add(row);
             TMP_Text t = NewText(row.transform, text, FontSmall, Dim, TextAlignmentOptions.TopLeft);
             Stretch(t.rectTransform, 10f, 10f, 2f, 2f);

@@ -15,7 +15,13 @@ namespace ThorsKist
 
         // Bumped whenever the payload layout changes incompatibly. The server
         // refuses clients that do not match rather than half-reading a message.
-        public const int Protocol = 1;
+        public const int Protocol = 2;
+
+        // The on-disk vault format, deliberately SEPARATE from the wire
+        // protocol. Adding a message is not a reason to refuse to load someone's
+        // stored belongings, and stamping the save file with Protocol would do
+        // exactly that the next time a new message is added.
+        public const int SaveFormat = 1;
 
         public enum C2S : byte
         {
@@ -42,6 +48,7 @@ namespace ThorsKist
             DepositRejected = 3,
             TakeResult = 4,
             Denied = 5,
+            AnchorSet = 6,
         }
     }
 
