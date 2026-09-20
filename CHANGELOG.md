@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.6.0
+
+**Vaults have moved out of `BepInEx/config`.** They now live in the server's
+save directory, beside the world files:
+
+```
+<savedir>/ThorsKist/kist_<worldUID>.dat
+```
+
+The old location was a data-loss bug waiting to happen. Server managers rebuild
+the mod tree on update — PhValheim runs `rm -rf BepInEx/config/*` on every mod
+sync — so every Kist would have been destroyed by the next world update, with
+no warning and nothing to recover from.
+
+The path comes from `Utils.GetSaveDataPath`, which resolves the `-savedir` the
+server was started with, so it follows the host's persistent volume wherever
+that is. A vault written by an earlier build is moved across on first load —
+moved, not copied, because two files claiming to be the same vault is how a
+rollback silently resurrects last week's inventory.
+
+Still outside the world save itself, so a world rollback does not roll the Kist
+back. Back up `<savedir>/ThorsKist/` with your worlds.
+
 ## 0.5.0
 
 - **The Kist is pinned on every member's map**, with a chest icon lifted from

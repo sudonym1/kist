@@ -43,17 +43,73 @@ namespace ThorsKist
         // Persistence
         // ------------------------------------------------------------------
 
+        private const string VaultFolder = "ThorsKist";
+
+        /// <summary>
+        /// Where vaults live: the -savedir root, beside the world files.
+        ///
+        /// Deliberately NOT BepInEx/config. Server managers rebuild the mod tree
+        /// on every update -- PhValheim runs `rm -rf BepInEx/config/*` on each
+        /// mod sync -- so a vault stored there is one world update away from
+        /// being gone. The save directory is the one place a host must preserve,
+        /// because the world itself is in it.
+        /// </summary>
         private static string SaveDir
         {
-            get { return Path.Combine(Paths.ConfigPath, "ThorsKist"); }
+            get
+            {
+                // Honours -savedir, which is how every managed host points the
+                // server at its persistent volume.
+                string root = Utils.GetSaveDataPath(FileHelpers.FileSource.Local);
+                if (string.IsNullOrEmpty(root)) root = Paths.ConfigPath;
+                return Path.Combine(root, VaultFolder);
+            }
         }
 
-        private static string SavePath
+        /// <summary>Where vaults lived before 0.6.0.</summary>
+        private static string LegacySaveDir
+        {
+            get { return Path.Combine(Paths.ConfigPath, VaultFolder); }
+        }
+
+        private static string VaultFileName
         {
             get
             {
                 long uid = ZNet.instance != null ? ZNet.instance.GetWorldUID() : 0L;
-                return Path.Combine(SaveDir, "kist_" + uid + ".dat");
+                return "kist_" + uid + ".dat";
+            }
+        }
+
+        private static string SavePath
+        {
+            get { return Path.Combine(SaveDir, VaultFileName); }
+        }
+
+        /// <summary>
+        /// Brings a vault written by an older build across to the save directory.
+        /// Moves rather than copies: two files claiming to be the same vault is
+        /// how a rollback silently resurrects last week's inventory.
+        /// </summary>
+        private static void MigrateLegacyVault()
+        {
+            try
+            {
+                string target = SavePath;
+                if (File.Exists(target)) return;
+
+                string legacy = Path.Combine(LegacySaveDir, VaultFileName);
+                if (!File.Exists(legacy)) return;
+
+                Directory.CreateDirectory(SaveDir);
+                File.Copy(legacy, target, false);
+                File.Delete(legacy);
+                Main.Log.LogWarning("ThorsKist: moved the vault out of BepInEx/config, which server " +
+                                    "managers wipe on update.\n  from: " + legacy + "\n  to:   " + target);
+            }
+            catch (Exception e)
+            {
+                Main.Log.LogError("ThorsKist: could not move the old vault file: " + e);
             }
         }
 
@@ -67,6 +123,8 @@ namespace ThorsKist
 
             try
             {
+                MigrateLegacyVault();
+
                 string path = SavePath;
                 if (!File.Exists(path))
                 {

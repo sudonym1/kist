@@ -93,9 +93,24 @@ Needs BepInEx. Drop `ThorsKist.dll` into `BepInEx/plugins/`.
 vault; a client with the mod talking to a server without it will simply be told
 there is no hird.
 
-Vaults are stored per world in `BepInEx/config/ThorsKist/kist_<worldUID>.dat`
-on the host, written atomically and never in the world save itself — a rollback
-of the world does not roll back the Kist.
+## Where the vaults live
+
+One file per world, in the server's **save directory** — the path it was started
+with via `-savedir`:
+
+```
+<savedir>/ThorsKist/kist_<worldUID>.dat
+```
+
+Not `BepInEx/config`. Server managers rebuild the mod tree on update — PhValheim
+runs `rm -rf BepInEx/config/*` on every mod sync — so a vault kept there would be
+one world update away from gone. The save directory is the one place a host has
+to preserve, because the world is in it. A vault written by an older build is
+moved across automatically on first load.
+
+It is still outside the world save itself, so rolling the world back to an older
+`.db` does not roll the Kist back with it — and Valheim's own backup rotation
+does not cover it. Back up `<savedir>/ThorsKist/` alongside your worlds.
 
 ## Building
 
