@@ -1,5 +1,6 @@
 stages:
   - test
+  - publish
 
 variables:
   DOTNET_NOLOGO: "true"
@@ -54,3 +55,25 @@ test:build:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH'
+
+# Publishing used to be a human running curl by hand, which is exactly how the
+# 0.8.0 payload ended up sitting in the registry with a stale README for two
+# commits while every pipeline stayed green. This job publishes the artefacts
+# test:build already validated, so what ships is what CI checked.
+#
+# No stored secret: CI_JOB_TOKEN authenticates both the package registry and
+# the Releases API. Manual, because pushing to main should not republish on its
+# own -- but one click, from a pipeline that has already passed.
+publish:release:
+  stage: publish
+  image: alpine:3.20
+  needs:
+    - job: test:build
+      artifacts: true
+  script:
+    - apk add --no-cache curl python3 bash
+    - sh scripts/publish_release.sh
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+      allow_failure: false
