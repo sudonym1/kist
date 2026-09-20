@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.7.1
+
+**Keys and clicks no longer reach the game while the Kist window is open.**
+
+Gating `Player.TakeInput()` was never enough, which is what I got wrong when I
+first claimed this was handled. `Player.Update` does respect it, so movement and
+attacks were blocked -- but `InventoryGui.Update` and `Minimap.Update` read
+`ZInput` directly and never consult it. Tab still opened the inventory and M
+still opened the map underneath the window, and the scroll wheel scrolled the
+item list *and* cycled the hotbar.
+
+Every game system reads input through `ZInput`'s static getters, so those now
+report nothing pressed and nothing moved while the window is up: buttons, mouse
+buttons, keys, mouse delta, the scroll wheel, radial taps, and the gamepad
+sticks and triggers.
+
+The window itself is unaffected -- it reads `UnityEngine.Input`, and its clicks
+arrive through Unity's `InputSystemUIInputModule`. Neither goes near `ZInput`,
+which was checked rather than assumed. There are still three independent ways
+out: F3, Esc, and the X button.
+
+The block is keyed on the panel actually existing and being active, not just on
+a flag, so a stale flag cannot leave the game permanently deaf with nothing on
+screen to explain it.
+
 ## 0.7.0
 
 - **The founder can rename the hird**, from a new HIRD NAME box on the Hird tab.

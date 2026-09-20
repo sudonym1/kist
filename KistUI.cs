@@ -20,6 +20,18 @@ namespace ThorsKist
     {
         public static bool IsOpen;
 
+        /// <summary>
+        /// True while this window should be the only thing receiving input.
+        ///
+        /// Checks the actual GameObject, not just the flag: if IsOpen ever went
+        /// stale while the panel was destroyed or hidden, the game would be left
+        /// permanently deaf with nothing on screen to explain why.
+        /// </summary>
+        public static bool BlocksGameInput
+        {
+            get { return IsOpen && _root != null && _root.activeInHierarchy; }
+        }
+
         /// <summary>True while the anchor button is actually on screen, so the
         /// client only pesters the server about it when someone can see it.</summary>
         public static bool WantsAnchorStatus
