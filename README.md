@@ -164,6 +164,20 @@ back with it, and Valheim's backups don't cover it. **Back up
 
 ## Building
 
+The Valheim and Unity reference assemblies are **not in this repository** —
+they belong to Iron Gate and Unity, and you already own a copy. This collects
+them from your own install:
+
+```bash
+dotnet tool install -g Krafs.AssemblyPublicizer.Tool
+./scripts/setup-refs.sh /path/to/steamapps/common/Valheim
+```
+
+(It finds the usual Steam locations on its own if you don't pass a path, and
+needs BepInEx installed into the game for `BepInEx.dll` and `0Harmony.dll`.)
+
+Then:
+
 ```bash
 dotnet build ThorsKist.csproj -c Release
 dotnet run --project tools/VerifyPatches -c Release -- bin/Release/net472/ThorsKist.dll lib .refs/assembly_valheim.dll
@@ -177,6 +191,20 @@ a *publicized* copy where everything is, so calling something private compiles
 fine and throws on the first frame. **CategoryCheck** runs the real
 sort-by-type rules against known traps, because keyword matching fails
 silently: `leatherscraps` contains "scrap", `barleyflour` contains "bar".
+
+---
+
+## Licence and credits
+
+Source code is **MIT** — see [LICENSE](LICENSE). Do what you like with it.
+
+Built on [BepInEx](https://github.com/BepInEx/BepInEx) (LGPL-2.1) and
+[HarmonyX](https://github.com/BepInEx/HarmonyX) (MIT). Neither is redistributed
+here. The deposit sound and effects were learned from reading
+**SmarterContainers**.
+
+An unofficial mod, not affiliated with or endorsed by Iron Gate Studio.
+Valheim and its assets are theirs.
 
 ---
 

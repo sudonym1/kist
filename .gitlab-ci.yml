@@ -4,6 +4,10 @@ stages:
 
 variables:
   DOTNET_NOLOGO: "true"
+  # Private project holding the Valheim/Unity reference assemblies. Its job
+  # token allowlist names this project, which is what lets CI read it without
+  # any secret being stored here.
+  REFS_PROJECT_ID: "88"
   # Version lives in version.txt; scripts/version.py keeps manifest.json and
   # Main.cs in step with it.
 
@@ -12,7 +16,15 @@ test:build:
   image: mcr.microsoft.com/dotnet/sdk:8.0
   script:
     - apt-get update -y
-    - apt-get install -y --no-install-recommends python3
+    - apt-get install -y --no-install-recommends python3 curl
+    # The Valheim and Unity reference assemblies are NOT in this repository --
+    # they belong to Iron Gate and Unity and are not ours to redistribute. A
+    # human gets them from their own game install (scripts/setup-refs.sh); CI
+    # pulls the same set from a PRIVATE companion project, reached with
+    # CI_JOB_TOKEN via that project's job-token allowlist. No stored secret.
+    - curl -sSf --header "JOB-TOKEN:$CI_JOB_TOKEN" -o refs.tar.gz
+      "$CI_API_V4_URL/projects/$REFS_PROJECT_ID/packages/generic/refs/1/thorskist-refs.tar.gz"
+    - tar xzf refs.tar.gz && rm refs.tar.gz
     - dotnet --version
     - python3 scripts/version.py check
     - dotnet restore ThorsKist.csproj

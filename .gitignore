@@ -353,3 +353,8 @@ Libs
 
 # Thunderstore packaging output
 dist/
+
+# Reference assemblies from Valheim/Unity and BepInEx. NOT ours to redistribute.
+# Run scripts/setup-refs.sh to collect them from your own game install.
+lib/
+.refs/
