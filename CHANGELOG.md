@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.8.0
+
+**The Kist list can be sorted four ways**, from a new row of buttons under the
+tabs. Clicking the mode already in use reverses it, and the arrow on the button
+says which way round the list is. The choice is remembered between sessions.
+
+- **A-Z** — as before.
+- **Amount** — biggest hoards first, ranked by the item's TOTAL across the
+  vault rather than by stack, so 300 wood does not scatter down the list in 50s.
+- **Progress** — Meadows through to Deep North.
+- **Type** — wood with wood, ore with ore, hides with hides.
+
+Progress and Type both print what they sorted on at the end of each row. That
+is there to be checked: a biome or a category that reads wrong is a line worth
+reporting, and without it a wrong order just looks arbitrary.
+
+**Where the progression order comes from.** It is read out of the game's own
+data, not a list typed from memory: which biome the game plants each berry,
+deposit and pickable in; which biome the creatures that drop a thing live in;
+and what every recipe is made of, settled to a fixed point so ore → bar → sword
+lands in the right place whatever order the recipes are in. That means a mod's
+items are placed correctly too, without this mod knowing anything about them.
+Only the materials none of those cover — dungeon loot, mostly — are named by
+hand, and every one of those prefab names was checked against the 43,346 the
+game actually ships. Deep North's materials are deliberately not named by hand;
+they are left to the derived passes rather than guessed at.
+
+Anything the table has no answer for sorts last and is labelled unknown, rather
+than being quietly given a number. Each of the four passes is separately
+guarded, so a game update that renames something costs that pass and nothing
+else, and the plugin log says how many items each one accounted for.
+
+**Type is a guess, and is tested like one.** Valheim files every raw material
+under one ItemType, so wood, ore and hides can only be told apart by name —
+and keyword matching fails silently: `leatherscraps` contains "scrap",
+`barleyflour` contains "bar", `eyescream` contains "eye". All three were wrong
+in the first draft. The rules now live in a file with no Unity dependency so
+CI can compile and run the real ones against those traps, and the same check
+re-reads ItemType's numbering out of the game assembly, because the classifier
+hard-codes those numbers and a renumbering would not fail to compile.
+
 ## 0.7.1
 
 **Keys and clicks no longer reach the game while the Kist window is open.**

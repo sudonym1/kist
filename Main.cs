@@ -15,7 +15,7 @@ namespace ThorsKist
         public const string MODNAME = "Thor's Kist";
         public const string AUTHOR = "posixone";
         public const string GUID = "posixone_ThorsKist";
-        public const string VERSION = "0.7.1";
+        public const string VERSION = "0.8.0";
 
         public static Main Instance;
         public static ManualLogSource Log;
@@ -65,6 +65,7 @@ namespace ThorsKist
         public static ConfigEntry<string> MapPinPrefab;
         public static ConfigEntry<float> UiScale;
         public static ConfigEntry<int> ScrollRowsPerNotch;
+        public static ConfigEntry<SortMode> KistSortMode;
 
         // ---- Server --------------------------------------------------------
         public static ConfigEntry<int> MinHirdSize;
@@ -158,6 +159,10 @@ namespace ThorsKist
             ScrollRowsPerNotch = Config.Bind("Interface", "scrollRowsPerNotch", 5,
                 new ConfigDescription("How many rows one notch of the mouse wheel moves the item list.",
                     new AcceptableValueRange<int>(1, 25)));
+            KistSortMode = Config.Bind("Interface", "sortMode", SortMode.Name,
+                "How the Kist list is ordered. Set from the buttons in the window; stored here so it " +
+                "survives between sessions. Name is A-Z, Quantity puts the biggest hoards first, " +
+                "Progression runs Meadows to Deep North, and Category groups wood with wood and ore with ore.");
 
             AnchorCostPrefab = Config.Bind("Server", "anchorCostPrefab", "SurtlingCore",
                 "Item the founder must carry and spend to re-anchor the Kist. A prefab name, not a display name. " +

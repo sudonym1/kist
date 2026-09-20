@@ -27,6 +27,12 @@ test:build:
     # argument the check silently skips, which is worse than not having it.
     - test -f .refs/assembly_valheim.dll
     - dotnet run --project tools/VerifyPatches/VerifyPatches.csproj -c Release -- bin/Release/net472/ThorsKist.dll lib .refs/assembly_valheim.dll
+    # The sort-by-type rules are keyword matching over item names, which fails
+    # by quietly filing things in the wrong bucket -- never by throwing. This
+    # compiles the mod's REAL rules (KistCategories.cs, no Unity dependency) and
+    # runs them against known traps, and re-reads ItemType's numbering out of
+    # the game assembly because the classifier hard-codes those numbers.
+    - dotnet run --project tools/CategoryCheck/CategoryCheck.csproj -c Release -- .refs
     # Assemble and validate the store payload on every commit, not on release
     # day, so packaging rules (exact 256x256 icon, manifest limits) fail early.
     - VERSION="$(cat version.txt)"

@@ -64,6 +64,12 @@ namespace ThorsKist
         private static string _renameSeededFrom;
         private static Button _tabKist;
         private static Button _tabHird;
+        private static GameObject _sortBar;
+        private static readonly List<Button> _sortButtons = new List<Button>();
+        private static readonly SortMode[] SortOrder =
+        {
+            SortMode.Name, SortMode.Quantity, SortMode.Progression, SortMode.Category
+        };
         private static TMP_FontAsset _font;
         private static Tab _tab = Tab.Kist;
         private static bool _dirty = true;
@@ -222,6 +228,19 @@ namespace ThorsKist
 
         public static void MarkDirty() { _dirty = true; }
 
+        /// <summary>
+        /// Clicking the sort mode that is already active reverses it, which is
+        /// what every list in every other program does.
+        /// </summary>
+        private static void SetSort(SortMode mode)
+        {
+            if (Main.KistSortMode.Value == mode) _sortReversed = !_sortReversed;
+            else { Main.KistSortMode.Value = mode; _sortReversed = false; }
+            _dirty = true;
+        }
+
+        private static bool _sortReversed;
+
         // ------------------------------------------------------------------
         // Construction
         // ------------------------------------------------------------------
@@ -293,7 +312,36 @@ namespace ThorsKist
                   new Vector2(searchW, barH), new Vector2(1f, 1f));
             _search.onValueChanged.AddListener(delegate { _dirty = true; });
 
-            float pageTop = pad + headH + 4f + barH + 6f;
+            // Sort bar ---------------------------------------------------------
+            // Its own row rather than squeezed in beside the tabs: four buttons
+            // plus the search box does not fit the bar above at any sane width,
+            // and a button that lands underneath another one is a button nobody
+            // can press.
+            float sortY = barY - (barH + 4f);
+            _sortBar = NewPanel("sortbar", _root.transform, Color.clear);
+            Place(_sortBar.transform as RectTransform, new Vector2(0f, 1f), new Vector2(pad, sortY),
+                  new Vector2(w - pad * 2f, barH), new Vector2(0f, 1f));
+
+            TMP_Text sortLabel = NewText(_sortBar.transform, "SORT", FontSmall, Dim,
+                                         TextAlignmentOptions.Left);
+            Place(sortLabel.rectTransform, new Vector2(0f, 0.5f), new Vector2(2f, 0f),
+                  new Vector2(44f * S, barH), new Vector2(0f, 0.5f));
+
+            _sortButtons.Clear();
+            float sortBtnW = Mathf.Round(84f * S);
+            float sortX = 44f * S + 6f;
+            foreach (SortMode mode in SortOrder)
+            {
+                SortMode captured = mode;
+                Button b = NewButton(_sortBar.transform, KistSort.ModeLabel(mode), FontSmall,
+                                     delegate { SetSort(captured); });
+                Place(b.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(sortX, 0f),
+                      new Vector2(sortBtnW, barH - 4f), new Vector2(0f, 0.5f));
+                _sortButtons.Add(b);
+                sortX += sortBtnW + 3f;
+            }
+
+            float pageTop = pad + headH + 4f + barH + 4f + barH + 6f;
 
             // Pages ------------------------------------------------------------
             _kistPage = NewPanel("page_kist", _root.transform, Color.clear);
@@ -333,8 +381,22 @@ namespace ThorsKist
             _kistPage.SetActive(kistTab);
             _hirdPage.SetActive(!kistTab);
             _search.gameObject.SetActive(kistTab);
+            if (_sortBar != null) _sortBar.SetActive(kistTab);
             Tint(_tabKist, kistTab ? BtnBgHot : BtnBg);
             Tint(_tabHird, kistTab ? BtnBg : BtnBgHot);
+
+            for (int i = 0; i < _sortButtons.Count && i < SortOrder.Length; i++)
+            {
+                bool active = SortOrder[i] == Main.KistSortMode.Value;
+                Tint(_sortButtons[i], active ? BtnBgHot : BtnBg);
+                TMP_Text label = _sortButtons[i].GetComponentInChildren<TMP_Text>();
+                if (label == null) continue;
+                // The arrow is the only thing that says which way round the list
+                // is, and reversing is a click on an already-active button --
+                // without it that click looks like it did nothing.
+                label.text = KistSort.ModeLabel(SortOrder[i]) + (active ? (_sortReversed ? " ^" : " v") : "");
+                label.color = active ? Accent : Parchment;
+            }
 
             _title.text = KistClient.InHird
                 ? "THOR'S KIST  —  " + KistClient.Hird.Name.ToUpperInvariant()
@@ -388,17 +450,17 @@ namespace ThorsKist
             }
 
             string filter = _search != null ? (_search.text ?? "").Trim().ToLowerInvariant() : "";
-            List<ItemDrop.ItemData> items = KistClient.Kist.GetAllItemsSortedByName();
+            SortMode mode = Main.KistSortMode.Value;
+            List<ItemDrop.ItemData> items = KistSort.Arrange(KistClient.Kist.GetAllItems(), mode);
+            if (_sortReversed) items.Reverse();
             bool canTake = KistClient.CanTake;
             int shown = 0;
 
             foreach (ItemDrop.ItemData item in items)
             {
-                string label = Localization.instance != null
-                    ? Localization.instance.Localize(item.m_shared.m_name)
-                    : item.m_shared.m_name;
+                string label = KistSort.DisplayName(item);
                 if (filter.Length > 0 && label.ToLowerInvariant().IndexOf(filter) < 0) continue;
-                AddItemRow(item, label, shown, canTake);
+                AddItemRow(item, label, KistSort.RowTag(item, mode), shown, canTake);
                 shown++;
             }
 
@@ -412,7 +474,7 @@ namespace ThorsKist
             if (shown == 0) AddNotice(_content, "Nothing here matches \"" + filter + "\".");
         }
 
-        private static void AddItemRow(ItemDrop.ItemData item, string label, int index, bool canTake)
+        private static void AddItemRow(ItemDrop.ItemData item, string label, string tag, int index, bool canTake)
         {
             GameObject row = NewPanel("row", _content, index % 2 == 0 ? RowBg : RowAlt);
             LayoutElement le = row.AddComponent<LayoutElement>();
@@ -440,6 +502,16 @@ namespace ThorsKist
             TMP_Text count = NewText(row.transform, "x" + item.m_stack, FontRow, Accent, TextAlignmentOptions.Right);
             Place(count.rectTransform, new Vector2(1f, 0.5f), new Vector2(-(BtnStripW + 8f), 0f),
                   new Vector2(90f * S, RowH));
+
+            // Whatever the current sort is keyed on, spelled out. It is there to
+            // be checked: a biome or a category that reads wrong is a table entry
+            // worth reporting, and without it a wrong order just looks arbitrary.
+            if (!string.IsNullOrEmpty(tag))
+            {
+                TMP_Text tagText = NewText(row.transform, tag, FontSmall, Dim, TextAlignmentOptions.Right);
+                Place(tagText.rectTransform, new Vector2(1f, 0.5f),
+                      new Vector2(-(BtnStripW + 8f + 90f * S + 10f), 0f), new Vector2(130f * S, RowH));
+            }
 
             Vector2i slot = item.m_gridPos;
             string itemName = item.m_shared.m_name;

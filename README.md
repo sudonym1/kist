@@ -16,6 +16,7 @@ members before its Kist opens at all.
 |---|---|
 | **Deposit** | Hold `Left Alt` and **left-click** an item in your inventory. It leaves with the game's own loot-spawn sound and a burst of light. |
 | **Open** | `F3`. Two tabs: **Kist** (the contents) and **Hird** (who is in it). The search box takes focus immediately — just start typing. |
+| **Sort** | Four buttons: **A-Z**, **Amount** (biggest hoards first), **Progress** (Meadows to Deep North) and **Type** (wood with wood, ore with ore). Click the active one again to reverse it. Progress and Type print what they sorted on at the end of each row, so a wrong answer is one you can see and report. |
 | **Take** | Buttons on every row: `1`, `10`, `All`, with the usual pickup sound. Items with no room in your pack drop at your feet rather than vanishing. |
 | **Craft** | Every crafting station, the build hammer and repairs can spend materials straight out of the Kist. |
 | **Find** | The Kist is pinned on every member's map with a chest icon. The pin cannot be deleted by hand — it moves when the Kist moves and vanishes when you leave the hird. |
@@ -75,6 +76,7 @@ move at any time. Every radius below is measured from there.
 | Interface | `mapPinPrefab` | `piece_chest_wood` | Build piece whose icon the pin borrows. |
 | Interface | `uiScale` | `1.0` | Scales the window's text and rows. Below 1 fits more on screen. |
 | Interface | `scrollRowsPerNotch` | `5` | Rows moved per notch of the mouse wheel. |
+| Interface | `sortMode` | `Name` | How the list is ordered. Set from the buttons; stored so it survives between sessions. |
 | Server | `minHirdSize` | `2` | Members needed before a Kist unlocks. **Server-side.** |
 | Server | `anchorCostPrefab` | `SurtlingCore` | Item spent to re-anchor. A prefab name. Empty means free. **Server-side.** |
 | Server | `anchorCostAmount` | `25` | How many of it. **Server-side.** |

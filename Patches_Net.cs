@@ -24,6 +24,11 @@ namespace ThorsKist
         {
             KistServer.Reset();
             KistClient.Reset();
+            // The progression table is read out of ZoneSystem and ObjectDB, so
+            // it is only as good as the world that was loaded when it was built.
+            // Dropping it here costs one rebuild and removes any chance of a
+            // table assembled from a half-loaded world outliving that world.
+            KistSort.Reset();
         }
 
         [HarmonyPatch(typeof(ZNet), nameof(ZNet.Disconnect))]
