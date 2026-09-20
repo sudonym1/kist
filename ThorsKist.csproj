@@ -17,6 +17,14 @@
     <NoWarn>$(NoWarn);CS0649;CS0169</NoWarn>
   </PropertyGroup>
 
+  <!-- The SDK's default glob is **/*.cs, which would drag the net8 build-time
+       verifier under tools/ into this net472 plugin and fail the compile. The
+       verifier is a separate project with its own target framework. -->
+  <ItemGroup>
+    <Compile Remove="tools/**/*.cs" />
+    <None Remove="tools/**" />
+  </ItemGroup>
+
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <Optimize>false</Optimize>
