@@ -15,7 +15,7 @@ namespace ThorsKist
 
         // Bumped whenever the payload layout changes incompatibly. The server
         // refuses clients that do not match rather than half-reading a message.
-        public const int Protocol = 3;
+        public const int Protocol = 4;
 
         // The on-disk vault format, deliberately SEPARATE from the wire
         // protocol. Adding a message is not a reason to refuse to load someone's
@@ -40,6 +40,7 @@ namespace ThorsKist
             Disband = 12,
             Ping = 13,
             AnchorQuery = 14,
+            Rename = 15,
         }
 
         public enum S2C : byte

@@ -45,6 +45,11 @@ namespace ThorsKist
         // destroyed and recreated on every redraw. Keeping the draft here means
         // a redraw mid-sentence does not wipe what was typed.
         private static string _hirdNameDraft = "";
+        private static TMP_InputField _renameField;
+        private static string _renameDraft = "";
+        // Which hird name the rename box was last filled from, so a rename by
+        // somebody else refreshes the box but a half-typed one is left alone.
+        private static string _renameSeededFrom;
         private static Button _tabKist;
         private static Button _tabHird;
         private static TMP_FontAsset _font;
@@ -161,6 +166,7 @@ namespace ThorsKist
             if (Console.IsVisible()) return true;
             if (_search != null && _search.isFocused) return true;
             if (_hirdName != null && _hirdName.isFocused) return true;
+            if (_renameField != null && _renameField.isFocused) return true;
             return false;
         }
 
@@ -553,6 +559,8 @@ namespace ThorsKist
                 }
             }
 
+            if (owner) AddRenameRow(h);
+
             AddSection("THE KIST");
             AddNotice(_hirdContent, "The Kist sits at " + Mathf.RoundToInt(h.Anchor.x) + ", " +
                                     Mathf.RoundToInt(h.Anchor.z) + ". Everything reaches it from within the " +
@@ -586,6 +594,40 @@ namespace ThorsKist
                       new Vector2(80f * S, RowH));
                 Tint(disband, new Color(0.34f, 0.16f, 0.14f, 1f));
             }
+        }
+
+        /// <summary>
+        /// Lets the founder rename the hird. The name is only ever a label --
+        /// the hird's id is a GUID and membership, the vault and the map pin all
+        /// key off that -- so renaming cannot strand anything.
+        /// </summary>
+        private static void AddRenameRow(Hird h)
+        {
+            AddSection("HIRD NAME");
+
+            if (_renameSeededFrom != h.Name)
+            {
+                _renameDraft = h.Name;
+                _renameSeededFrom = h.Name;
+            }
+
+            GameObject row = AddRow(RowH + 4f);
+            _renameField = NewInput(row.transform, "Name this hird...");
+            Place(_renameField.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(14f, 0f),
+                  new Vector2(260f * S, RowH));
+            _renameField.text = _renameDraft;
+            _renameField.onValueChanged.AddListener(delegate(string v) { _renameDraft = v; });
+
+            Button rename = NewButton(row.transform, "Rename", FontSmall, delegate
+            {
+                KistClient.RenameHird(_renameDraft);
+            });
+            Place(rename.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(266f * S + 18f, 0f),
+                  new Vector2(78f * S, RowH));
+            // Deliberately always clickable. Greying it out would mean redrawing
+            // the row list on every keystroke, which destroys the very field
+            // being typed into -- and the server already refuses an empty name
+            // and ignores a rename to the name it already has.
         }
 
         /// <summary>

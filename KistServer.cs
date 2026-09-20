@@ -315,6 +315,9 @@ namespace ThorsKist
                     case Wire.C2S.Leave:
                         Leave(playerId);
                         break;
+                    case Wire.C2S.Rename:
+                        Rename(senderPeer, playerId, pkg.ReadString());
+                        break;
                     case Wire.C2S.Disband:
                         Disband(senderPeer, playerId);
                         break;
@@ -452,6 +455,29 @@ namespace ThorsKist
             MarkDirty();
             SendStateToHird(v);
             SendState(playerId);
+        }
+
+        /// <summary>
+        /// Renames the hird. Only the name changes -- the hird's id is a GUID
+        /// and everything else keys off that, so a rename cannot orphan a vault
+        /// or a membership.
+        /// </summary>
+        private static void Rename(long peer, long playerId, string name)
+        {
+            Vault v = VaultOf(playerId);
+            if (v == null) { Deny(peer, "You are not in a hird."); return; }
+            if (v.Hird.OwnerId != playerId) { Deny(peer, "Only the hird's founder may rename it."); return; }
+
+            name = (name ?? "").Trim();
+            if (name.Length == 0) { Deny(peer, "A hird needs a name."); return; }
+            if (name.Length > 40) name = name.Substring(0, 40);
+            if (name == v.Hird.Name) return;
+
+            string was = v.Hird.Name;
+            v.Hird.Name = name;
+            MarkDirty();
+            ToastHird(v, "\"" + was + "\" is now \"" + name + "\".");
+            SendStateToHird(v);
         }
 
         private static void Disband(long peer, long playerId)

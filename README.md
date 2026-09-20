@@ -22,7 +22,9 @@ members before its Kist opens at all.
 
 ## Hirds
 
-The founder of a hird manages it: invite, remove, move the Kist, disband. Anyone
+The founder of a hird manages it: rename it, invite, remove, move the Kist,
+disband. Renaming is free and safe at any time — the name is only a label, and
+membership, the vault and the map pin all key off the hird's id. Anyone
 online who is not already in a hird shows up in the invite list — no typing
 names, no player IDs.
 

@@ -157,6 +157,13 @@ namespace ThorsKist
         public static void SetAnchorHere() { Send(NewMessage(Wire.C2S.SetAnchor)); }
         public static void QueryAnchor() { Send(NewMessage(Wire.C2S.AnchorQuery)); }
 
+        public static void RenameHird(string name)
+        {
+            ZPackage pkg = NewMessage(Wire.C2S.Rename);
+            pkg.Write(name ?? "");
+            Send(pkg);
+        }
+
         /// <summary>
         /// How many of the re-anchor's cost item the player is carrying. The
         /// cost is a SERVER setting, so the name arrives over the wire and is

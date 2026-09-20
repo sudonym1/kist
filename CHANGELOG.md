@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0
+
+- **The founder can rename the hird**, from a new HIRD NAME box on the Hird tab.
+  Renaming is safe at any time: the name is only a label, and membership, the
+  vault file and the map pin all key off the hird's id, which is a GUID and
+  never changes. The map pin's label follows the rename on its next sync, and
+  everyone in the hird is told what it was called before.
+
+Requires matching versions on client and server — the wire protocol gained a
+message, so a 0.7.0 client talking to an older server is told plainly rather
+than being quietly ignored.
+
 ## 0.6.0
 
 **Vaults have moved out of `BepInEx/config`.** They now live in the server's
