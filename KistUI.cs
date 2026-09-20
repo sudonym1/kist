@@ -41,6 +41,10 @@ namespace ThorsKist
         private static TMP_Text _countLabel;
         private static TMP_InputField _search;
         private static TMP_InputField _hirdName;
+        // The hird-name field lives inside the rebuilt row list, so it is
+        // destroyed and recreated on every redraw. Keeping the draft here means
+        // a redraw mid-sentence does not wipe what was typed.
+        private static string _hirdNameDraft = "";
         private static Button _tabKist;
         private static Button _tabHird;
         private static TMP_FontAsset _font;
@@ -476,9 +480,12 @@ namespace ThorsKist
                 _hirdName = NewInput(row.transform, "Name your hird...");
                 Place(_hirdName.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(14f, 0f),
                       new Vector2(260f * S, RowH));
+                _hirdName.text = _hirdNameDraft;
+                _hirdName.onValueChanged.AddListener(delegate(string v) { _hirdNameDraft = v; });
                 Button create = NewButton(row.transform, "Found", FontRow, delegate
                 {
-                    KistClient.CreateHird(_hirdName != null ? _hirdName.text : "");
+                    KistClient.CreateHird(_hirdNameDraft);
+                    _hirdNameDraft = "";
                 });
                 Place(create.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(266f * S + 18f, 0f),
                       new Vector2(78f * S, RowH));
@@ -726,6 +733,14 @@ namespace ThorsKist
             GameObject go = NewPanel("input", parent, new Color(0.05f, 0.05f, 0.045f, 1f));
             AddOutline(go, new Color(0.4f, 0.36f, 0.28f, 1f));
 
+            // Built inactive on purpose. AddComponent runs Awake and OnEnable
+            // immediately, and TMP_InputField binds its label there -- so a
+            // field whose textComponent is assigned afterwards keeps its value
+            // but never draws it. That is exactly the "typing works, box looks
+            // empty" symptom. Deferring activation until every reference is set
+            // means the component initialises with a label to bind to.
+            go.SetActive(false);
+
             GameObject area = new GameObject("area", typeof(RectTransform), typeof(RectMask2D));
             area.transform.SetParent(go.transform, false);
             Stretch(area.transform as RectTransform, 8f, 8f, 2f, 2f);
@@ -733,17 +748,34 @@ namespace ThorsKist
             TMP_Text text = NewText(area.transform, "", FontRow, Parchment, TextAlignmentOptions.Left);
             Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
             text.raycastTarget = true;
+            // An input field owns its own clipping and must not ellipsize, and
+            // rich text would let a typed '<' swallow the rest of the line.
+            text.overflowMode = TextOverflowModes.Overflow;
+            text.richText = false;
 
             TMP_Text hint = NewText(area.transform, placeholder, FontRow, new Color(0.45f, 0.42f, 0.36f, 1f),
                                     TextAlignmentOptions.Left);
             Stretch(hint.rectTransform, 0f, 0f, 0f, 0f);
+            hint.overflowMode = TextOverflowModes.Overflow;
+            hint.richText = false;
 
             TMP_InputField field = go.AddComponent<TMP_InputField>();
             field.textViewport = area.transform as RectTransform;
             field.textComponent = text;
             field.placeholder = hint;
+            field.fontAsset = text.font;
+            field.pointSize = FontRow;
             field.lineType = TMP_InputField.LineType.SingleLine;
             field.characterLimit = 40;
+            field.richText = false;
+            // Without a visible caret there is no way to tell the box has focus.
+            field.customCaretColor = true;
+            field.caretColor = Parchment;
+            field.caretWidth = 2;
+            field.selectionColor = new Color(0.79f, 0.63f, 0.31f, 0.45f);
+
+            go.SetActive(true);
+            field.ForceLabelUpdate();
             return field;
         }
 

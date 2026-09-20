@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.1
+
+- **Text typed into the hird-name box is visible again.** `AddComponent` runs
+  `Awake` and `OnEnable` immediately, and `TMP_InputField` binds its label
+  there — so assigning `textComponent` afterwards left a field that stored the
+  value but never drew it. That is why the name worked while the box looked
+  empty. Input fields are now built inactive and switched on once every
+  reference is set. The search box had the same defect.
+- Input fields get a visible caret and a selection highlight, so it is obvious
+  when one has focus.
+- The hird name survives a redraw. That field is inside the rebuilt row list,
+  so anything typed was one refresh away from being wiped.
+- Input text no longer parses rich text — a typed `<` would have eaten the rest
+  of the line.
+
 ## 0.4.0
 
 - **Rows are finally small.** `RowH` never did anything: the list's
