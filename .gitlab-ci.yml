@@ -1,0 +1,40 @@
+stages:
+  - test
+
+variables:
+  DOTNET_NOLOGO: "true"
+  # Version lives in version.txt; scripts/version.py keeps manifest.json and
+  # Main.cs in step with it.
+
+test:build:
+  stage: test
+  image: mcr.microsoft.com/dotnet/sdk:8.0
+  script:
+    - apt-get update -y
+    - apt-get install -y --no-install-recommends python3
+    - dotnet --version
+    - python3 scripts/version.py check
+    - dotnet restore ThorsKist.csproj
+    - dotnet build ThorsKist.csproj -c Release --no-restore
+    # A green build proves nothing about whether the Harmony patches will bind:
+    # a renamed game method or an ambiguous overload compiles fine and then does
+    # nothing at runtime, logging one line nobody reads. Resolve every target
+    # against the vendored game assembly instead.
+    - dotnet run --project tools/VerifyPatches/VerifyPatches.csproj -c Release -- bin/Release/net472/ThorsKist.dll lib
+    # Assemble and validate the store payload on every commit, not on release
+    # day, so packaging rules (exact 256x256 icon, manifest limits) fail early.
+    - VERSION="$(cat version.txt)"
+    - rm -rf dist && mkdir -p "dist/ThorsKist-$VERSION/plugins"
+    - cp manifest.json README.md CHANGELOG.md icon.png "dist/ThorsKist-$VERSION/"
+    - cp "bin/Release/net472/ThorsKist.dll" "dist/ThorsKist-$VERSION/plugins/"
+    - python3 scripts/package_release.py "dist/ThorsKist-$VERSION" "$VERSION"
+    - python3 scripts/verify_hexium.py "dist/ThorsKist-$VERSION.zip" "$VERSION"
+  artifacts:
+    when: always
+    paths:
+      - bin/Release/net472/ThorsKist.dll
+      - dist/*.zip
+    expire_in: 4 weeks
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
