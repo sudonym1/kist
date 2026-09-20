@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.8.2
+
+**Thor's Kist now tells you when another mod has taken its crafting hooks.**
+
+The Kist pays for a recipe by widening two of the game's own answers — "how
+many have I got?" and "take this many" — while the game is asking them about a
+craft. Another mod that *replaces* the game's payment step instead of adding to
+it removes the Kist from the transaction: the game still counts the Kist's
+stock toward the recipe, but the deduction never runs. The result is materials
+that look affordable and are never actually spent, with nothing in the log to
+say so.
+
+That is now detected and reported in a dialog naming the other mod, the method
+it took over, and what to do about it — remove the mod, or set
+`craftFromKist = false` so the Kist stops offering materials it cannot charge
+you for.
+
+The check names no mod and depends on no mod. It asks Harmony which patches sit
+on the seams the Kist relies on, and reports only the ones that can displace
+the original — prefixes that can skip it, and transpilers that rewrite it. A
+mod that merely adds to those methods is harmless and stays quiet. The seams
+themselves are read back from the Kist's own patches rather than kept as a
+list, so a seam added later is watched from the day it is added.
+
+Known conflict: **AzuCraftyBoxes** replaces `Player.ConsumeResources`. With both
+installed, crafting and building from the Kist is free.
+
 ## 0.8.1
 
 Documentation only — the mod itself is unchanged from 0.8.0.

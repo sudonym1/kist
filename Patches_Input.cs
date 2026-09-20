@@ -31,7 +31,7 @@ namespace ThorsKist
         [HarmonyPostfix]
         public static void StoreGuiVisible(ref bool __result)
         {
-            if (KistUI.BlocksGameInput) __result = true;
+            if (KistUI.BlocksGameInput || KistDialog.IsOpen) __result = true;
         }
 
         // ------------------------------------------------------------------
@@ -43,7 +43,7 @@ namespace ThorsKist
         // invisible until someone noticed the game reacting again.
         // ------------------------------------------------------------------
 
-        private static bool Blocked { get { return KistUI.BlocksGameInput; } }
+        private static bool Blocked { get { return KistUI.BlocksGameInput || KistDialog.IsOpen; } }
 
         [HarmonyPatch(typeof(ZInput), nameof(ZInput.GetButton), new[] { typeof(string) })]
         [HarmonyPostfix]

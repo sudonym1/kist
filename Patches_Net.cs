@@ -29,6 +29,10 @@ namespace ThorsKist
             // Dropping it here costs one rebuild and removes any chance of a
             // table assembled from a half-loaded world outliving that world.
             KistSort.Reset();
+            // Findings survive -- the installed mod set does not change while
+            // the game runs -- but the warning is offered again on the next
+            // world, since leaving a world is exactly when someone acts on it.
+            KistConflicts.Reset();
         }
 
         [HarmonyPatch(typeof(ZNet), nameof(ZNet.Disconnect))]

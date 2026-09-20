@@ -15,11 +15,18 @@ namespace ThorsKist
         public const string MODNAME = "Thor's Kist";
         public const string AUTHOR = "posixone";
         public const string GUID = "posixone_ThorsKist";
-        public const string VERSION = "0.8.1";
+        public const string VERSION = "0.8.2";
 
         public static Main Instance;
         public static ManualLogSource Log;
         private static Harmony _harmony;
+
+        /// <summary>
+        /// Our own Harmony instance, so the conflict check can ask it which
+        /// methods we actually patched rather than keeping a second list of
+        /// names that could drift out of step with the real patches.
+        /// </summary>
+        public static Harmony HarmonyInstance { get { return _harmony; } }
 
         // ---- General -------------------------------------------------------
         public static ConfigEntry<bool> ModEnable;
@@ -216,6 +223,8 @@ namespace ThorsKist
         private void Update()
         {
             if (!ModEnable.Value) return;
+            KistConflicts.Tick();
+            KistDialog.Tick();
             KistUI.Tick();
             KistClient.Tick();
             KistMap.Tick();
