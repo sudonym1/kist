@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.1
+
+Documentation only — the mod itself is unchanged from 0.8.0.
+
+- **The screenshots render on the store pages.** They were written as
+  repository-relative paths, which resolve on GitLab and nowhere else: both
+  stores render the README from their own page, so a relative path pointed at
+  themselves and came up empty. They are absolute URLs now.
+- Source is now **open, MIT licensed**, at
+  https://gitlab.phospher.com/brianmiller/thorskist — with the Valheim and
+  Unity reference assemblies kept out of it, since those are Iron Gate's and
+  Unity's to distribute, not ours. `scripts/setup-refs.sh` collects them from
+  your own install.
+
+A store page's README is fixed at upload and cannot be replaced in place, so a
+version number is the only way to correct one.
+
 ## 0.8.0
 
 **The Kist list can be sorted four ways**, from a new row of buttons under the
