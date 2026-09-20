@@ -14,9 +14,9 @@ members before its Kist opens at all.
 
 | | |
 |---|---|
-| **Deposit** | Hold `Left Alt` and **left-click** an item in your inventory. It leaves with a chime and a spray of light. |
-| **Open** | `F3`. Two tabs: **Kist** (the contents) and **Hird** (who is in it). |
-| **Take** | Buttons on every row: `1`, `10`, `All`. Items with no room in your pack drop at your feet rather than vanishing. |
+| **Deposit** | Hold `Left Alt` and **left-click** an item in your inventory. It leaves with the game's own loot-spawn sound and a burst of light. |
+| **Open** | `F3`. Two tabs: **Kist** (the contents) and **Hird** (who is in it). The search box takes focus immediately — just start typing. |
+| **Take** | Buttons on every row: `1`, `10`, `All`, with the usual pickup sound. Items with no room in your pack drop at your feet rather than vanishing. |
 | **Craft** | Every crafting station, the build hammer and repairs can spend materials straight out of the Kist. |
 
 ## Hirds
@@ -43,9 +43,13 @@ move at any time. Every radius below is measured from there.
 | Range | `craftRadius` | `100` | Metres from the Kist crafting stations may draw within. |
 | Crafting | `craftFromKist` | `true` | Turn crafting from the Kist off entirely. |
 | Vault | `kistRows` | `64` | Rows of 8 slots. 64 rows = 512 stacks. **Server-side.** |
-| Feedback | `depositSound` | `true` | The deposit chime. |
-| Feedback | `depositVfx` | `true` | The streaks of light. |
-| Feedback | `depositVolume` | `0.6` | How loud the chime is. |
+| Feedback | `depositSound` | `true` | Sound on deposit. |
+| Feedback | `depositVfx` | `true` | Effect on deposit. |
+| Feedback | `depositSfxPrefab` | `sfx_lootspawn` | Any sound prefab in ZNetScene. |
+| Feedback | `depositVfxPrefab` | `vfx_Potion_health_medium` | Any effect prefab in ZNetScene. |
+| Feedback | `takeSound` | `true` | Pickup sound when an item arrives from the Kist. |
+| Interface | `uiScale` | `1.0` | Scales the window's text and rows. Below 1 fits more on screen. |
+| Interface | `scrollRowsPerNotch` | `5` | Rows moved per notch of the mouse wheel. |
 | Server | `minHirdSize` | `2` | Members needed before a Kist unlocks. **Server-side.** |
 
 Settings marked **server-side** are read from the host's config only. Everything

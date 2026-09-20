@@ -12,6 +12,9 @@ namespace ThorsKist
     /// than shipping an asset bundle: one DLL, nothing to keep in step with the
     /// game's Unity version. Contents are read straight off KistClient's mirror,
     /// so the window can never show a Kist the server has not confirmed.
+    ///
+    /// The list is deliberately dense. A shared vault holds hundreds of stacks,
+    /// and a row you have to scroll to is a row you will not use.
     /// </summary>
     public static class KistUI
     {
@@ -22,10 +25,13 @@ namespace ThorsKist
         private static GameObject _root;
         private static RectTransform _content;      // scrolling item list
         private static RectTransform _hirdContent;
+        private static ScrollRect _kistScroll;
+        private static ScrollRect _hirdScroll;
         private static GameObject _kistPage;
         private static GameObject _hirdPage;
         private static TMP_Text _title;
         private static TMP_Text _status;
+        private static TMP_Text _countLabel;
         private static TMP_InputField _search;
         private static TMP_InputField _hirdName;
         private static Button _tabKist;
@@ -33,12 +39,25 @@ namespace ThorsKist
         private static TMP_FontAsset _font;
         private static Tab _tab = Tab.Kist;
         private static bool _dirty = true;
+        private static bool _lastCanTake;
+        private static Vector2 _builtForScreen;
         private static readonly List<GameObject> _rows = new List<GameObject>();
+
+        // ---- Metrics -------------------------------------------------------
+        // One scale knob drives every size, so uiScale actually means something
+        // rather than shrinking the text inside fixed-height rows.
+        private static float S { get { return Mathf.Clamp(Main.UiScale.Value, 0.6f, 1.6f); } }
+        private static float RowH { get { return Mathf.Round(24f * S); } }
+        private static float FontRow { get { return 13f * S; } }
+        private static float FontSmall { get { return 11f * S; } }
+        private static float FontHead { get { return 22f * S; } }
+        private static float IconSize { get { return Mathf.Round(20f * S); } }
+        private const float RowGap = 1f;
 
         // Valheim's palette, close enough to sit beside the vanilla panels.
         private static readonly Color Parchment = new Color(0.87f, 0.82f, 0.70f, 1f);
         private static readonly Color Dim = new Color(0.62f, 0.58f, 0.50f, 1f);
-        private static readonly Color PanelBg = new Color(0.07f, 0.065f, 0.06f, 0.96f);
+        private static readonly Color PanelBg = new Color(0.07f, 0.065f, 0.06f, 0.97f);
         private static readonly Color RowBg = new Color(0.13f, 0.12f, 0.10f, 0.85f);
         private static readonly Color RowAlt = new Color(0.17f, 0.15f, 0.12f, 0.85f);
         private static readonly Color Accent = new Color(0.79f, 0.63f, 0.31f, 1f);
@@ -63,28 +82,57 @@ namespace ThorsKist
                 if (IsOpen) Close(); else Open();
             }
 
-            if (IsOpen && Input.GetKeyDown(KeyCode.Escape)) Close();
+            if (!IsOpen) return;
 
-            if (IsOpen)
+            if (Input.GetKeyDown(KeyCode.Escape))
             {
-                // Vanilla frees the cursor for its own panels; this window has to
-                // ask for the same treatment every frame or something else in the
-                // frame will take it back.
-                Cursor.visible = true;
-                Cursor.lockState = CursorLockMode.None;
-
-                // The distance readout changes as the player walks, and crossing
-                // the radius has to switch the Take buttons on or off -- but only
-                // the crossing is worth a full rebuild.
-                if (_status != null) _status.text = StatusLine();
-                bool canTake = KistClient.CanTake;
-                if (canTake != _lastCanTake) { _lastCanTake = canTake; _dirty = true; }
-
-                if (_dirty) Rebuild();
+                // Esc clears a search first and only closes on the second press,
+                // so a stray filter never strands you on an empty-looking Kist.
+                if (_search != null && _search.text.Length > 0) { _search.text = ""; _dirty = true; }
+                else Close();
+                return;
             }
+
+            // Vanilla frees the cursor for its own panels; this window has to
+            // ask for the same treatment every frame or something else in the
+            // frame will take it back.
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
+
+            HandleScroll();
+
+            // The distance readout changes as the player walks, and crossing
+            // the radius has to switch the Take buttons on or off -- but only
+            // the crossing is worth a full rebuild.
+            if (_status != null) _status.text = StatusLine();
+            bool canTake = KistClient.CanTake;
+            if (canTake != _lastCanTake) { _lastCanTake = canTake; _dirty = true; }
+
+            if (_dirty) Rebuild();
         }
 
-        private static bool _lastCanTake;
+        /// <summary>
+        /// Scrolling by hand rather than through ScrollRect.scrollSensitivity.
+        /// Unity multiplies the raw wheel delta, which differs per platform and
+        /// per device, so the same setting gives wildly different speeds. Moving
+        /// a fixed number of ROWS per notch is what a person actually means.
+        /// </summary>
+        private static void HandleScroll()
+        {
+            float wheel = Input.mouseScrollDelta.y;
+            if (Mathf.Approximately(wheel, 0f)) return;
+
+            ScrollRect target = _tab == Tab.Kist ? _kistScroll : _hirdScroll;
+            if (target == null || target.content == null) return;
+
+            float pixels = Mathf.Clamp(wheel, -3f, 3f) * Main.ScrollRowsPerNotch.Value * (RowH + RowGap);
+            float hidden = target.content.rect.height - target.viewport.rect.height;
+            if (hidden <= 0f) return;
+
+            Vector2 pos = target.content.anchoredPosition;
+            pos.y = Mathf.Clamp(pos.y - pixels, 0f, hidden);
+            target.content.anchoredPosition = pos;
+        }
 
         private static bool TypingSomewhere()
         {
@@ -98,6 +146,15 @@ namespace ThorsKist
         public static void Open()
         {
             if (InventoryGui.instance == null) return;
+
+            // A resolution change between openings would leave a window sized
+            // for the old screen, so rebuild rather than stretch.
+            if (_root != null && _builtForScreen != new Vector2(Screen.width, Screen.height))
+            {
+                Object.Destroy(_root);
+                _root = null;
+            }
+
             Build();
             if (_root == null) return;
             IsOpen = true;
@@ -107,11 +164,20 @@ namespace ThorsKist
             _root.transform.SetAsLastSibling();
             _dirty = true;
             KistClient.RequestState();
+
+            // Land in the search box: the common reason to open a vault holding
+            // hundreds of stacks is to find one thing.
+            if (_tab == Tab.Kist && _search != null)
+            {
+                _search.text = "";
+                _search.ActivateInputField();
+            }
         }
 
         public static void Close()
         {
             IsOpen = false;
+            if (_search != null) _search.DeactivateInputField();
             if (_root != null) _root.SetActive(false);
         }
 
@@ -131,45 +197,73 @@ namespace ThorsKist
 
             _font = FindFont();
             KistClient.OnStateChanged = MarkDirty;
+            _builtForScreen = new Vector2(Screen.width, Screen.height);
+
+            RectTransform canvasRect = parent as RectTransform;
+            float availW = canvasRect != null ? canvasRect.rect.width : Screen.width;
+            float availH = canvasRect != null ? canvasRect.rect.height : Screen.height;
+            // Take most of the screen: the whole complaint about the old window
+            // was that it showed nine rows.
+            float w = Mathf.Min(1180f, availW * 0.82f);
+            float h = availH * 0.86f;
+
+            float headH = Mathf.Round(34f * S);
+            float barH = Mathf.Round(26f * S);
+            float pad = Mathf.Round(10f * S);
 
             _root = NewPanel("ThorsKist_Window", parent, PanelBg);
             RectTransform rt = _root.transform as RectTransform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.sizeDelta = new Vector2(1000f, 660f);
+            rt.sizeDelta = new Vector2(w, h);
             rt.anchoredPosition = Vector2.zero;
             AddOutline(_root, Accent);
 
             // Header ---------------------------------------------------------
-            _title = NewText(_root.transform, "THOR'S KIST", 30, Accent, TextAlignmentOptions.Left);
-            Place(_title.rectTransform, new Vector2(0f, 1f), new Vector2(24f, -20f), new Vector2(640f, 40f));
+            _title = NewText(_root.transform, "THOR'S KIST", FontHead, Accent, TextAlignmentOptions.Left);
+            Place(_title.rectTransform, new Vector2(0f, 1f), new Vector2(pad, -pad), new Vector2(w * 0.45f, headH));
 
-            Button close = NewButton(_root.transform, "X", 20, Close);
-            Place((close.transform as RectTransform), new Vector2(1f, 1f), new Vector2(-46f, -20f), new Vector2(36f, 36f));
+            Button close = NewButton(_root.transform, "X", FontRow, Close);
+            Place(close.transform as RectTransform, new Vector2(1f, 1f), new Vector2(-pad, -pad),
+                  new Vector2(headH, headH));
 
-            _status = NewText(_root.transform, "", 16, Dim, TextAlignmentOptions.Right);
-            Place(_status.rectTransform, new Vector2(1f, 1f), new Vector2(-90f, -26f), new Vector2(560f, 28f));
+            _status = NewText(_root.transform, "", FontSmall, Dim, TextAlignmentOptions.Right);
+            Place(_status.rectTransform, new Vector2(1f, 1f), new Vector2(-(pad + headH + 6f), -pad),
+                  new Vector2(w * 0.5f, headH));
 
-            _tabKist = NewButton(_root.transform, "KIST", 18, () => { _tab = Tab.Kist; _dirty = true; });
-            Place((_tabKist.transform as RectTransform), new Vector2(0f, 1f), new Vector2(24f, -66f), new Vector2(140f, 34f));
+            // Tab + search bar -------------------------------------------------
+            float barY = -(pad + headH + 4f);
+            float tabW = Mathf.Round(92f * S);
 
-            _tabHird = NewButton(_root.transform, "HIRD", 18, () => { _tab = Tab.Hird; _dirty = true; });
-            Place((_tabHird.transform as RectTransform), new Vector2(0f, 1f), new Vector2(172f, -66f), new Vector2(140f, 34f));
+            _tabKist = NewButton(_root.transform, "KIST", FontRow, () => { _tab = Tab.Kist; _dirty = true; });
+            Place(_tabKist.transform as RectTransform, new Vector2(0f, 1f), new Vector2(pad, barY),
+                  new Vector2(tabW, barH));
 
-            // Kist page ------------------------------------------------------
-            _kistPage = NewPanel("page_kist", _root.transform, Color.clear);
-            Stretch(_kistPage.transform as RectTransform, 24f, 24f, 110f, 56f);
+            _tabHird = NewButton(_root.transform, "HIRD", FontRow, () => { _tab = Tab.Hird; _dirty = true; });
+            Place(_tabHird.transform as RectTransform, new Vector2(0f, 1f), new Vector2(pad + tabW + 4f, barY),
+                  new Vector2(tabW, barH));
 
-            _search = NewInput(_kistPage.transform, "Search...");
-            Place((_search.transform as RectTransform), new Vector2(0f, 1f), new Vector2(0f, 0f), new Vector2(360f, 32f), new Vector2(0f, 1f));
+            _countLabel = NewText(_root.transform, "", FontSmall, Dim, TextAlignmentOptions.Left);
+            Place(_countLabel.rectTransform, new Vector2(0f, 1f), new Vector2(pad + tabW * 2f + 14f, barY),
+                  new Vector2(w * 0.25f, barH), new Vector2(0f, 1f));
+
+            // Search sits in the top bar, always visible, never scrolled away.
+            _search = NewInput(_root.transform, "Search the Kist...");
+            float searchW = Mathf.Min(340f, w * 0.34f);
+            Place(_search.transform as RectTransform, new Vector2(1f, 1f), new Vector2(-pad, barY),
+                  new Vector2(searchW, barH), new Vector2(1f, 1f));
             _search.onValueChanged.AddListener(delegate { _dirty = true; });
 
-            _content = NewScrollList(_kistPage.transform, 42f);
+            float pageTop = pad + headH + 4f + barH + 6f;
 
-            // Hird page ------------------------------------------------------
+            // Pages ------------------------------------------------------------
+            _kistPage = NewPanel("page_kist", _root.transform, Color.clear);
+            Stretch(_kistPage.transform as RectTransform, pad, pad, pageTop, pad);
+            _kistScroll = NewScrollList(_kistPage.transform, out _content);
+
             _hirdPage = NewPanel("page_hird", _root.transform, Color.clear);
-            Stretch(_hirdPage.transform as RectTransform, 24f, 24f, 110f, 56f);
-            _hirdContent = NewScrollList(_hirdPage.transform, 0f);
+            Stretch(_hirdPage.transform as RectTransform, pad, pad, pageTop, pad);
+            _hirdScroll = NewScrollList(_hirdPage.transform, out _hirdContent);
 
             _root.SetActive(false);
         }
@@ -199,6 +293,7 @@ namespace ThorsKist
             bool kistTab = _tab == Tab.Kist;
             _kistPage.SetActive(kistTab);
             _hirdPage.SetActive(!kistTab);
+            _search.gameObject.SetActive(kistTab);
             Tint(_tabKist, kistTab ? BtnBgHot : BtnBg);
             Tint(_tabHird, kistTab ? BtnBg : BtnBgHot);
 
@@ -239,6 +334,8 @@ namespace ThorsKist
 
         private static void BuildKistRows()
         {
+            if (_countLabel != null) _countLabel.text = "";
+
             if (!KistClient.InHird)
             {
                 AddNotice(_content, "You are not in a hird. Open the HIRD tab to found one.");
@@ -266,6 +363,13 @@ namespace ThorsKist
                 shown++;
             }
 
+            if (_countLabel != null)
+            {
+                _countLabel.text = filter.Length > 0
+                    ? shown + " of " + items.Count + " stacks"
+                    : items.Count + " stacks";
+            }
+
             if (shown == 0) AddNotice(_content, "Nothing here matches \"" + filter + "\".");
         }
 
@@ -273,8 +377,8 @@ namespace ThorsKist
         {
             GameObject row = NewPanel("row", _content, index % 2 == 0 ? RowBg : RowAlt);
             LayoutElement le = row.AddComponent<LayoutElement>();
-            le.minHeight = 46f;
-            le.preferredHeight = 46f;
+            le.minHeight = RowH;
+            le.preferredHeight = RowH;
             _rows.Add(row);
 
             GameObject iconGo = new GameObject("icon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -283,39 +387,43 @@ namespace ThorsKist
             icon.sprite = item.GetIcon();
             icon.preserveAspect = true;
             icon.raycastTarget = false;
-            Place(iconGo.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(30f, 0f), new Vector2(38f, 38f));
+            Place(iconGo.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(4f + IconSize * 0.5f, 0f),
+                  new Vector2(IconSize, IconSize));
 
-            string quality = item.m_shared.m_maxQuality > 1 ? "  <color=#8C8677>✦" + item.m_quality + "</color>" : "";
-            TMP_Text name = NewText(row.transform, label + quality, 18, Parchment, TextAlignmentOptions.Left);
-            Place(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(62f, 0f), new Vector2(430f, 34f), new Vector2(0f, 0.5f));
+            // Plain ASCII: a glyph the game's font lacks renders as a blank or a
+            // box, and there is no way to find that out from here.
+            string quality = item.m_shared.m_maxQuality > 1
+                ? "  <color=#8C8677>q" + item.m_quality + "</color>" : "";
+            TMP_Text name = NewText(row.transform, label + quality, FontRow, Parchment, TextAlignmentOptions.Left);
+            Place(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(IconSize + 12f, 0f),
+                  new Vector2(420f * S, RowH), new Vector2(0f, 0.5f));
 
-            TMP_Text count = NewText(row.transform, "x" + item.m_stack, 18, Accent, TextAlignmentOptions.Right);
-            Place(count.rectTransform, new Vector2(1f, 0.5f), new Vector2(-380f, 0f), new Vector2(120f, 34f));
+            TMP_Text count = NewText(row.transform, "x" + item.m_stack, FontRow, Accent, TextAlignmentOptions.Right);
+            Place(count.rectTransform, new Vector2(1f, 0.5f), new Vector2(-(BtnStripW + 12f), 0f),
+                  new Vector2(110f * S, RowH));
 
             Vector2i slot = item.m_gridPos;
             string itemName = item.m_shared.m_name;
             int stack = item.m_stack;
 
-            AddTakeButton(row, "1", -286f, canTake, slot, itemName, 1);
-            AddTakeButton(row, "10", -206f, canTake && stack > 1, slot, itemName, stack < 10 ? stack : 10);
-            AddTakeButton(row, "All", -120f, canTake, slot, itemName, stack);
-
-            if (!canTake)
-            {
-                TMP_Text why = NewText(row.transform, KistClient.KistUnlocked ? "out of range" : "locked",
-                                       14, Bad, TextAlignmentOptions.Right);
-                Place(why.rectTransform, new Vector2(1f, 0.5f), new Vector2(-14f, 0f), new Vector2(100f, 30f));
-            }
+            float bw = Mathf.Round(38f * S);
+            float bh = RowH - 4f;
+            AddTakeButton(row, "1", -(bw * 3f + 12f), bw, bh, canTake, slot, itemName, 1);
+            AddTakeButton(row, "10", -(bw * 2f + 8f), bw, bh, canTake && stack > 1, slot, itemName,
+                          stack < 10 ? stack : 10);
+            AddTakeButton(row, "All", -(bw + 4f), bw, bh, canTake, slot, itemName, stack);
         }
 
-        private static void AddTakeButton(GameObject row, string label, float x, bool enabled,
+        private static float BtnStripW { get { return Mathf.Round(38f * S) * 3f + 12f; } }
+
+        private static void AddTakeButton(GameObject row, string label, float x, float w, float h, bool enabled,
                                           Vector2i slot, string itemName, int amount)
         {
-            Button b = NewButton(row.transform, label, 16, delegate
+            Button b = NewButton(row.transform, label, FontSmall, delegate
             {
                 KistClient.Take(slot, itemName, amount);
             });
-            Place(b.transform as RectTransform, new Vector2(1f, 0.5f), new Vector2(x, 0f), new Vector2(72f, 30f));
+            Place(b.transform as RectTransform, new Vector2(1f, 0.5f), new Vector2(x, 0f), new Vector2(w, h));
             b.interactable = enabled;
             if (!enabled) Tint(b, new Color(0.16f, 0.15f, 0.13f, 1f));
         }
@@ -326,16 +434,20 @@ namespace ThorsKist
 
         private static void BuildHirdRows()
         {
+            if (_countLabel != null) _countLabel.text = "";
+
             if (KistClient.HasPendingInvite)
             {
                 AddSection("INVITATION");
                 AddNotice(_hirdContent, KistClient.PendingInviteFrom + " invites you to join \"" +
                                         KistClient.PendingInviteHird + "\".");
-                GameObject row = AddRow(46f);
-                Button accept = NewButton(row.transform, "Accept", 16, KistClient.AcceptInvite);
-                Place(accept.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(90f, 0f), new Vector2(120f, 32f));
-                Button decline = NewButton(row.transform, "Decline", 16, KistClient.DeclineInvite);
-                Place(decline.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(222f, 0f), new Vector2(120f, 32f));
+                GameObject row = AddRow(RowH + 8f);
+                Button accept = NewButton(row.transform, "Accept", FontRow, KistClient.AcceptInvite);
+                Place(accept.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(14f, 0f),
+                      new Vector2(100f * S, RowH));
+                Button decline = NewButton(row.transform, "Decline", FontRow, KistClient.DeclineInvite);
+                Place(decline.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(120f * S + 14f, 0f),
+                      new Vector2(100f * S, RowH));
             }
 
             if (!KistClient.InHird)
@@ -345,14 +457,16 @@ namespace ThorsKist
                     "A Kist belongs to a hird, never to one person. Found one, then invite at least " +
                     (KistClient.MinHirdSize - 1) + " more — the Kist stays shut until then.");
 
-                GameObject row = AddRow(52f);
+                GameObject row = AddRow(RowH + 10f);
                 _hirdName = NewInput(row.transform, "Name your hird...");
-                Place(_hirdName.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(240f, 0f), new Vector2(420f, 34f));
-                Button create = NewButton(row.transform, "Found", 16, delegate
+                Place(_hirdName.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(14f, 0f),
+                      new Vector2(320f * S, RowH));
+                Button create = NewButton(row.transform, "Found", FontRow, delegate
                 {
                     KistClient.CreateHird(_hirdName != null ? _hirdName.text : "");
                 });
-                Place(create.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(672f, 0f), new Vector2(120f, 34f));
+                Place(create.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(340f * S + 20f, 0f),
+                      new Vector2(100f * S, RowH));
                 return;
             }
 
@@ -363,16 +477,18 @@ namespace ThorsKist
             for (int i = 0; i < h.Members.Count; i++)
             {
                 HirdMember m = h.Members[i];
-                GameObject row = AddRow(40f, i % 2 == 0 ? RowBg : RowAlt);
+                GameObject row = AddRow(RowH, i % 2 == 0 ? RowBg : RowAlt);
                 string tag = m.PlayerId == h.OwnerId ? "  <color=#C9A227>(founder)</color>" : "";
-                TMP_Text t = NewText(row.transform, m.Name + tag, 18, Parchment, TextAlignmentOptions.Left);
-                Place(t.rectTransform, new Vector2(0f, 0.5f), new Vector2(24f, 0f), new Vector2(520f, 30f), new Vector2(0f, 0.5f));
+                TMP_Text t = NewText(row.transform, m.Name + tag, FontRow, Parchment, TextAlignmentOptions.Left);
+                Place(t.rectTransform, new Vector2(0f, 0.5f), new Vector2(14f, 0f),
+                      new Vector2(420f * S, RowH), new Vector2(0f, 0.5f));
 
                 if (owner && m.PlayerId != h.OwnerId)
                 {
                     long id = m.PlayerId;
-                    Button kick = NewButton(row.transform, "Remove", 15, delegate { KistClient.Kick(id); });
-                    Place(kick.transform as RectTransform, new Vector2(1f, 0.5f), new Vector2(-24f, 0f), new Vector2(110f, 28f));
+                    Button kick = NewButton(row.transform, "Remove", FontSmall, delegate { KistClient.Kick(id); });
+                    Place(kick.transform as RectTransform, new Vector2(1f, 0.5f), new Vector2(-14f, 0f),
+                          new Vector2(84f * S, RowH - 4f));
                 }
             }
 
@@ -381,10 +497,11 @@ namespace ThorsKist
                 AddSection("INVITED");
                 foreach (HirdInvite inv in h.Invites)
                 {
-                    GameObject row = AddRow(36f);
+                    GameObject row = AddRow(RowH);
                     TMP_Text t = NewText(row.transform, inv.Name + "  <color=#8C8677>awaiting reply</color>",
-                                         16, Dim, TextAlignmentOptions.Left);
-                    Place(t.rectTransform, new Vector2(0f, 0.5f), new Vector2(24f, 0f), new Vector2(520f, 28f), new Vector2(0f, 0.5f));
+                                         FontSmall, Dim, TextAlignmentOptions.Left);
+                    Place(t.rectTransform, new Vector2(0f, 0.5f), new Vector2(14f, 0f),
+                          new Vector2(420f * S, RowH), new Vector2(0f, 0.5f));
                 }
             }
 
@@ -401,13 +518,15 @@ namespace ThorsKist
                     {
                         KistClient.RosterEntry e = KistClient.Roster[i];
                         if (h.IsInvited(e.PlayerId)) continue;
-                        GameObject row = AddRow(38f, i % 2 == 0 ? RowBg : RowAlt);
-                        TMP_Text t = NewText(row.transform, e.Name, 17, Parchment, TextAlignmentOptions.Left);
-                        Place(t.rectTransform, new Vector2(0f, 0.5f), new Vector2(24f, 0f), new Vector2(520f, 28f), new Vector2(0f, 0.5f));
+                        GameObject row = AddRow(RowH, i % 2 == 0 ? RowBg : RowAlt);
+                        TMP_Text t = NewText(row.transform, e.Name, FontRow, Parchment, TextAlignmentOptions.Left);
+                        Place(t.rectTransform, new Vector2(0f, 0.5f), new Vector2(14f, 0f),
+                              new Vector2(420f * S, RowH), new Vector2(0f, 0.5f));
                         long id = e.PlayerId;
                         string nm = e.Name;
-                        Button b = NewButton(row.transform, "Invite", 15, delegate { KistClient.Invite(id, nm); });
-                        Place(b.transform as RectTransform, new Vector2(1f, 0.5f), new Vector2(-24f, 0f), new Vector2(110f, 28f));
+                        Button b = NewButton(row.transform, "Invite", FontSmall, delegate { KistClient.Invite(id, nm); });
+                        Place(b.transform as RectTransform, new Vector2(1f, 0.5f), new Vector2(-14f, 0f),
+                              new Vector2(84f * S, RowH - 4f));
                     }
                 }
             }
@@ -416,30 +535,34 @@ namespace ThorsKist
             AddNotice(_hirdContent, "The Kist sits at " + Mathf.RoundToInt(h.Anchor.x) + ", " +
                                     Mathf.RoundToInt(h.Anchor.z) + ". Everything reaches it from within the " +
                                     "configured radius.");
-            GameObject actions = AddRow(52f);
-            float x = 24f;
+            GameObject actions = AddRow(RowH + 10f);
+            float x = 14f;
             if (owner)
             {
-                Button move = NewButton(actions.transform, "Move the Kist here", 15, KistClient.SetAnchorHere);
-                Place(move.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(x, 0f), new Vector2(200f, 32f));
-                x += 212f;
+                Button move = NewButton(actions.transform, "Move the Kist here", FontSmall, KistClient.SetAnchorHere);
+                Place(move.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(x, 0f),
+                      new Vector2(160f * S, RowH));
+                x += 170f * S;
             }
-            Button leave = NewButton(actions.transform, "Leave hird", 15, KistClient.Leave);
-            Place(leave.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(x, 0f), new Vector2(150f, 32f));
-            x += 162f;
+            Button leave = NewButton(actions.transform, "Leave hird", FontSmall, KistClient.Leave);
+            Place(leave.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(x, 0f),
+                  new Vector2(120f * S, RowH));
+            x += 130f * S;
             if (owner)
             {
-                Button disband = NewButton(actions.transform, "Disband", 15, KistClient.Disband);
-                Place(disband.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(x, 0f), new Vector2(130f, 32f));
+                Button disband = NewButton(actions.transform, "Disband", FontSmall, KistClient.Disband);
+                Place(disband.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(x, 0f),
+                      new Vector2(100f * S, RowH));
                 Tint(disband, new Color(0.34f, 0.16f, 0.14f, 1f));
             }
         }
 
         private static GameObject AddSection(string label)
         {
-            GameObject row = AddRow(38f, Color.clear);
-            TMP_Text t = NewText(row.transform, label, 17, Accent, TextAlignmentOptions.Left);
-            Place(t.rectTransform, new Vector2(0f, 0.5f), new Vector2(14f, 0f), new Vector2(600f, 30f), new Vector2(0f, 0.5f));
+            GameObject row = AddRow(RowH + 6f, Color.clear);
+            TMP_Text t = NewText(row.transform, label, FontSmall, Accent, TextAlignmentOptions.BottomLeft);
+            Place(t.rectTransform, new Vector2(0f, 0.5f), new Vector2(8f, 0f),
+                  new Vector2(500f * S, RowH), new Vector2(0f, 0.5f));
             return row;
         }
 
@@ -459,11 +582,11 @@ namespace ThorsKist
         {
             GameObject row = NewPanel("notice", parent, Color.clear);
             LayoutElement le = row.AddComponent<LayoutElement>();
-            le.minHeight = 48f;
-            le.preferredHeight = 48f;
+            le.minHeight = RowH * 1.8f;
+            le.preferredHeight = RowH * 1.8f;
             _rows.Add(row);
-            TMP_Text t = NewText(row.transform, text, 17, Dim, TextAlignmentOptions.TopLeft);
-            Stretch(t.rectTransform, 16f, 16f, 4f, 4f);
+            TMP_Text t = NewText(row.transform, text, FontSmall, Dim, TextAlignmentOptions.TopLeft);
+            Stretch(t.rectTransform, 10f, 10f, 2f, 2f);
         }
 
         // ------------------------------------------------------------------
@@ -504,7 +627,8 @@ namespace ThorsKist
             return t;
         }
 
-        private static Button NewButton(Transform parent, string label, float size, UnityEngine.Events.UnityAction onClick)
+        private static Button NewButton(Transform parent, string label, float size,
+                                        UnityEngine.Events.UnityAction onClick)
         {
             GameObject go = NewPanel("button", parent, BtnBg);
             Button b = go.AddComponent<Button>();
@@ -518,7 +642,7 @@ namespace ThorsKist
             b.onClick.AddListener(onClick);
 
             TMP_Text t = NewText(go.transform, label, size, Parchment, TextAlignmentOptions.Center);
-            Stretch(t.rectTransform, 4f, 4f, 2f, 2f);
+            Stretch(t.rectTransform, 2f, 2f, 1f, 1f);
             return b;
         }
 
@@ -536,13 +660,13 @@ namespace ThorsKist
 
             GameObject area = new GameObject("area", typeof(RectTransform), typeof(RectMask2D));
             area.transform.SetParent(go.transform, false);
-            Stretch(area.transform as RectTransform, 10f, 10f, 4f, 4f);
+            Stretch(area.transform as RectTransform, 8f, 8f, 2f, 2f);
 
-            TMP_Text text = NewText(area.transform, "", 17, Parchment, TextAlignmentOptions.Left);
+            TMP_Text text = NewText(area.transform, "", FontRow, Parchment, TextAlignmentOptions.Left);
             Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
             text.raycastTarget = true;
 
-            TMP_Text hint = NewText(area.transform, placeholder, 17, new Color(0.45f, 0.42f, 0.36f, 1f),
+            TMP_Text hint = NewText(area.transform, placeholder, FontRow, new Color(0.45f, 0.42f, 0.36f, 1f),
                                     TextAlignmentOptions.Left);
             Stretch(hint.rectTransform, 0f, 0f, 0f, 0f);
 
@@ -556,34 +680,34 @@ namespace ThorsKist
         }
 
         /// <summary>
-        /// A vertical scrolling list. Returns the content transform rows should
-        /// be parented to.
+        /// A vertical scrolling list. Hands back the content transform rows are
+        /// parented to, and the ScrollRect so the wheel can drive it directly.
         /// </summary>
-        private static RectTransform NewScrollList(Transform parent, float topInset)
+        private static ScrollRect NewScrollList(Transform parent, out RectTransform content)
         {
             GameObject viewport = NewPanel("viewport", parent, new Color(0f, 0f, 0f, 0.25f));
             viewport.AddComponent<RectMask2D>();
             RectTransform vrt = viewport.transform as RectTransform;
-            Stretch(vrt, 0f, 0f, topInset, 0f);
+            Stretch(vrt, 0f, 0f, 0f, 0f);
 
-            GameObject content = new GameObject("content", typeof(RectTransform));
-            content.transform.SetParent(viewport.transform, false);
-            RectTransform crt = content.transform as RectTransform;
+            GameObject contentGo = new GameObject("content", typeof(RectTransform));
+            contentGo.transform.SetParent(viewport.transform, false);
+            RectTransform crt = contentGo.transform as RectTransform;
             crt.anchorMin = new Vector2(0f, 1f);
             crt.anchorMax = new Vector2(1f, 1f);
             crt.pivot = new Vector2(0.5f, 1f);
-            crt.offsetMin = new Vector2(0f, 0f);
-            crt.offsetMax = new Vector2(0f, 0f);
+            crt.offsetMin = Vector2.zero;
+            crt.offsetMax = Vector2.zero;
 
-            VerticalLayoutGroup layout = content.AddComponent<VerticalLayoutGroup>();
+            VerticalLayoutGroup layout = contentGo.AddComponent<VerticalLayoutGroup>();
             layout.childControlWidth = true;
             layout.childControlHeight = false;
             layout.childForceExpandWidth = true;
             layout.childForceExpandHeight = false;
-            layout.spacing = 3f;
-            layout.padding = new RectOffset(4, 4, 4, 4);
+            layout.spacing = RowGap;
+            layout.padding = new RectOffset(2, 2, 2, 2);
 
-            ContentSizeFitter fitter = content.AddComponent<ContentSizeFitter>();
+            ContentSizeFitter fitter = contentGo.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             ScrollRect scroll = viewport.AddComponent<ScrollRect>();
@@ -592,9 +716,12 @@ namespace ThorsKist
             scroll.horizontal = false;
             scroll.vertical = true;
             scroll.movementType = ScrollRect.MovementType.Clamped;
-            scroll.scrollSensitivity = 30f;
+            // The wheel is handled in HandleScroll so the speed is a number of
+            // rows rather than whatever this platform reports per notch.
+            scroll.scrollSensitivity = 0f;
 
-            return crt;
+            content = crt;
+            return scroll;
         }
 
         private static void Place(RectTransform rt, Vector2 anchor, Vector2 offset, Vector2 size)

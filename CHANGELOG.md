@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.2.0
+
+First round of feedback from a live game.
+
+- **Deposit feedback is now the game's own.** `sfx_lootspawn` and
+  `vfx_Potion_health_medium`, spawned through `ZNetScene` exactly the way
+  SmarterContainers spawns them. The synthesised chime is gone — it never
+  sounded like Valheim. Both prefab names are config, so swapping the sound
+  does not need a new build.
+- **Taking an item plays the pickup sound**, via the player's own
+  `m_pickupEffects` rather than a hard-coded prefab name, so it is always
+  exactly what picking something off the ground sounds like.
+- **The Kist list is far denser.** The window now takes 86% of screen height
+  and rows are 24px instead of 46px: roughly 33 rows at 1080p, up from 9. New
+  `uiScale` setting scales text and rows together.
+- **Scrolling is fixed.** It was moving 30 pixels per notch — two thirds of one
+  row. The wheel is now handled directly and moves a configurable number of
+  ROWS per notch (default 5), which also makes it behave the same across
+  platforms; Unity's `scrollSensitivity` multiplies a raw delta that differs
+  per device.
+- **Search moved into the top bar**, always visible, focused the moment the
+  window opens, with a live "N of M stacks" count. Esc clears the filter on the
+  first press and closes the window on the second.
+
 ## 0.1.1
 
 Fixes the publicizer trap. 0.1.0 threw `MethodAccessException` on the first

@@ -311,7 +311,11 @@ namespace ThorsKist
         private static void ReceiveTake(int token, ZPackage payload)
         {
             List<ItemDrop.ItemData> items = ItemWire.ReadItems(payload);
+            if (items.Count == 0) return;
             GiveBack(items);
+            // Only a real take gets the pickup sound. A rollback also lands in
+            // GiveBack, and celebrating a refused deposit would be a lie.
+            KistFx.Take();
         }
 
         /// <summary>

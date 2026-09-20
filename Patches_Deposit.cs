@@ -63,7 +63,7 @@ namespace ThorsKist
 
             if (KistClient.Deposit(playerInv, item, item.m_stack))
             {
-                DepositFx.Play();
+                KistFx.Deposit();
             }
             return false;
         }

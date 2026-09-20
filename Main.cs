@@ -15,7 +15,7 @@ namespace ThorsKist
         public const string MODNAME = "Thor's Kist";
         public const string AUTHOR = "posixone";
         public const string GUID = "posixone_ThorsKist";
-        public const string VERSION = "0.1.1";
+        public const string VERSION = "0.2.0";
 
         public static Main Instance;
         public static ManualLogSource Log;
@@ -45,7 +45,13 @@ namespace ThorsKist
         // ---- Feedback ------------------------------------------------------
         public static ConfigEntry<bool> DepositSound;
         public static ConfigEntry<bool> DepositVfx;
-        public static ConfigEntry<float> DepositVolume;
+        public static ConfigEntry<string> DepositSfxPrefab;
+        public static ConfigEntry<string> DepositVfxPrefab;
+        public static ConfigEntry<bool> TakeSound;
+
+        // ---- Interface -----------------------------------------------------
+        public static ConfigEntry<float> UiScale;
+        public static ConfigEntry<int> ScrollRowsPerNotch;
 
         // ---- Server --------------------------------------------------------
         public static ConfigEntry<int> MinHirdSize;
@@ -84,10 +90,21 @@ namespace ThorsKist
                 new ConfigDescription("Rows of 8 slots in the vault. 64 rows = 512 stacks. Server-side setting.",
                     new AcceptableValueRange<int>(4, 256)));
 
-            DepositSound = Config.Bind("Feedback", "depositSound", true, "Play the deposit chime.");
-            DepositVfx = Config.Bind("Feedback", "depositVfx", true, "Draw the streaks of light on deposit.");
-            DepositVolume = Config.Bind("Feedback", "depositVolume", 0.6f,
-                new ConfigDescription("Volume of the deposit chime.", new AcceptableValueRange<float>(0f, 1f)));
+            DepositSound = Config.Bind("Feedback", "depositSound", true, "Play a sound when you store an item.");
+            DepositVfx = Config.Bind("Feedback", "depositVfx", true, "Show an effect when you store an item.");
+            DepositSfxPrefab = Config.Bind("Feedback", "depositSfxPrefab", "sfx_lootspawn",
+                "Name of the game sound prefab played on deposit. Any prefab in ZNetScene works.");
+            DepositVfxPrefab = Config.Bind("Feedback", "depositVfxPrefab", "vfx_Potion_health_medium",
+                "Name of the game effect prefab shown on deposit. Any prefab in ZNetScene works.");
+            TakeSound = Config.Bind("Feedback", "takeSound", true,
+                "Play the usual pickup sound when an item arrives from the Kist.");
+
+            UiScale = Config.Bind("Interface", "uiScale", 1f,
+                new ConfigDescription("Scales the Kist window's text and rows. Below 1 fits more on screen.",
+                    new AcceptableValueRange<float>(0.6f, 1.6f)));
+            ScrollRowsPerNotch = Config.Bind("Interface", "scrollRowsPerNotch", 5,
+                new ConfigDescription("How many rows one notch of the mouse wheel moves the item list.",
+                    new AcceptableValueRange<int>(1, 25)));
 
             MinHirdSize = Config.Bind("Server", "minHirdSize", 2,
                 new ConfigDescription(
