@@ -210,5 +210,5 @@ Valheim and its assets are theirs.
 
 *Built for people who play together. Skål.* 🍺
 
-[shot-kist]: kist1.png
-[shot-hird]: hird1.png
+[shot-kist]: https://gitlab.phospher.com/brianmiller/thorskist/-/raw/main/kist1.png
+[shot-hird]: https://gitlab.phospher.com/brianmiller/thorskist/-/raw/main/hird1.png
