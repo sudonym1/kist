@@ -25,10 +25,10 @@ namespace ThorsKist
         // Public entry
         // ------------------------------------------------------------------
 
-        public static void Play(InventoryGrid grid, ItemDrop.ItemData item, string name, int stack)
+        public static void Play()
         {
             if (Main.DepositSound.Value) PlayChime();
-            if (Main.DepositVfx.Value) PlayStreaks(grid, item);
+            if (Main.DepositVfx.Value) PlayStreaks();
         }
 
         // ------------------------------------------------------------------
@@ -162,13 +162,16 @@ namespace ThorsKist
         // Streaks
         // ------------------------------------------------------------------
 
-        private static void PlayStreaks(InventoryGrid grid, ItemDrop.ItemData item)
+        private static void PlayStreaks()
         {
             EnsureCanvas();
             if (_canvas == null || _runner == null) return;
 
-            Vector3 from = SlotWorldPosition(grid, item);
-            if (from == Vector3.zero) return;
+            // The cursor is where the player just clicked, so it is both the
+            // truest origin for the gesture and the only one reachable without
+            // InventoryGrid.GetElement / m_width, which are private on the real
+            // game assembly.
+            Vector3 from = Input.mousePosition;
 
             RectTransform canvasRect = _canvas.transform as RectTransform;
             // The streaks converge on the top edge of the screen: the Kist is
@@ -176,14 +179,6 @@ namespace ThorsKist
             Vector3 to = canvasRect.TransformPoint(new Vector3(0f, canvasRect.rect.height * 0.5f + 40f, 0f));
 
             _runner.StartCoroutine(StreakBurst(from, to));
-        }
-
-        private static Vector3 SlotWorldPosition(InventoryGrid grid, ItemDrop.ItemData item)
-        {
-            if (grid == null || item == null) return Vector3.zero;
-            InventoryElement element = grid.GetElement(item.m_gridPos.x, item.m_gridPos.y, grid.m_width);
-            if (element == null) return Vector3.zero;
-            return element.transform.position;
         }
 
         private static IEnumerator StreakBurst(Vector3 from, Vector3 to)

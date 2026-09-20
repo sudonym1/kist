@@ -20,7 +20,13 @@ test:build:
     # a renamed game method or an ambiguous overload compiles fine and then does
     # nothing at runtime, logging one line nobody reads. Resolve every target
     # against the vendored game assembly instead.
-    - dotnet run --project tools/VerifyPatches/VerifyPatches.csproj -c Release -- bin/Release/net472/ThorsKist.dll lib
+    # Third argument is the REAL, unpublicized assembly. ThorsKist compiles
+    # against a publicized copy where everything is public, so a call to a
+    # member the game keeps private compiles clean and throws
+    # MethodAccessException the first time that line runs. Without this
+    # argument the check silently skips, which is worse than not having it.
+    - test -f .refs/assembly_valheim.dll
+    - dotnet run --project tools/VerifyPatches/VerifyPatches.csproj -c Release -- bin/Release/net472/ThorsKist.dll lib .refs/assembly_valheim.dll
     # Assemble and validate the store payload on every commit, not on release
     # day, so packaging rules (exact 256x256 icon, manifest limits) fail early.
     - VERSION="$(cat version.txt)"

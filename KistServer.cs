@@ -649,10 +649,13 @@ namespace ThorsKist
         {
             long peer;
             if (!PeerByPlayer.TryGetValue(playerId, out peer)) return false;
-            if (ZRoutedRpc.instance == null) return false;
+            if (ZNet.instance == null) return false;
             // The host's own character has no ZNetPeer, but it is plainly here.
-            if (peer == ZRoutedRpc.instance.m_id) return true;
-            return ZRoutedRpc.instance.GetPeer(peer) != null;
+            // ZNet.GetUID() and ZRoutedRpc's own id are both ZDOMan.GetSessionID(),
+            // and unlike ZRoutedRpc.m_id / GetPeer it is public on the real
+            // game assembly rather than only on the publicized reference.
+            if (peer == ZNet.GetUID()) return true;
+            return ZNet.instance.GetPeer(peer) != null;
         }
 
         private static void SendStateToHird(Vault v)

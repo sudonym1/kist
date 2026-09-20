@@ -111,7 +111,11 @@ namespace ThorsKist
         private static void Send(ZPackage pkg)
         {
             if (ZRoutedRpc.instance == null) return;
-            ZRoutedRpc.instance.InvokeRoutedRPC(ZRoutedRpc.instance.GetServerPeerID(), Wire.RpcToServer, pkg);
+            // The overload without a target peer routes to the server itself --
+            // it calls GetServerPeerID() internally, which is private on the
+            // real game assembly even though the publicized reference says
+            // otherwise. Calling it directly throws MethodAccessException.
+            ZRoutedRpc.instance.InvokeRoutedRPC(Wire.RpcToServer, pkg);
         }
 
         public static void RequestState()
@@ -160,9 +164,10 @@ namespace ThorsKist
             ItemDrop.ItemData sent = item.Clone();
             sent.m_stack = amount;
 
-            if (amount >= item.m_stack) from.RemoveItem(item);
-            else item.m_stack -= amount;
-            from.Changed();
+            // Handles both the whole stack and a partial one, and raises
+            // Changed() itself -- Inventory.Changed is private on the real game
+            // assembly, so calling it from here would throw at runtime.
+            from.RemoveItem(item, amount);
 
             int token = _nextToken++;
             Pending.Add(new PendingDeposit
@@ -330,28 +335,18 @@ namespace ThorsKist
                     Message("$msg_yourinventoryisfull");
                 }
             }
-            inv.Changed();
+            // AddItem raises Changed() itself; Inventory.Changed is private on
+            // the real assembly, so calling it here would throw.
         }
 
         private static void DropAtFeet(Player p, ItemDrop.ItemData item)
         {
-            GameObject prefab = ObjectDB.instance != null && item.m_dropPrefab != null
-                ? item.m_dropPrefab
-                : null;
-            if (prefab == null) prefab = ObjectDB.instance.GetItemPrefab(item.m_shared.m_name);
-            if (prefab == null)
-            {
-                Main.Log.LogError("ThorsKist: no prefab for " + item.m_shared.m_name + ", item held back.");
-                return;
-            }
+            // Vanilla's own drop path: it instantiates the right prefab, writes
+            // the item into the ZDO and starts the pickup timer. Building the
+            // drop by hand would need ItemDrop.Save(), which is private on the
+            // real game assembly.
             Vector3 pos = p.transform.position + p.transform.forward * 1.5f + Vector3.up;
-            GameObject go = UnityEngine.Object.Instantiate(prefab, pos, Quaternion.identity);
-            ItemDrop drop = go.GetComponent<ItemDrop>();
-            if (drop != null)
-            {
-                drop.m_itemData = item;
-                drop.Save();
-            }
+            ItemDrop.DropItem(item, item.m_stack, pos, Quaternion.identity);
         }
 
         public static void Message(string text)

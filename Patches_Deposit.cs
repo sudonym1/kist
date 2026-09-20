@@ -14,8 +14,11 @@ namespace ThorsKist
     [HarmonyPatch(typeof(InventoryGui), nameof(InventoryGui.OnSelectedItem))]
     public static class Patches_Deposit
     {
+        // ___m_dragItem is Harmony's field injection. InventoryGui.m_dragItem is
+        // private on the real game assembly -- reading it through the publicized
+        // reference compiles but throws FieldAccessException at runtime.
         [HarmonyPrefix]
-        public static bool Prefix(InventoryGui __instance, InventoryGrid grid, ItemDrop.ItemData item)
+        public static bool Prefix(InventoryGrid grid, ItemDrop.ItemData item, ItemDrop.ItemData ___m_dragItem)
         {
             if (!Main.ModEnable.Value) return true;
             if (item == null) return true;
@@ -23,7 +26,7 @@ namespace ThorsKist
 
             // Mid-drag the click means "drop what I am holding"; hijacking it
             // would make the held item vanish into the vault unasked.
-            if (__instance.m_dragItem != null) return true;
+            if (___m_dragItem != null) return true;
 
             Player player = Player.m_localPlayer;
             if (player == null) return true;
@@ -58,11 +61,9 @@ namespace ThorsKist
                 player.UnequipItem(item, false);
             }
 
-            int stack = item.m_stack;
-            string name = item.m_shared.m_name;
-            if (KistClient.Deposit(playerInv, item, stack))
+            if (KistClient.Deposit(playerInv, item, item.m_stack))
             {
-                DepositFx.Play(grid, item, name, stack);
+                DepositFx.Play();
             }
             return false;
         }
