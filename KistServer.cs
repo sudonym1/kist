@@ -25,6 +25,11 @@ namespace ThorsKist
         // ZNet's roster carries one -- so the server learns them from the Hello
         // each client sends, and that map is what the invite list is built from.
         private static readonly Dictionary<long, string> NameByPlayer = new Dictionary<long, string>();
+        // Where each member last said they were. Clients heartbeat this, because
+        // ZNet's own player list is keyed by name and carries no player id, and
+        // the re-anchor rule needs to know where everybody actually is.
+        private static readonly Dictionary<long, Vector3> PosByPlayer = new Dictionary<long, Vector3>();
+        private static readonly Dictionary<long, float> PosSeenAt = new Dictionary<long, float>();
         private static bool _loaded;
         private static bool _dirty;
         private static float _nextSave;
@@ -160,6 +165,8 @@ namespace ThorsKist
             Vaults.Clear();
             PeerByPlayer.Clear();
             NameByPlayer.Clear();
+            PosByPlayer.Clear();
+            PosSeenAt.Clear();
             _loaded = false;
             _dirty = false;
         }
@@ -214,6 +221,10 @@ namespace ThorsKist
                 {
                     PeerByPlayer[playerId] = senderPeer;
                     if (!string.IsNullOrEmpty(playerName)) NameByPlayer[playerId] = playerName;
+                    // Every message carries the sender's position, so the
+                    // heartbeat is really just the cheapest of them.
+                    PosByPlayer[playerId] = pos;
+                    PosSeenAt[playerId] = Time.realtimeSinceStartup;
                 }
 
                 switch (op)
@@ -248,6 +259,11 @@ namespace ThorsKist
                         break;
                     case Wire.C2S.Disband:
                         Disband(senderPeer, playerId);
+                        break;
+                    case Wire.C2S.Ping:
+                        break;   // the header above already did the work
+                    case Wire.C2S.AnchorQuery:
+                        SendAnchorStatus(senderPeer, playerId, pos);
                         break;
                     case Wire.C2S.SetAnchor:
                         SetAnchor(senderPeer, playerId, pos);
@@ -294,7 +310,7 @@ namespace ThorsKist
             Vault created = new Vault { Hird = h, Inventory = NewInventory(h) };
             Vaults.Add(created);
             MarkDirty();
-            AnnounceAnchor(created);
+            AnnounceAnchor(created, 0L);   // founding is free
             Toast(peer, "Hird \"" + name + "\" founded. Invite at least " +
                         (Main.MinHirdSize.Value - 1) + " more to unlock the Kist.");
             SendState(playerId);
@@ -397,15 +413,90 @@ namespace ThorsKist
             foreach (HirdMember m in members) SendState(m.PlayerId);
         }
 
+        /// <summary>
+        /// Whether the hird may re-anchor its Kist at <paramref name="at"/>.
+        ///
+        /// Moving the vault should mean the hird moved, not that one member
+        /// walked off with everything. So every member who is online has to be
+        /// standing there, and enough of them have to be online that the rule
+        /// cannot be satisfied alone. Members who are offline cannot be asked to
+        /// attend, so they are not counted -- the minimum-online check is what
+        /// stops that becoming a loophole.
+        /// </summary>
+        private static bool MayReanchor(Vault v, Vector3 at, out string why)
+        {
+            why = null;
+            int online = 0;
+            foreach (HirdMember m in v.Hird.Members)
+            {
+                if (!IsConnected(m.PlayerId)) continue;
+                online++;
+
+                float seen;
+                Vector3 where;
+                if (!PosByPlayer.TryGetValue(m.PlayerId, out where) ||
+                    !PosSeenAt.TryGetValue(m.PlayerId, out seen) ||
+                    Time.realtimeSinceStartup - seen > 20f)
+                {
+                    why = "Still waiting to hear where " + m.Name + " is.";
+                    return false;
+                }
+
+                float d = Vector3.Distance(where, at);
+                if (d > Main.AnchorRadius.Value)
+                {
+                    why = m.Name + " is " + Mathf.RoundToInt(d) + "m away. Everyone must be within " +
+                          Mathf.RoundToInt(Main.AnchorRadius.Value) + "m.";
+                    return false;
+                }
+            }
+
+            if (online < Main.MinHirdSize.Value)
+            {
+                why = "The hird must be gathered: " + online + " of " + Main.MinHirdSize.Value + " online.";
+                return false;
+            }
+            return true;
+        }
+
+        private static void SendAnchorStatus(long peer, long playerId, Vector3 at)
+        {
+            Vault v = VaultOf(playerId);
+            ZPackage pkg = NewReply(Wire.S2C.AnchorStatus);
+            if (v == null || v.Hird.OwnerId != playerId)
+            {
+                pkg.Write(false);
+                pkg.Write(v == null ? "You are not in a hird." : "Only the hird's founder may move the Kist.");
+            }
+            else
+            {
+                string why;
+                bool ok = MayReanchor(v, at, out why);
+                pkg.Write(ok);
+                pkg.Write(ok ? "" : why);
+            }
+            // The cost lives in the host's config, so the client cannot know it
+            // without being told.
+            pkg.Write(Main.AnchorCostPrefab.Value ?? "");
+            pkg.Write(Main.AnchorCostAmount.Value);
+            SendToPeer(peer, pkg);
+        }
+
         private static void SetAnchor(long peer, long playerId, Vector3 pos)
         {
             Vault v = VaultOf(playerId);
             if (v == null) { Deny(peer, "You are not in a hird."); return; }
             if (v.Hird.OwnerId != playerId) { Deny(peer, "Only the hird's founder may move the Kist."); return; }
+
+            string why;
+            if (!MayReanchor(v, pos, out why)) { Deny(peer, why); return; }
+
             v.Hird.Anchor = pos;
             MarkDirty();
             ToastHird(v, "The Kist has been anchored to a new location.");
-            AnnounceAnchor(v);
+            // playerId is named as the payer, so only that client spends the
+            // cost -- everyone else just watches it land.
+            AnnounceAnchor(v, playerId);
             SendStateToHird(v);
         }
 
@@ -455,6 +546,7 @@ namespace ThorsKist
 
             MarkDirty();
             Ack(peer, token);
+            AnnounceDeposit(v, playerId, pos);
             SendStateToHird(v);
         }
 
@@ -583,12 +675,29 @@ namespace ThorsKist
         /// Tells the hird a Kist anchor was planted, so everyone nearby sees and
         /// hears it land rather than only the person who pressed the button.
         /// </summary>
-        private static void AnnounceAnchor(Vault v)
+        private static void AnnounceAnchor(Vault v, long payerPlayerId)
         {
             foreach (HirdMember m in v.Hird.Members)
             {
                 ZPackage pkg = NewReply(Wire.S2C.AnchorSet);
                 pkg.Write(v.Hird.Anchor);
+                pkg.Write(payerPlayerId);
+                SendToPlayer(m.PlayerId, pkg);
+            }
+        }
+
+        /// <summary>
+        /// Shows a member's deposit to the rest of the hird. The depositor has
+        /// already played it locally so their own click stays instant; sending
+        /// it back to them too would double the sound.
+        /// </summary>
+        private static void AnnounceDeposit(Vault v, long byPlayerId, Vector3 at)
+        {
+            foreach (HirdMember m in v.Hird.Members)
+            {
+                if (m.PlayerId == byPlayerId) continue;
+                ZPackage pkg = NewReply(Wire.S2C.DepositFx);
+                pkg.Write(at);
                 SendToPlayer(m.PlayerId, pkg);
             }
         }

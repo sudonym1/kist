@@ -20,6 +20,13 @@ namespace ThorsKist
     {
         public static bool IsOpen;
 
+        /// <summary>True while the anchor button is actually on screen, so the
+        /// client only pesters the server about it when someone can see it.</summary>
+        public static bool WantsAnchorStatus
+        {
+            get { return IsOpen && _tab == Tab.Hird && KistClient.IsOwner; }
+        }
+
         private enum Tab { Kist, Hird }
 
         private static GameObject _root;
@@ -543,13 +550,22 @@ namespace ThorsKist
             AddNotice(_hirdContent, "The Kist sits at " + Mathf.RoundToInt(h.Anchor.x) + ", " +
                                     Mathf.RoundToInt(h.Anchor.z) + ". Everything reaches it from within the " +
                                     "configured radius.");
+            if (owner) AddAnchorRequirements();
+
             GameObject actions = AddRow(RowH + 4f);
             float x = 14f;
             if (owner)
             {
-                Button move = NewButton(actions.transform, "Anchor Kist to this location", FontSmall, KistClient.SetAnchorHere);
+                int held = KistClient.AnchorCostHeld();
+                bool affordable = held >= KistClient.AnchorCostAmount;
+                bool allowed = KistClient.AnchorAllowed && affordable;
+
+                Button move = NewButton(actions.transform, "Anchor Kist to this location", FontSmall,
+                                        KistClient.SetAnchorHere);
                 Place(move.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(x, 0f),
                       new Vector2(190f * S, RowH));
+                move.interactable = allowed;
+                if (!allowed) Tint(move, new Color(0.16f, 0.15f, 0.13f, 1f));
                 x += 196f * S;
             }
             Button leave = NewButton(actions.transform, "Leave hird", FontSmall, KistClient.Leave);
@@ -563,6 +579,29 @@ namespace ThorsKist
                       new Vector2(80f * S, RowH));
                 Tint(disband, new Color(0.34f, 0.16f, 0.14f, 1f));
             }
+        }
+
+        /// <summary>
+        /// Spells out why the Kist can or cannot be moved. A greyed-out button
+        /// with no explanation is worse than no button at all.
+        /// </summary>
+        private static void AddAnchorRequirements()
+        {
+            string cost = KistClient.AnchorCostLabel();
+            int held = KistClient.AnchorCostHeld();
+            bool affordable = held >= KistClient.AnchorCostAmount;
+
+            if (cost.Length > 0)
+            {
+                string colour = affordable ? "#9BBF7A" : "#D15C4C";
+                AddNotice(_hirdContent, "Re-anchoring costs <color=" + colour + ">" + cost + "</color>" +
+                                        (affordable ? "" : "  (you carry " + held + ")") +
+                                        ", and every member of the hird must be standing within " +
+                                        Mathf.RoundToInt(Main.AnchorRadius.Value) + "m.");
+            }
+
+            if (!KistClient.AnchorAllowed && KistClient.AnchorReason.Length > 0)
+                AddNotice(_hirdContent, "<color=#D15C4C>" + KistClient.AnchorReason + "</color>");
         }
 
         private static GameObject AddSection(string label)
@@ -590,11 +629,32 @@ namespace ThorsKist
         {
             GameObject row = NewPanel("notice", parent, Color.clear);
             LayoutElement le = row.AddComponent<LayoutElement>();
-            le.minHeight = RowH * 1.6f;
-            le.preferredHeight = RowH * 1.6f;
+            float h = NoticeHeight(text, parent);
+            le.minHeight = h;
+            le.preferredHeight = h;
             _rows.Add(row);
             TMP_Text t = NewText(row.transform, text, FontSmall, Dim, TextAlignmentOptions.TopLeft);
+            t.overflowMode = TextOverflowModes.Overflow;
             Stretch(t.rectTransform, 10f, 10f, 2f, 2f);
+        }
+
+        /// <summary>
+        /// Estimates how tall a wrapped notice needs to be.
+        ///
+        /// TMP cannot report a preferred height before it has been laid out, and
+        /// the layout group needs the height first, so this guesses from the
+        /// character count. Rich-text tags are stripped because they cost no
+        /// width on screen but plenty of string length -- counting them would
+        /// leave a gap under every coloured notice.
+        /// </summary>
+        private static float NoticeHeight(string text, RectTransform parent)
+        {
+            if (string.IsNullOrEmpty(text)) return RowH;
+            string bare = System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", "");
+            float width = parent != null && parent.rect.width > 1f ? parent.rect.width - 20f : 600f;
+            float charsPerLine = Mathf.Max(20f, width / (FontSmall * 0.52f));
+            int lines = Mathf.Max(1, Mathf.CeilToInt(bare.Length / charsPerLine));
+            return Mathf.Max(RowH, lines * FontSmall * 1.3f + 6f);
         }
 
         // ------------------------------------------------------------------
@@ -709,7 +769,12 @@ namespace ThorsKist
 
             VerticalLayoutGroup layout = contentGo.AddComponent<VerticalLayoutGroup>();
             layout.childControlWidth = true;
-            layout.childControlHeight = false;
+            // MUST be true. With childControlHeight off, VerticalLayoutGroup
+            // ignores LayoutElement heights entirely and lays rows out at their
+            // own RectTransform height -- which for a bare new RectTransform is
+            // 100 units. That is why every row was the same giant size no matter
+            // what RowH said, through three releases of shrinking it.
+            layout.childControlHeight = true;
             layout.childForceExpandWidth = true;
             layout.childForceExpandHeight = false;
             layout.spacing = RowGap;

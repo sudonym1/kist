@@ -25,6 +25,13 @@ The founder of a hird manages it: invite, remove, move the Kist, disband. Anyone
 online who is not already in a hird shows up in the invite list — no typing
 names, no player IDs.
 
+**Moving the Kist is deliberately hard.** Re-anchoring costs 25 surtling cores
+from the founder's own pack, and every member of the hird who is online must be
+standing within `anchorRadius` of the new spot. Offline members cannot be asked
+to attend, so they are not counted — but at least `minHirdSize` members must be
+online, which is what stops one person relocating the vault alone. Founding a
+hird is free; only moving it costs.
+
 The Kist has a location — the spot the hird was founded, which the founder can
 move at any time. Every radius below is measured from there.
 
@@ -41,6 +48,7 @@ move at any time. Every radius below is measured from there.
 | Range | `depositRadius` | `100` | Metres from the Kist you may deposit within. |
 | Range | `takeRadius` | `100` | Metres from the Kist you may take within. |
 | Range | `craftRadius` | `100` | Metres from the Kist crafting stations may draw within. |
+| Range | `anchorRadius` | `100` | Every online member must be this close before the Kist can be re-anchored. **Server-side.** |
 | Crafting | `craftFromKist` | `true` | Turn crafting from the Kist off entirely. |
 | Vault | `kistRows` | `64` | Rows of 8 slots. 64 rows = 512 stacks. **Server-side.** |
 | Feedback | `depositSound` | `true` | Sound on deposit. |
@@ -60,6 +68,8 @@ move at any time. Every radius below is measured from there.
 | Interface | `uiScale` | `1.0` | Scales the window's text and rows. Below 1 fits more on screen. |
 | Interface | `scrollRowsPerNotch` | `5` | Rows moved per notch of the mouse wheel. |
 | Server | `minHirdSize` | `2` | Members needed before a Kist unlocks. **Server-side.** |
+| Server | `anchorCostPrefab` | `SurtlingCore` | Item spent to re-anchor. A prefab name. Empty means free. **Server-side.** |
+| Server | `anchorCostAmount` | `25` | How many of it. **Server-side.** |
 
 Settings marked **server-side** are read from the host's config only. Everything
 else is per-player.

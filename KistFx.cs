@@ -28,16 +28,26 @@ namespace ThorsKist
         // Deposit
         // ------------------------------------------------------------------
 
+        /// <summary>The local player stored something.</summary>
         public static void Deposit()
         {
             Player p = Player.m_localPlayer;
             if (p == null) return;
+            DepositAt(p.GetCenterPoint());
+        }
 
+        /// <summary>
+        /// Someone stored something, at a world position. Effect prefabs carry no
+        /// ZNetView, so nothing about them replicates on its own -- the server
+        /// tells every member where to draw it.
+        /// </summary>
+        public static void DepositAt(Vector3 pos)
+        {
             if (Main.DepositSound.Value)
-                Spawn(Main.DepositSfxPrefab.Value, p.GetCenterPoint(), Main.DepositVolume.Value, ref _warnedDepositSfx);
+                Spawn(Main.DepositSfxPrefab.Value, pos, Main.DepositVolume.Value, ref _warnedDepositSfx);
 
             if (Main.DepositVfx.Value)
-                Spawn(Main.DepositVfxPrefab.Value, p.GetCenterPoint(), 1f, ref _warnedDepositVfx);
+                Spawn(Main.DepositVfxPrefab.Value, pos, 1f, ref _warnedDepositVfx);
         }
 
         // ------------------------------------------------------------------

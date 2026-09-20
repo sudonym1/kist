@@ -27,6 +27,14 @@ namespace ThorsKist
 
         public static readonly List<RosterEntry> Roster = new List<RosterEntry>();
 
+        // Whether the server would currently accept a re-anchor, and why not.
+        // The distance rule needs everyone's position, which only the server
+        // has, so this is asked for rather than worked out locally.
+        public static bool AnchorAllowed;
+        public static string AnchorReason = "";
+        public static string AnchorCostPrefab = "";
+        public static int AnchorCostAmount;
+
         /// <summary>Raised whenever the mirror changes, so the UI can redraw.</summary>
         public static Action OnStateChanged;
 
@@ -41,6 +49,8 @@ namespace ThorsKist
         private static int _nextToken = 1;
         private static float _nextHello;
         private static bool _helloSent;
+        private static float _nextPing;
+        private static float _nextAnchorQuery;
 
         public static bool InHird { get { return Hird != null; } }
 
@@ -88,6 +98,8 @@ namespace ThorsKist
             Roster.Clear();
             Pending.Clear();
             HasPendingInvite = false;
+            AnchorAllowed = false;
+            AnchorReason = "";
             _helloSent = false;
             _nextHello = 0f;
         }
@@ -143,6 +155,39 @@ namespace ThorsKist
         public static void Leave() { Send(NewMessage(Wire.C2S.Leave)); }
         public static void Disband() { Send(NewMessage(Wire.C2S.Disband)); }
         public static void SetAnchorHere() { Send(NewMessage(Wire.C2S.SetAnchor)); }
+        public static void QueryAnchor() { Send(NewMessage(Wire.C2S.AnchorQuery)); }
+
+        /// <summary>
+        /// How many of the re-anchor's cost item the player is carrying. The
+        /// cost is a SERVER setting, so the name arrives over the wire and is
+        /// resolved against the local prefab database here.
+        /// </summary>
+        public static int AnchorCostHeld()
+        {
+            if (string.IsNullOrEmpty(AnchorCostPrefab) || AnchorCostAmount <= 0) return int.MaxValue;
+            string shared = SharedNameOf(AnchorCostPrefab);
+            Player p = Player.m_localPlayer;
+            if (shared == null || p == null) return 0;
+            return p.GetInventory().CountItems(shared);
+        }
+
+        public static string AnchorCostLabel()
+        {
+            if (string.IsNullOrEmpty(AnchorCostPrefab) || AnchorCostAmount <= 0) return "";
+            string shared = SharedNameOf(AnchorCostPrefab);
+            string nice = shared != null && Localization.instance != null
+                ? Localization.instance.Localize(shared) : AnchorCostPrefab;
+            return AnchorCostAmount + " " + nice;
+        }
+
+        private static string SharedNameOf(string prefabName)
+        {
+            if (ObjectDB.instance == null) return null;
+            GameObject go = ObjectDB.instance.GetItemPrefab(prefabName);
+            if (go == null) return null;
+            ItemDrop drop = go.GetComponent<ItemDrop>();
+            return drop != null ? drop.m_itemData.m_shared.m_name : null;
+        }
 
         public static void Kick(long playerId)
         {
@@ -248,8 +293,29 @@ namespace ThorsKist
                         RollBack(pkg.ReadInt(), pkg.ReadString());
                         break;
                     case Wire.S2C.AnchorSet:
-                        KistFx.Anchor(pkg.ReadVector3());
+                        OnAnchorSet(pkg.ReadVector3(), pkg.ReadLong());
                         break;
+                    case Wire.S2C.DepositFx:
+                        KistFx.DepositAt(pkg.ReadVector3());
+                        break;
+                    case Wire.S2C.AnchorStatus:
+                    {
+                        bool ok = pkg.ReadBool();
+                        string reason = pkg.ReadString();
+                        string costPrefab = pkg.ReadString();
+                        int costAmount = pkg.ReadInt();
+                        // This arrives every couple of seconds while the Hird tab
+                        // is open. Redrawing on every one would throw away the
+                        // scroll position for no reason.
+                        bool changed = ok != AnchorAllowed || reason != AnchorReason ||
+                                       costPrefab != AnchorCostPrefab || costAmount != AnchorCostAmount;
+                        AnchorAllowed = ok;
+                        AnchorReason = reason;
+                        AnchorCostPrefab = costPrefab;
+                        AnchorCostAmount = costAmount;
+                        if (changed) KistUI.MarkDirty();
+                        break;
+                    }
                     case Wire.S2C.TakeResult:
                         ReceiveTake(pkg.ReadInt(), pkg.ReadPackage());
                         break;
@@ -296,6 +362,25 @@ namespace ThorsKist
             }
 
             if (OnStateChanged != null) OnStateChanged();
+        }
+
+        /// <summary>
+        /// The Kist has landed somewhere new. Everyone in the hird sees it; only
+        /// the member the server named as payer spends the cost, and only after
+        /// the move is already a fact.
+        /// </summary>
+        private static void OnAnchorSet(Vector3 pos, long payerPlayerId)
+        {
+            KistFx.Anchor(pos);
+
+            Player p = Player.m_localPlayer;
+            if (p == null || payerPlayerId == 0L || payerPlayerId != p.GetPlayerID()) return;
+            if (string.IsNullOrEmpty(AnchorCostPrefab) || AnchorCostAmount <= 0) return;
+
+            string shared = SharedNameOf(AnchorCostPrefab);
+            if (shared == null) return;
+            p.GetInventory().RemoveItem(shared, AnchorCostAmount);
+            Message("The Kist took " + AnchorCostLabel() + ".");
         }
 
         private static void ClearPending(int token)
@@ -387,6 +472,21 @@ namespace ThorsKist
                     Send(NewMessage(Wire.C2S.Hello));
                     _helloSent = true;
                 }
+            }
+
+            if (InHird && Time.realtimeSinceStartup >= _nextPing)
+            {
+                // Cheapest possible heartbeat: the server reads the position out
+                // of the message header every message already carries.
+                _nextPing = Time.realtimeSinceStartup + 3f;
+                Send(NewMessage(Wire.C2S.Ping));
+            }
+
+            // Only while someone is actually looking at the button.
+            if (InHird && KistUI.WantsAnchorStatus && Time.realtimeSinceStartup >= _nextAnchorQuery)
+            {
+                _nextAnchorQuery = Time.realtimeSinceStartup + 1.5f;
+                QueryAnchor();
             }
 
             // A deposit whose answer never arrives must not swallow the item.

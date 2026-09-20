@@ -15,7 +15,7 @@ namespace ThorsKist
         public const string MODNAME = "Thor's Kist";
         public const string AUTHOR = "posixone";
         public const string GUID = "posixone_ThorsKist";
-        public const string VERSION = "0.3.0";
+        public const string VERSION = "0.4.0";
 
         public static Main Instance;
         public static ManualLogSource Log;
@@ -23,6 +23,7 @@ namespace ThorsKist
 
         // ---- General -------------------------------------------------------
         public static ConfigEntry<bool> ModEnable;
+        public static ConfigEntry<int> ConfigVersion;
 
         // ---- Keys ----------------------------------------------------------
         public static ConfigEntry<KeyboardShortcut> DepositModifier;
@@ -35,6 +36,7 @@ namespace ThorsKist
         public static ConfigEntry<float> DepositRadius;
         public static ConfigEntry<float> TakeRadius;
         public static ConfigEntry<float> CraftRadius;
+        public static ConfigEntry<float> AnchorRadius;
 
         // ---- Crafting ------------------------------------------------------
         public static ConfigEntry<bool> CraftFromKist;
@@ -64,6 +66,8 @@ namespace ThorsKist
 
         // ---- Server --------------------------------------------------------
         public static ConfigEntry<int> MinHirdSize;
+        public static ConfigEntry<string> AnchorCostPrefab;
+        public static ConfigEntry<int> AnchorCostAmount;
 
         private void Awake()
         {
@@ -72,6 +76,8 @@ namespace ThorsKist
 
             ModEnable = Config.Bind("General", "modEnable", true,
                 "Master switch. False disables every part of Thor's Kist.");
+            ConfigVersion = Config.Bind("General", "configVersion", 0,
+                "Internal. Lets the mod correct settings whose defaults changed. Do not edit.");
 
             DepositModifier = Config.Bind("Keys", "depositModifier",
                 new KeyboardShortcut(KeyCode.LeftAlt),
@@ -90,6 +96,11 @@ namespace ThorsKist
                     new AcceptableValueRange<float>(1f, 100000f)));
             CraftRadius = Config.Bind("Range", "craftRadius", 100f,
                 new ConfigDescription("Metres from the Kist anchor within which crafting stations may draw on the Kist.",
+                    new AcceptableValueRange<float>(1f, 100000f)));
+            AnchorRadius = Config.Bind("Range", "anchorRadius", 100f,
+                new ConfigDescription(
+                    "Every hird member who is online must be within this many metres of the new spot before the " +
+                    "Kist can be re-anchored. Server-side setting: only the host's value counts.",
                     new AcceptableValueRange<float>(1f, 100000f)));
 
             CraftFromKist = Config.Bind("Crafting", "craftFromKist", true,
@@ -141,11 +152,20 @@ namespace ThorsKist
                 new ConfigDescription("How many rows one notch of the mouse wheel moves the item list.",
                     new AcceptableValueRange<int>(1, 25)));
 
+            AnchorCostPrefab = Config.Bind("Server", "anchorCostPrefab", "SurtlingCore",
+                "Item the founder must carry and spend to re-anchor the Kist. A prefab name, not a display name. " +
+                "Empty means free. Server-side setting: only the host's value counts.");
+            AnchorCostAmount = Config.Bind("Server", "anchorCostAmount", 25,
+                new ConfigDescription("How many of anchorCostPrefab a re-anchor costs. Server-side setting.",
+                    new AcceptableValueRange<int>(0, 999)));
+
             MinHirdSize = Config.Bind("Server", "minHirdSize", 2,
                 new ConfigDescription(
                     "How many members a hird needs before its Kist unlocks. The point of a hird is that it is shared, " +
                     "so the default is 2. Server-side setting: only the host's value counts.",
                     new AcceptableValueRange<int>(1, 10)));
+
+            MigrateConfig();
 
             if (!ModEnable.Value)
             {
@@ -156,6 +176,29 @@ namespace ThorsKist
             _harmony = new Harmony(GUID);
             _harmony.PatchAll(Assembly.GetExecutingAssembly());
             Log.LogInfo("ThorsKist " + VERSION + " loaded.");
+        }
+
+        /// <summary>
+        /// Corrects settings whose defaults have changed since the config file
+        /// was written. Changing a default in code does nothing for anyone who
+        /// has already run the mod -- BepInEx keeps whatever is on disk -- so
+        /// without this the blue deposit effect would only ever reach new
+        /// installs. Guarded by configVersion so a deliberate later choice is
+        /// never overwritten a second time.
+        /// </summary>
+        private void MigrateConfig()
+        {
+            const int current = 1;
+            if (ConfigVersion.Value >= current) return;
+
+            if (ConfigVersion.Value < 1 && DepositVfxPrefab.Value == "vfx_Potion_health_medium")
+            {
+                DepositVfxPrefab.Value = "vfx_Potion_eitr_minor";
+                Log.LogInfo("ThorsKist: deposit effect moved from the red health potion to the blue eitr one.");
+            }
+
+            ConfigVersion.Value = current;
+            Config.Save();
         }
 
         private void Update()

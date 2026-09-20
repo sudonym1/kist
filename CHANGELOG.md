@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.4.0
+
+- **Rows are finally small.** `RowH` never did anything: the list's
+  `VerticalLayoutGroup` had `childControlHeight = false`, which makes Unity
+  ignore `LayoutElement` heights and lay every row out at its own RectTransform
+  height — the default 100 units. Three releases of shrinking that number
+  changed nothing. Rows are now the height of their tallest element (18 units),
+  and notices size themselves to their wrapped text.
+- **The deposit effect is actually blue now.** 0.3.0 changed the *default* to
+  `vfx_Potion_eitr_minor`, which does nothing for anyone whose config file
+  already existed — BepInEx keeps what is on disk. A one-time migration, guarded
+  by a new `configVersion`, moves the old red value across. A deliberate choice
+  made afterwards is never overwritten.
+- **Everyone sees everyone's deposits.** Effect prefabs carry no `ZNetView`, so
+  nothing about them replicated; the server now tells every hird member where to
+  draw it. The depositor still plays theirs locally so the click stays instant.
+- **Re-anchoring is now expensive and public.** It costs 25 surtling cores from
+  the founder's pack, and every online member must be standing within the new
+  `anchorRadius` (default 100m). Both are server settings. The button greys out
+  with the reason spelled out above it — who is too far away, or how many cores
+  you are short.
+
+Offline members cannot be asked to attend, so they are not counted toward the
+gathering rule; instead at least `minHirdSize` members must be online, which is
+what stops one person relocating the vault by themselves.
+
 ## 0.3.0
 
 - **The stack count is back.** 0.2.0 drew it underneath the take buttons: the
