@@ -115,6 +115,11 @@
       <HintPath>lib/assembly_utils.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- Minimap.AddPin's optional author parameter is a PlatformUserID. -->
+    <Reference Include="Splatform">
+      <HintPath>lib/Splatform.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- Localization lives here, not in assembly_valheim. -->
     <Reference Include="assembly_guiutils">
       <HintPath>lib/assembly_guiutils.dll</HintPath>

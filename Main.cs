@@ -15,7 +15,7 @@ namespace ThorsKist
         public const string MODNAME = "Thor's Kist";
         public const string AUTHOR = "posixone";
         public const string GUID = "posixone_ThorsKist";
-        public const string VERSION = "0.4.1";
+        public const string VERSION = "0.5.0";
 
         public static Main Instance;
         public static ManualLogSource Log;
@@ -61,6 +61,8 @@ namespace ThorsKist
         public static ConfigEntry<float> AnchorDropSeconds;
 
         // ---- Interface -----------------------------------------------------
+        public static ConfigEntry<bool> MapPin;
+        public static ConfigEntry<string> MapPinPrefab;
         public static ConfigEntry<float> UiScale;
         public static ConfigEntry<int> ScrollRowsPerNotch;
 
@@ -145,6 +147,11 @@ namespace ThorsKist
                 new ConfigDescription("How long the fall takes.",
                     new AcceptableValueRange<float>(0.05f, 3f)));
 
+            MapPin = Config.Bind("Interface", "mapPin", true,
+                "Mark the Kist on your map. The pin follows the hird and cannot be deleted by hand.");
+            MapPinPrefab = Config.Bind("Interface", "mapPinPrefab", "piece_chest_wood",
+                "Build piece whose icon the Kist pin borrows. Any prefab with a Piece component works -- piece_chest_treasure, piece_chest_blackmetal and piece_chest_barrel are all real alternatives.");
+
             UiScale = Config.Bind("Interface", "uiScale", 1f,
                 new ConfigDescription("Scales the Kist window's text and rows. Below 1 fits more on screen.",
                     new AcceptableValueRange<float>(0.6f, 1.6f)));
@@ -206,6 +213,7 @@ namespace ThorsKist
             if (!ModEnable.Value) return;
             KistUI.Tick();
             KistClient.Tick();
+            KistMap.Tick();
         }
 
         private void OnDestroy()

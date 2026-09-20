@@ -18,6 +18,7 @@ members before its Kist opens at all.
 | **Open** | `F3`. Two tabs: **Kist** (the contents) and **Hird** (who is in it). The search box takes focus immediately — just start typing. |
 | **Take** | Buttons on every row: `1`, `10`, `All`, with the usual pickup sound. Items with no room in your pack drop at your feet rather than vanishing. |
 | **Craft** | Every crafting station, the build hammer and repairs can spend materials straight out of the Kist. |
+| **Find** | The Kist is pinned on every member's map with a chest icon. The pin cannot be deleted by hand — it moves when the Kist moves and vanishes when you leave the hird. |
 
 ## Hirds
 
@@ -31,6 +32,9 @@ standing within `anchorRadius` of the new spot. Offline members cannot be asked
 to attend, so they are not counted — but at least `minHirdSize` members must be
 online, which is what stops one person relocating the vault alone. Founding a
 hird is free; only moving it costs.
+
+**There is no limit on hird size.** The practical ceiling is however many
+players your server allows, and members count whether they are online or not.
 
 The Kist has a location — the spot the hird was founded, which the founder can
 move at any time. Every radius below is measured from there.
@@ -65,6 +69,8 @@ move at any time. Every radius below is measured from there.
 | Feedback | `anchorVolume` | `1.5` | Multiplies the slam. |
 | Feedback | `anchorDropHeight` | `12` | Metres the Kist falls from. |
 | Feedback | `anchorDropSeconds` | `0.45` | How long the fall takes. |
+| Interface | `mapPin` | `true` | Mark the Kist on your map. |
+| Interface | `mapPinPrefab` | `piece_chest_wood` | Build piece whose icon the pin borrows. |
 | Interface | `uiScale` | `1.0` | Scales the window's text and rows. Below 1 fits more on screen. |
 | Interface | `scrollRowsPerNotch` | `5` | Rows moved per notch of the mouse wheel. |
 | Server | `minHirdSize` | `2` | Members needed before a Kist unlocks. **Server-side.** |
@@ -75,8 +81,9 @@ Settings marked **server-side** are read from the host's config only. Everything
 else is per-player.
 
 Every prefab name above is a real entry in the game's own asset manifest. The
-full list of 1,487 sound and effect prefabs is in `notes/prefab-names.txt` if
-you want to try something else — no rebuild needed, they are read from config.
+full list of every prefab name the game ships — 43,346 of them — is in
+`notes/prefab-names.txt` if you want to try something else. No rebuild needed;
+they are read from config.
 
 ## Installing
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.0
+
+- **The Kist is pinned on every member's map**, with a chest icon lifted from
+  the wood chest's build-menu sprite — Valheim ships no chest among its own pin
+  icons, and borrowing the piece's beats shipping an asset bundle for one image.
+- **The pin cannot be deleted by hand.** Every way a player removes a pin ends
+  at one method, so a single guard covers right-click, the radius sweep and the
+  pin list.
+- **The pin is a view of server state, not a saved pin.** It moves when the
+  founder re-anchors, and disappears the moment you leave, are kicked, or the
+  hird disbands — because there is no longer any state for it to draw. Nothing
+  is written into the map save, so a stale pin cannot outlive its hird.
+- `notes/prefab-names.txt` now lists all **43,346** prefab names the game
+  ships, not just sounds and effects. `mapPinPrefab` accepts any of them that
+  has a build icon — `piece_chest_treasure` and `piece_chest_blackmetal` are
+  real alternatives.
+
 ## 0.4.1
 
 - **Text typed into the hird-name box is visible again.** `AddComponent` runs
