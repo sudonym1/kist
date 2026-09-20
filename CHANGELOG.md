@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.8.4
+
+**Fixed: the Kist would show items it then refused to spend.**
+
+Valheim stamps every item with the world level of the moment it entered an
+inventory, and its inventory lookups ignore anything stamped below the world
+level you are on now. For your own pack that is the intended difficulty rule.
+For a shared vault it was a trap: **wood banked before a boss fell is still
+wood**, but it silently stopped counting toward anything once the world level
+rose.
+
+Worse, the Kist window lists its contents with no filter at all — so those
+materials sat plainly visible on screen while every craft, build and station
+refused to touch them. A charcoal kiln would take your wood and never charge
+the Kist for it.
+
+Every read and every spend of the vault now ignores the world-level rule.
+Which stack you happen to have stored, and when, no longer decides whether it
+works.
+
+**The Kist now says when it pays.** A line like `Kist paid 1 x $item_wood`
+appears in the log whenever the vault is actually charged. "It did not deduct"
+and "it was never asked to" are otherwise impossible to tell apart.
+
+**The mod-conflict warning is honest about severity.** It previously filed the
+Alt-click deposit hook under crafting, so mods that only share the deposit
+click — and cannot touch payment at all — were reported as though they handed
+out free materials. Overlaps are now separated into what could affect crafting
+and what could affect depositing, and described as what *may* happen rather
+than what has: most of these patches are conditional and decline far more often
+than they fire. A mod that merely adds to a method, rather than replacing it,
+is no threat and is no longer mentioned.
+
+**Deposit clicks are considered first.** Other inventory-extending mods hook
+the same click and can consume it. The Kist now gets first look, and passes
+every click that is not a modifier-held deposit straight through.
+
 ## 0.8.3
 
 **Smelters, kilns, fireplaces, cooking stations and fermenters now feed from

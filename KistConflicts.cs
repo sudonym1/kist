@@ -28,12 +28,23 @@ namespace ThorsKist
     /// </summary>
     public static class KistConflicts
     {
+        /// <summary>What is at stake if the other mod's patch does take over.</summary>
+        public enum Stake
+        {
+            /// <summary>Wrong numbers on screen. Worth a log line, nothing more.</summary>
+            Display,
+            /// <summary>The Alt-click deposit gesture may not reach the Kist.</summary>
+            Deposit,
+            /// <summary>The Kist can be counted toward a cost and never charged for it.</summary>
+            Payment
+        }
+
         public sealed class Conflict
         {
             public string Mod;          // friendly name if we can find one, else the Harmony id
             public string Method;       // the seam that was taken over
             public bool Replaces;       // true = skipping prefix, false = transpiler
-            public bool Critical;       // true if it breaks payment rather than display
+            public Stake Stake;
 
             public string Key { get { return Mod + "|" + Method; } }
         }
@@ -44,11 +55,12 @@ namespace ThorsKist
         private static bool _sawPlayer;
         private static bool _told;
 
-        public static bool AnyCritical
+        /// <summary>Anything worth interrupting the player for.</summary>
+        public static bool AnyWorthTelling
         {
             get
             {
-                foreach (Conflict c in _found) if (c.Critical) return true;
+                foreach (Conflict c in _found) if (c.Stake != Stake.Display) return true;
                 return false;
             }
         }
@@ -74,9 +86,9 @@ namespace ThorsKist
             if (_scans == 0) { _scans++; Scan(); return; }
             if (!_sawPlayer && Player.m_localPlayer != null) { _sawPlayer = true; Scan(); }
 
-            if (_told || !AnyCritical || Player.m_localPlayer == null) return;
+            if (_told || !AnyWorthTelling || Player.m_localPlayer == null) return;
             _told = true;
-            KistDialog.Show("THOR'S KIST - MOD CONFLICT", Report());
+            KistDialog.Show("THOR'S KIST - SHARED HOOKS", Report());
         }
 
         /// <summary>
@@ -125,23 +137,34 @@ namespace ThorsKist
         }
 
         /// <summary>
-        /// Critical means losing the seam breaks payment: the Kist can be
-        /// counted toward a cost and never charged for it, which hands out free
-        /// materials. The rest only make the numbers on screen wrong, which is
-        /// worth a log line and nothing more.
+        /// What losing a given seam would actually cost.
+        ///
+        /// Getting this wrong is worse than not warning at all. OnSelectedItem
+        /// sat under Payment at first, so two mods that only share the deposit
+        /// click -- and cannot touch the payment path -- were reported as though
+        /// they handed out free materials. That sent a real evening chasing a
+        /// bug that did not exist. A warning is only useful if its severity is
+        /// the true one.
         /// </summary>
-        private static bool IsCritical(MethodBase m)
+        private static Stake StakeOf(MethodBase m)
         {
             switch (m.Name)
             {
+                // The payment path: counted toward a cost, never charged for it.
                 case "ConsumeResources":
                 case "CountItems":
                 case "RemoveItem":
+                case "HaveItem":
+                case "GetItem":
                 case "DoCrafting":
+                    return Stake.Payment;
+
+                // The Alt-click deposit gesture. Losing it means the click does
+                // nothing -- visible immediately, and it costs nothing.
                 case "OnSelectedItem":
-                    return true;
+                    return Stake.Deposit;
             }
-            return false;
+            return Stake.Display;
         }
 
         private static void Scan()
@@ -161,16 +184,18 @@ namespace ThorsKist
                 }
                 if (info == null) continue;
 
-                bool critical = IsCritical(target);
+                Stake stake = StakeOf(target);
 
                 // A prefix only displaces the original if it can return false.
-                // A void prefix runs alongside ours and is no threat.
+                // A void prefix -- even one paired with a finalizer, which is
+                // the polite way to wrap a method -- runs alongside ours and is
+                // no threat, so it is never reported.
                 foreach (Patch p in info.Prefixes)
                 {
                     if (p.owner == Main.GUID) continue;
                     MethodInfo m = p.PatchMethod;
                     if (m == null || m.ReturnType != typeof(bool)) continue;
-                    Note(p, name, critical, true);
+                    Note(p, name, stake, true);
                 }
 
                 // A transpiler rewrites the very body we are riding on, and can
@@ -178,7 +203,7 @@ namespace ThorsKist
                 foreach (Patch p in info.Transpilers)
                 {
                     if (p.owner == Main.GUID) continue;
-                    Note(p, name, critical, false);
+                    Note(p, name, stake, false);
                 }
             }
 
@@ -188,23 +213,36 @@ namespace ThorsKist
                              _found.Count + " conflict(s).");
         }
 
-        private static void Note(Patch p, string method, bool critical, bool replaces)
+        private static void Note(Patch p, string method, Stake stake, bool replaces)
         {
             Conflict c = new Conflict
             {
                 Mod = ModName(p),
                 Method = method,
                 Replaces = replaces,
-                Critical = critical
+                Stake = stake
             };
             if (!_seen.Add(c.Key)) return;
             _found.Add(c);
 
-            string line = "ThorsKist: " + c.Mod + (replaces ? " replaces " : " rewrites ") + method;
-            if (critical)
-                Main.Log.LogWarning(line + " -- the Kist may be counted toward a cost but never charged for it.");
-            else
-                Main.Log.LogInfo(line + " -- Kist amounts on screen may be wrong; payment is unaffected.");
+            // "may" throughout, and deliberately. Whether one of these prefixes
+            // actually takes over is decided at run time, per call -- most are
+            // conditional and decline far more often than they fire. Reporting
+            // a possibility as a certainty is how the last one of these sent
+            // somebody hunting a bug that was not there.
+            string line = "ThorsKist: " + c.Mod + (replaces ? " may take over " : " rewrites ") + method;
+            switch (stake)
+            {
+                case Stake.Payment:
+                    Main.Log.LogWarning(line + " -- if it does, the Kist can be counted toward a cost and never charged for it.");
+                    break;
+                case Stake.Deposit:
+                    Main.Log.LogWarning(line + " -- if it does, an Alt-click deposit may not reach the Kist. Crafting is unaffected.");
+                    break;
+                default:
+                    Main.Log.LogInfo(line + " -- Kist amounts on screen may be wrong; payment is unaffected.");
+                    break;
+            }
         }
 
         /// <summary>
@@ -239,27 +277,42 @@ namespace ThorsKist
             return string.IsNullOrEmpty(owner) ? "another mod" : owner;
         }
 
-        /// <summary>The player-facing text. Names what broke and what to do.</summary>
+        /// <summary>
+        /// The player-facing text. Says what each overlap could cost and no
+        /// more -- a conditional patch may never fire, so nothing here claims
+        /// anything has already gone wrong.
+        /// </summary>
         public static string Report()
         {
             StringBuilder sb = new StringBuilder();
-            sb.Append("Another mod has taken over the crafting hooks Thor's Kist uses.\n\n");
+            sb.Append("Another mod hooks the same game code Thor's Kist uses.\n");
+            sb.Append("<i>This is a heads-up, not a fault. It may never affect you.</i>\n");
 
+            Section(sb, Stake.Payment, "Could affect crafting",
+                "If it takes over, the Kist may be counted toward a recipe and never charged for it. " +
+                "Setting <b>craftFromKist = false</b> stops the Kist offering materials it cannot charge for.");
+
+            Section(sb, Stake.Deposit, "Could affect depositing",
+                "If it takes over, an Alt-click may not reach the Kist. Crafting is unaffected, and the " +
+                "Kist window still deposits normally.");
+
+            sb.Append("\nThe log line <b>\"Kist paid ...\"</b> appears whenever the vault actually pays, ");
+            sb.Append("so you can always tell a real problem from materials simply coming from elsewhere.");
+            return sb.ToString();
+        }
+
+        private static void Section(StringBuilder sb, Stake stake, string heading, string consequence)
+        {
+            bool any = false;
             foreach (Conflict c in _found)
             {
-                if (!c.Critical) continue;
-                sb.Append("   <b>").Append(c.Mod).Append("</b> ")
-                  .Append(c.Replaces ? "replaces " : "rewrites ")
+                if (c.Stake != stake) continue;
+                if (!any) { sb.Append("\n<b>").Append(heading).Append("</b>\n"); any = true; }
+                sb.Append("   ").Append(c.Mod).Append(' ')
+                  .Append(c.Replaces ? "may take over " : "rewrites ")
                   .Append(c.Method).Append('\n');
             }
-
-            sb.Append("\nWhile both are installed the Kist can still be counted toward a recipe ");
-            sb.Append("but may never be charged for it, so materials can look affordable and never ");
-            sb.Append("actually be spent.\n\n");
-            sb.Append("Thor's Kist has not changed anything on its own. To put it right, remove the ");
-            sb.Append("other mod, or set <b>craftFromKist = false</b> in the Kist's config so it stops ");
-            sb.Append("offering materials it cannot charge you for.");
-            return sb.ToString();
+            if (any) sb.Append("   ").Append(consequence).Append('\n');
         }
     }
 }

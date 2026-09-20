@@ -234,7 +234,7 @@ namespace ThorsKist
             if (kist == null) return;
 
             CraftContext.EnterRaw();
-            try { if (kist.CountItems(name) > 0) __result = true; }
+            try { if (KistStock.Count(kist, name, -1) > 0) __result = true; }
             finally { CraftContext.ExitRaw(); }
         }
     }
@@ -259,7 +259,7 @@ namespace ThorsKist
             try
             {
                 foreach (string n in names)
-                    if (!string.IsNullOrEmpty(n)) __result += kist.CountItems(n, quality);
+                    if (!string.IsNullOrEmpty(n)) __result += KistStock.Count(kist, n, quality);
             }
             finally { CraftContext.ExitRaw(); }
         }
@@ -295,7 +295,7 @@ namespace ThorsKist
             CraftContext.EnterRaw();
             try
             {
-                ItemDrop.ItemData source = kist.GetItem(name, quality);
+                ItemDrop.ItemData source = KistStock.Find(kist, name, quality);
                 if (source == null) return;
 
                 // Only a question -- "could this station be used?" Answer it
@@ -315,7 +315,7 @@ namespace ThorsKist
                 }
                 if (!__instance.AddItem(one)) return;
 
-                kist.RemoveItem(name, 1, quality);
+                KistStock.Take(kist, name, 1, quality);
                 CraftContext.Record(name, 1, quality);
 
                 // Hand back the instance that actually landed in the inventory.

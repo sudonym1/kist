@@ -45,6 +45,17 @@ namespace ThorsKist
         public static void FlushDraws()
         {
             if (PendingDraws.Count == 0) return;
+
+            // Say what the vault actually paid. "It did not deduct" is otherwise
+            // impossible to tell apart from "it was never asked to" -- the
+            // materials having come from a pack, a backpack or a nearby chest
+            // instead -- and guessing between those wastes an evening.
+            System.Text.StringBuilder sb = new System.Text.StringBuilder("ThorsKist: Kist paid");
+            for (int i = 0; i < PendingDraws.Count; i++)
+                sb.Append(i == 0 ? " " : ", ").Append(PendingDraws[i].Amount)
+                  .Append(" x ").Append(PendingDraws[i].Name);
+            Main.Log.LogInfo(sb.ToString());
+
             KistClient.ReportCraftConsume(new List<CraftDraw>(PendingDraws));
             PendingDraws.Clear();
         }
@@ -116,7 +127,7 @@ namespace ThorsKist
             if (kist == null) return;
 
             CraftContext.EnterRaw();
-            try { __result += kist.CountItems(name, quality, matchWorldLevel); }
+            try { __result += KistStock.Count(kist, name, quality); }
             finally { CraftContext.ExitRaw(); }
         }
     }
@@ -161,10 +172,10 @@ namespace ThorsKist
             CraftContext.EnterRaw();
             try
             {
-                int available = kist.CountItems(name, itemQuality);
+                int available = KistStock.Count(kist, name, itemQuality);
                 int take = __state < available ? __state : available;
                 if (take <= 0) return;
-                kist.RemoveItem(name, take, itemQuality);
+                KistStock.Take(kist, name, take, itemQuality);
                 CraftContext.Record(name, take, itemQuality);
             }
             finally { CraftContext.ExitRaw(); }

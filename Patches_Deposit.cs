@@ -17,7 +17,13 @@ namespace ThorsKist
         // ___m_dragItem is Harmony's field injection. InventoryGui.m_dragItem is
         // private on the real game assembly -- reading it through the publicized
         // reference compiles but throws FieldAccessException at runtime.
-        [HarmonyPrefix]
+        // First look at the click. Inventory-extending mods (backpacks, gear
+        // slots and the like) also prefix this method and can return false,
+        // which would swallow the deposit before it was ever considered. Taking
+        // first look is polite rather than greedy: every branch below returns
+        // true the instant the click is not a modifier-held deposit, so anyone
+        // else's handler still gets every click that is not explicitly ours.
+        [HarmonyPrefix, HarmonyPriority(Priority.First)]
         public static bool Prefix(InventoryGrid grid, ItemDrop.ItemData item, ItemDrop.ItemData ___m_dragItem)
         {
             if (!Main.ModEnable.Value) return true;
