@@ -16,6 +16,11 @@ The name started a few pixels inside the icon's right edge rather than beside
 it, and the two got closer as the interface scale went up. There is now a clear
 gap at every scale.
 
+**Quieter logs.** The station diagnostics added in 0.8.5 wrote a line every
+time a station so much as asked the Kist a question -- and a cooking station
+asks once a frame while you stand near it. A station now says something only
+when it actually takes from the Kist, or when it tried and could not.
+
 ## 0.8.5
 
 **Fixed: recipes that take any one of several ingredients were never charged.**

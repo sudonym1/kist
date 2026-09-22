@@ -336,7 +336,10 @@ namespace ThorsKist
                         Take(senderPeer, playerId, pos, pkg.ReadInt(), pkg.ReadVector2i(), pkg.ReadString(), pkg.ReadInt());
                         break;
                     case Wire.C2S.Diag:
-                        Main.Log.LogWarning("ThorsKist DIAG [" + playerName + "] " + pkg.ReadString());
+                        // Info, not Warning. These only arrive when a station
+                        // genuinely could not take something, which is worth a
+                        // line but is not the server's problem to act on.
+                        Main.Log.LogInfo("ThorsKist [" + playerName + "] " + pkg.ReadString());
                         break;
 
                     case Wire.C2S.ConsumeForCraft:

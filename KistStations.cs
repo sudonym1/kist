@@ -326,15 +326,17 @@ namespace ThorsKist
             {
                 ItemDrop.ItemData source = KistStock.Find(kist, name, quality);
 
-                // Every branch below is reported, because "the station never
-                // asked" and "the Kist declined" are indistinguishable in game
-                // and the decision is made on the client where nobody can see
-                // it. This is the line that ends a guessing game.
-                KistClient.ReportDiag("station[" + StationScope.Label + "] asked GetItem(" + name +
-                    ", q=" + quality + "); player had none; kist holds " +
-                    KistStock.Count(kist, name, quality) + "; " + stateBefore + " committing=" + committing);
-
-                if (source == null) return;
+                if (source == null)
+                {
+                    // Only worth saying when a station actually tried to take
+                    // something. A question that finds nothing is just a player
+                    // standing near a cooking station with an empty vault, and
+                    // CookingStation.CanUseItems asks once a FRAME.
+                    if (committing)
+                        KistClient.ReportDiag("station[" + StationScope.Label + "] wanted " + name +
+                            " and the Kist holds none that match. " + stateBefore);
+                    return;
+                }
 
                 // Only a question -- "could this station be used?" Answer it
                 // with the Kist's own stack and move nothing. Every caller in
@@ -350,8 +352,10 @@ namespace ThorsKist
                     // Smelter.OnAddOre throws away RemoveItem's return value and
                     // queues the ore regardless, so a borrow became free
                     // material and the Kist was never charged.
-                    KistClient.ReportDiag("station[" + StationScope.Label + "] BORROWED " + name +
-                        " (query tier -- nothing moved). " + stateBefore);
+                    // Deliberately silent. This is the answer to a question, it
+                    // moves nothing, and on a cooking station it is asked every
+                    // frame the player stands near one -- logging it buried the
+                    // lines that actually matter.
                     ItemDrop.ItemData peek = source.Clone();
                     peek.m_stack = 1;
                     __result = peek;
@@ -363,14 +367,26 @@ namespace ThorsKist
                 if (!__instance.CanAddItem(one, 1))
                 {
                     KistClient.Message("$msg_yourinventoryisfull");
+                    KistClient.ReportDiag("station[" + StationScope.Label + "] could not take " + name +
+                        " -- the player's inventory is full.");
                     return;
                 }
-                if (!__instance.AddItem(one)) return;
+                if (!__instance.AddItem(one))
+                {
+                    KistClient.ReportDiag("station[" + StationScope.Label + "] could not take " + name +
+                        " -- AddItem refused it.");
+                    return;
+                }
 
                 KistStock.Take(kist, name, 1, quality);
                 CraftContext.Record(name, 1, quality);
-                KistClient.ReportDiag("station[" + StationScope.Label + "] MATERIALISED 1 x " + name +
-                    " out of the Kist into the pack.");
+                // Local log only. A successful take is already recorded in the
+                // vault itself, so telling the server as well doubles the
+                // traffic of every ore a smelter eats to say what the numbers
+                // already say. Failures still go to the server, because those
+                // are the ones nobody can see from the outside.
+                Main.Log.LogInfo("ThorsKist: station[" + StationScope.Label +
+                    "] took 1 x " + name + " from the Kist.");
 
                 // Hand back the instance that actually landed in the inventory.
                 // AddItem is free to merge into a stack rather than keep ours,
