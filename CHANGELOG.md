@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.6
+
+**Fixed: the Invite button had no label.**
+
+It was two pixels shorter than the buttons beside it, which left its text a
+hair less room than one line needs -- and a line that does not fit is dropped
+whole rather than trimmed, so the button went blank while still working. Button
+labels are now allowed to overflow instead of vanishing, which also fixes every
+button in the window losing its text at small interface scales.
+
+**Fixed: item names were printed on top of their icons.**
+
+The name started a few pixels inside the icon's right edge rather than beside
+it, and the two got closer as the interface scale went up. There is now a clear
+gap at every scale.
+
 ## 0.8.5
 
 **Fixed: recipes that take any one of several ingredients were never charged.**

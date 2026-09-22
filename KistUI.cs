@@ -488,7 +488,10 @@ namespace ThorsKist
             icon.sprite = item.GetIcon();
             icon.preserveAspect = true;
             icon.raycastTarget = false;
-            Place(iconGo.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(4f + IconSize * 0.5f, 0f),
+            // The pivot is (0, 0.5), so this offset is the icon's LEFT edge and
+            // its right edge lands IconSize further on.
+            float iconLeft = 4f + IconSize * 0.5f;
+            Place(iconGo.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(iconLeft, 0f),
                   new Vector2(IconSize, IconSize));
 
             // Plain ASCII: a glyph the game's font lacks renders as a blank or a
@@ -496,8 +499,14 @@ namespace ThorsKist
             string quality = item.m_shared.m_maxQuality > 1
                 ? "  <color=#8C8677>q" + item.m_quality + "</color>" : "";
             TMP_Text name = NewText(row.transform, label + quality, FontRow, Parchment, TextAlignmentOptions.Left);
-            Place(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(IconSize + 8f, 0f),
-                  new Vector2(380f * S, RowH), new Vector2(0f, 0.5f));
+            // Start clear of the icon's right edge, then leave a gap. The old
+            // offset was IconSize + 8, which at any icon larger than 8px landed
+            // INSIDE the icon -- the name was printed over it, not beside it.
+            float labelX = iconLeft + IconSize + 10f;
+            Place(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(labelX, 0f),
+                  // Keep the label's right edge exactly where it was, so the
+                  // count and sort-key columns are untouched.
+                  new Vector2(380f * S - (labelX - (IconSize + 8f)), RowH), new Vector2(0f, 0.5f));
 
             TMP_Text count = NewText(row.transform, "x" + item.m_stack, FontRow, Accent, TextAlignmentOptions.Right);
             Place(count.rectTransform, new Vector2(1f, 0.5f), new Vector2(-(BtnStripW + 8f), 0f),
@@ -637,8 +646,10 @@ namespace ThorsKist
                         long id = e.PlayerId;
                         string nm = e.Name;
                         Button b = NewButton(row.transform, "Invite", FontSmall, delegate { KistClient.Invite(id, nm); });
+                        // RowH - 2f, matching Remove. At RowH - 4f the label had
+                        // 12px of room for a 12.6px line and vanished completely.
                         Place(b.transform as RectTransform, new Vector2(1f, 0.5f), new Vector2(-14f, 0f),
-                              new Vector2(84f * S, RowH - 4f));
+                              new Vector2(84f * S, RowH - 2f));
                     }
                 }
             }
@@ -844,6 +855,13 @@ namespace ThorsKist
 
             TMP_Text t = NewText(go.transform, label, size, Parchment, TextAlignmentOptions.Center);
             Stretch(t.rectTransform, 2f, 2f, 1f, 1f);
+            // A button label must never be dropped. NewText defaults to Ellipsis,
+            // and when a line does not fit VERTICALLY TextMeshPro renders nothing
+            // at all -- not clipped text, not an ellipsis, an empty box. A button
+            // two pixels shorter than its neighbours was enough to lose its label
+            // entirely while still working perfectly when clicked. Labels here are
+            // a word long, so overflowing is always the better failure.
+            t.overflowMode = TextOverflowModes.Overflow;
             return b;
         }
 
