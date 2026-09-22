@@ -49,8 +49,27 @@ namespace ThorsKist
         /// </summary>
         public static bool Committing { get { return _commit > 0 && Active; } }
 
-        public static void Enter(bool committing)
+        /// <summary>Raw counters, for diagnostics only.</summary>
+        public static string State
         {
+            get
+            {
+                return "depth=" + _depth + " commit=" + _commit +
+                       " craftActive=" + CraftContext.Active +
+                       " canCraft=" + KistClient.CanCraft;
+            }
+        }
+
+        /// <summary>
+        /// Names the station call that opened the outermost scope, so a
+        /// diagnostic can say which one was in force rather than just a number.
+        /// </summary>
+        public static string Label = "";
+
+        public static void Enter(bool committing, string label = "?")
+        {
+            if (_depth == 0) Label = label;
+            else Label += ">" + label;
             _depth++;
             if (committing) _commit++;
             CraftContext.Push();
@@ -108,14 +127,14 @@ namespace ThorsKist
         // they are all Smelter with different conversions.
         [HarmonyPatch(typeof(Smelter), "OnAddOre")]
         [HarmonyPrefix, HarmonyPriority(Priority.First)]
-        public static void SmelterOrePre() { StationScope.Enter(true); }
+        public static void SmelterOrePre() { StationScope.Enter(true, "Smelter.OnAddOre"); }
         [HarmonyPatch(typeof(Smelter), "OnAddOre")]
         [HarmonyPostfix]
         public static void SmelterOrePost() { StationScope.Exit(true); }
 
         [HarmonyPatch(typeof(Smelter), "OnAddFuel")]
         [HarmonyPrefix, HarmonyPriority(Priority.First)]
-        public static void SmelterFuelPre() { StationScope.Enter(true); }
+        public static void SmelterFuelPre() { StationScope.Enter(true, "Smelter.OnAddFuel"); }
         [HarmonyPatch(typeof(Smelter), "OnAddFuel")]
         [HarmonyPostfix]
         public static void SmelterFuelPost() { StationScope.Exit(true); }
@@ -124,56 +143,56 @@ namespace ThorsKist
         // Without it the prompt never appears and OnAdd* is never reached.
         [HarmonyPatch(typeof(Smelter), nameof(Smelter.CanUseItems))]
         [HarmonyPrefix, HarmonyPriority(Priority.First)]
-        public static void SmelterCanPre() { StationScope.Enter(false); }
+        public static void SmelterCanPre() { StationScope.Enter(false, "Smelter.CanUseItems"); }
         [HarmonyPatch(typeof(Smelter), nameof(Smelter.CanUseItems))]
         [HarmonyPostfix]
         public static void SmelterCanPost() { StationScope.Exit(false); }
 
         [HarmonyPatch(typeof(Fireplace), nameof(Fireplace.Interact))]
         [HarmonyPrefix, HarmonyPriority(Priority.First)]
-        public static void FireplaceInteractPre() { StationScope.Enter(true); }
+        public static void FireplaceInteractPre() { StationScope.Enter(true, "Fireplace.Interact"); }
         [HarmonyPatch(typeof(Fireplace), nameof(Fireplace.Interact))]
         [HarmonyPostfix]
         public static void FireplaceInteractPost() { StationScope.Exit(true); }
 
         [HarmonyPatch(typeof(Fireplace), nameof(Fireplace.UseItem))]
         [HarmonyPrefix, HarmonyPriority(Priority.First)]
-        public static void FireplaceUsePre() { StationScope.Enter(true); }
+        public static void FireplaceUsePre() { StationScope.Enter(true, "Fireplace.UseItem"); }
         [HarmonyPatch(typeof(Fireplace), nameof(Fireplace.UseItem))]
         [HarmonyPostfix]
         public static void FireplaceUsePost() { StationScope.Exit(true); }
 
         [HarmonyPatch(typeof(Fireplace), nameof(Fireplace.CanUseItems))]
         [HarmonyPrefix, HarmonyPriority(Priority.First)]
-        public static void FireplaceCanPre() { StationScope.Enter(false); }
+        public static void FireplaceCanPre() { StationScope.Enter(false, "Fireplace.CanUseItems"); }
         [HarmonyPatch(typeof(Fireplace), nameof(Fireplace.CanUseItems))]
         [HarmonyPostfix]
         public static void FireplaceCanPost() { StationScope.Exit(false); }
 
         [HarmonyPatch(typeof(CookingStation), "OnAddFuelSwitch")]
         [HarmonyPrefix, HarmonyPriority(Priority.First)]
-        public static void CookFuelPre() { StationScope.Enter(true); }
+        public static void CookFuelPre() { StationScope.Enter(true, "CookingStation.OnAddFuelSwitch"); }
         [HarmonyPatch(typeof(CookingStation), "OnAddFuelSwitch")]
         [HarmonyPostfix]
         public static void CookFuelPost() { StationScope.Exit(true); }
 
         [HarmonyPatch(typeof(CookingStation), "OnAddFoodSwitch")]
         [HarmonyPrefix, HarmonyPriority(Priority.First)]
-        public static void CookFoodPre() { StationScope.Enter(true); }
+        public static void CookFoodPre() { StationScope.Enter(true, "CookingStation.OnAddFoodSwitch"); }
         [HarmonyPatch(typeof(CookingStation), "OnAddFoodSwitch")]
         [HarmonyPostfix]
         public static void CookFoodPost() { StationScope.Exit(true); }
 
         [HarmonyPatch(typeof(CookingStation), nameof(CookingStation.UseItem))]
         [HarmonyPrefix, HarmonyPriority(Priority.First)]
-        public static void CookUsePre() { StationScope.Enter(true); }
+        public static void CookUsePre() { StationScope.Enter(true, "CookingStation.UseItem"); }
         [HarmonyPatch(typeof(CookingStation), nameof(CookingStation.UseItem))]
         [HarmonyPostfix]
         public static void CookUsePost() { StationScope.Exit(true); }
 
         [HarmonyPatch(typeof(CookingStation), nameof(CookingStation.CanUseItems))]
         [HarmonyPrefix, HarmonyPriority(Priority.First)]
-        public static void CookCanPre() { StationScope.Enter(false); }
+        public static void CookCanPre() { StationScope.Enter(false, "CookingStation.CanUseItems"); }
         [HarmonyPatch(typeof(CookingStation), nameof(CookingStation.CanUseItems))]
         [HarmonyPostfix]
         public static void CookCanPost() { StationScope.Exit(false); }
@@ -182,7 +201,7 @@ namespace ThorsKist
         // the food switch is ever reached, so the scope has to be open there.
         [HarmonyPatch(typeof(CookingStation), "OnInteract")]
         [HarmonyPrefix, HarmonyPriority(Priority.First)]
-        public static void CookInteractPre() { StationScope.Enter(true); }
+        public static void CookInteractPre() { StationScope.Enter(true, "CookingStation.OnInteract"); }
         [HarmonyPatch(typeof(CookingStation), "OnInteract")]
         [HarmonyPostfix]
         public static void CookInteractPost() { StationScope.Exit(true); }
@@ -191,21 +210,21 @@ namespace ThorsKist
         // taking.
         [HarmonyPatch(typeof(Fermenter), nameof(Fermenter.Interact))]
         [HarmonyPrefix, HarmonyPriority(Priority.First)]
-        public static void FermentInteractPre() { StationScope.Enter(true); }
+        public static void FermentInteractPre() { StationScope.Enter(true, "Fermenter.Interact"); }
         [HarmonyPatch(typeof(Fermenter), nameof(Fermenter.Interact))]
         [HarmonyPostfix]
         public static void FermentInteractPost() { StationScope.Exit(true); }
 
         [HarmonyPatch(typeof(Fermenter), "AddItem")]
         [HarmonyPrefix, HarmonyPriority(Priority.First)]
-        public static void FermentAddPre() { StationScope.Enter(true); }
+        public static void FermentAddPre() { StationScope.Enter(true, "Fermenter.AddItem"); }
         [HarmonyPatch(typeof(Fermenter), "AddItem")]
         [HarmonyPostfix]
         public static void FermentAddPost() { StationScope.Exit(true); }
 
         [HarmonyPatch(typeof(Fermenter), nameof(Fermenter.UseItem))]
         [HarmonyPrefix, HarmonyPriority(Priority.First)]
-        public static void FermentUsePre() { StationScope.Enter(true); }
+        public static void FermentUsePre() { StationScope.Enter(true, "Fermenter.UseItem"); }
         [HarmonyPatch(typeof(Fermenter), nameof(Fermenter.UseItem))]
         [HarmonyPostfix]
         public static void FermentUsePost() { StationScope.Exit(true); }
@@ -292,10 +311,29 @@ namespace ThorsKist
             Inventory kist = KistClient.Kist;
             if (kist == null) return;
 
+            // Read the tier BEFORE the re-entry guard goes up. Committing asks
+            // CraftContext.Active, and Active is false whenever _reentry != 0 --
+            // so reading it after EnterRaw() always answered "no". That made the
+            // materialise branch below unreachable and turned every station take
+            // into a borrow: the station got its material and the Kist was never
+            // charged. Cost seven rounds of testing to find, because from in game
+            // a borrow and a purchase look identical.
+            bool committing = StationScope.Committing;
+            string stateBefore = StationScope.State;
+
             CraftContext.EnterRaw();
             try
             {
                 ItemDrop.ItemData source = KistStock.Find(kist, name, quality);
+
+                // Every branch below is reported, because "the station never
+                // asked" and "the Kist declined" are indistinguishable in game
+                // and the decision is made on the client where nobody can see
+                // it. This is the line that ends a guessing game.
+                KistClient.ReportDiag("station[" + StationScope.Label + "] asked GetItem(" + name +
+                    ", q=" + quality + "); player had none; kist holds " +
+                    KistStock.Count(kist, name, quality) + "; " + stateBefore + " committing=" + committing);
+
                 if (source == null) return;
 
                 // Only a question -- "could this station be used?" Answer it
@@ -304,7 +342,21 @@ namespace ThorsKist
                 // the two takes that could follow both begin with
                 // m_inventory.Contains, so a borrowed item fails safe rather
                 // than being spent twice.
-                if (!StationScope.Committing) { __result = source; return; }
+                if (!committing)
+                {
+                    // Hand back a DETACHED copy, never the vault's live object.
+                    // The old code returned the Kist's own ItemData, and the
+                    // claim that Contains() made that safe was wrong:
+                    // Smelter.OnAddOre throws away RemoveItem's return value and
+                    // queues the ore regardless, so a borrow became free
+                    // material and the Kist was never charged.
+                    KistClient.ReportDiag("station[" + StationScope.Label + "] BORROWED " + name +
+                        " (query tier -- nothing moved). " + stateBefore);
+                    ItemDrop.ItemData peek = source.Clone();
+                    peek.m_stack = 1;
+                    __result = peek;
+                    return;
+                }
 
                 ItemDrop.ItemData one = source.Clone();
                 one.m_stack = 1;
@@ -317,6 +369,8 @@ namespace ThorsKist
 
                 KistStock.Take(kist, name, 1, quality);
                 CraftContext.Record(name, 1, quality);
+                KistClient.ReportDiag("station[" + StationScope.Label + "] MATERIALISED 1 x " + name +
+                    " out of the Kist into the pack.");
 
                 // Hand back the instance that actually landed in the inventory.
                 // AddItem is free to merge into a stack rather than keep ours,

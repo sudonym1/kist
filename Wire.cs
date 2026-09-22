@@ -41,6 +41,11 @@ namespace ThorsKist
             Ping = 13,
             AnchorQuery = 14,
             Rename = 15,
+            // A line of text the client wants written into the SERVER's log.
+            // Station decisions happen client-side, so without this the only
+            // record of why the Kist declined sits in a file on the player's
+            // own machine.
+            Diag = 16,
         }
 
         public enum S2C : byte

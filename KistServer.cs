@@ -335,6 +335,10 @@ namespace ThorsKist
                     case Wire.C2S.Take:
                         Take(senderPeer, playerId, pos, pkg.ReadInt(), pkg.ReadVector2i(), pkg.ReadString(), pkg.ReadInt());
                         break;
+                    case Wire.C2S.Diag:
+                        Main.Log.LogWarning("ThorsKist DIAG [" + playerName + "] " + pkg.ReadString());
+                        break;
+
                     case Wire.C2S.ConsumeForCraft:
                         ConsumeForCraft(senderPeer, playerId, pos, pkg);
                         break;
@@ -675,7 +679,14 @@ namespace ThorsKist
             if (v == null) return;
 
             string why;
-            if (!Usable(v, pos, Main.CraftRadius.Value, out why)) return;
+            if (!Usable(v, pos, Main.CraftRadius.Value, out why))
+            {
+                // The client has already spent its mirror by the time this
+                // arrives, so dropping it silently hands out free materials
+                // and leaves no trace of why.
+                Main.Log.LogWarning("ThorsKist: refused a craft consume from player " + playerId + " -- " + why);
+                return;
+            }
 
             int count = pkg.ReadInt();
             bool changed = false;
@@ -685,7 +696,7 @@ namespace ThorsKist
                 int amount = pkg.ReadInt();
                 int quality = pkg.ReadInt();
                 if (amount <= 0) continue;
-                int have = v.Inventory.CountItems(name, quality);
+                int have = KistStock.Count(v.Inventory, name, quality);
                 if (have < amount)
                 {
                     // The client counted a stack that has since been spent.
@@ -696,7 +707,7 @@ namespace ThorsKist
                 }
                 if (amount > 0)
                 {
-                    v.Inventory.RemoveItem(name, amount, quality);
+                    KistStock.Take(v.Inventory, name, amount, quality);
                     changed = true;
                 }
             }

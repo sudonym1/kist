@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.8.5
+
+**Fixed: recipes that take any one of several ingredients were never charged.**
+
+A recipe flagged "only one ingredient" pays with a direct inventory call and
+never reaches the usual payment step, so the Kist was counted toward the cost
+and then never asked for anything. The whole crafting window is now covered,
+not just the payment step inside it, so every branch that can pay does.
+
+**Fixed: the server spent the vault through the world-level filter.**
+
+0.8.4 removed that rule from every place the Kist is read or spent — except the
+server's own copy, which is the authoritative one. The client would spend its
+mirror, the server would quietly decline, and the next sync put the material
+back. Same trap as 0.8.4, caught on the other side of the wire.
+
+**Fixed: the shared-hooks warning overstated what a rewrite can do.**
+
+Crafting is now claimed with a prefix, and a prefix cannot be removed by
+another mod rewriting the method around it. Backpacks appears under "shares
+the same code" rather than as a crafting risk, which is what it always was —
+its rewrite only records an item and removes nothing.
+
+**Fixed: a station could take material the Kist was never charged for.**
+
+When a station only *asked* whether something was available, the Kist handed
+back its own stored stack rather than a copy. A charcoal kiln takes that answer
+and queues the wood without checking whether the take succeeded -- so the kiln
+was fed and the vault was never billed. It now answers with a detached copy,
+which cannot be spent out of the vault by accident.
+
+**Added: the Kist now says when it was asked to pay and could not.** Together
+with the existing `Kist paid ...` line, "it did not deduct" and "it was never
+asked to" are finally two different messages in the log.
+
+**Added: stations report what they decided, to the server's log.** Station
+decisions happen on your own machine, so when the Kist quietly declined there
+was no way for anyone but you to see why. Each one now says which station
+asked, what it asked for, how much the Kist held, and whether anything moved.
+
 ## 0.8.4
 
 **Fixed: the Kist would show items it then refused to spend.**

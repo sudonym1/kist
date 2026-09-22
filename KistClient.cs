@@ -249,6 +249,23 @@ namespace ThorsKist
         }
 
         /// <summary>
+        /// Sends one line of diagnostic text to the server's log.
+        ///
+        /// Crafting and station decisions are made on the client, so when the
+        /// Kist declines to help, the only evidence lands in a log file on the
+        /// player's machine. Routing it to the server means whoever is
+        /// debugging can read it without asking the player to go hunting.
+        /// </summary>
+        public static void ReportDiag(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            Main.Log.LogInfo("ThorsKist: " + text);
+            ZPackage pkg = NewMessage(Wire.C2S.Diag);
+            pkg.Write(text);
+            Send(pkg);
+        }
+
+        /// <summary>
         /// Tells the server which materials a craft drew out of the Kist. The
         /// client has already spent them against its mirror; this is what makes
         /// that real.

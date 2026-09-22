@@ -129,11 +129,12 @@ namespace ThorsKist
             // DoCrafting is not one of ours, but a mod that replaces it never
             // reaches ConsumeResources at all -- the Kist is cut out without a
             // single patch of ours being touched, so it is worth watching too.
-            MethodBase crafting = null;
-            try { crafting = AccessTools.Method(typeof(InventoryGui), "DoCrafting"); }
-            catch (Exception e) { Main.Log.LogWarning("ThorsKist: " + e.Message); }
-            if (crafting != null) yield return crafting;
-            else Main.Log.LogWarning("ThorsKist: InventoryGui.DoCrafting not found -- not watching it for conflicts.");
+            // DoCrafting used to be bolted on here by name. It no longer needs
+            // to be: we patch it ourselves now, so it arrives through
+            // GetPatchedMethods() like every other seam. Leaving the hand-added
+            // copy in would report every conflict on it twice, and a seam list
+            // typed by hand is exactly the thing that can silently watch
+            // nothing while still reporting a clean bill of health.
         }
 
         /// <summary>
@@ -156,8 +157,17 @@ namespace ThorsKist
                 case "RemoveItem":
                 case "HaveItem":
                 case "GetItem":
-                case "DoCrafting":
                     return Stake.Payment;
+
+                // DoCrafting is NOT payment-critical. We open the craft scope
+                // with our own prefix on it, and a prefix cannot be removed by
+                // a transpiler or skipped by a later bool prefix claiming lower
+                // priority -- so payment stays widened whichever branch inside
+                // pays. Reported as shared only. Backpacks' transpiler here is
+                // additive (it records the upgrading item and deletes nothing);
+                // grading it Payment sent Brian hunting a bug that was mine.
+                case "DoCrafting":
+                    return Stake.Display;
 
                 // The Alt-click deposit gesture. Losing it means the click does
                 // nothing -- visible immediately, and it costs nothing.

@@ -97,6 +97,28 @@ namespace ThorsKist
         [HarmonyPatch(typeof(InventoryGui), nameof(InventoryGui.SetupRequirement))]
         [HarmonyPostfix] public static void SetupReqPost() { CraftContext.Pop(); }
 
+        // The whole crafting window, not just ConsumeResources. Two reasons:
+        // a recipe flagged m_requireOnlyOneIngredient pays with a direct
+        // Inventory.RemoveItem and never reaches ConsumeResources at all, so
+        // without this the Kist is counted toward it and never charged; and a
+        // foreign transpiler can rewrite DoCrafting's body but cannot stop a
+        // prefix running, so opening the scope here keeps payment widened no
+        // matter which branch inside pays.
+        [HarmonyPatch(typeof(InventoryGui), nameof(InventoryGui.DoCrafting))]
+        [HarmonyPrefix, HarmonyPriority(Priority.First)]
+        public static void DoCraftingPre() { CraftContext.Push(); }
+
+        [HarmonyPatch(typeof(InventoryGui), nameof(InventoryGui.DoCrafting))]
+        [HarmonyPostfix]
+        public static void DoCraftingPost()
+        {
+            CraftContext.Pop();
+            // The single-ingredient branch pays without ConsumeResources, so
+            // this is the only flush those crafts ever get. Harmless after a
+            // normal craft: FlushDraws does nothing when nothing was drawn.
+            CraftContext.FlushDraws();
+        }
+
         [HarmonyPatch(typeof(Player), nameof(Player.ConsumeResources))]
         [HarmonyPrefix] public static void ConsumePre() { CraftContext.Push(); }
 
@@ -174,7 +196,16 @@ namespace ThorsKist
             {
                 int available = KistStock.Count(kist, name, itemQuality);
                 int take = __state < available ? __state : available;
-                if (take <= 0) return;
+                if (take <= 0)
+                {
+                    // We were asked to cover a shortfall and the vault held
+                    // nothing matching. This is the exact line that separates
+                    // "the Kist refused to pay" from "the Kist was never asked"
+                    // -- without it both look identical from in game.
+                    Main.Log.LogWarning("ThorsKist: needed " + __state + " x " + name +
+                        " (quality " + itemQuality + ") from the Kist, but it holds none that match -- nothing charged.");
+                    return;
+                }
                 KistStock.Take(kist, name, take, itemQuality);
                 CraftContext.Record(name, take, itemQuality);
             }
