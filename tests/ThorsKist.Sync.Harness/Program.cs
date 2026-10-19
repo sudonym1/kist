@@ -13,8 +13,9 @@ static class Program
 {
     static int checks;
     static void Check(bool condition, string message) { if (!condition) throw new Exception(message); checks++; }
-    static async Task Main()
+    static async Task Main(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--m3-child") { await StorageTests.Child(args); return; }
         var bytes = new byte[] { 1, 2, 3 };
         var item = new ItemRecord("Wood", 3, 109, bytes);
         bytes[0] = 9; var copy = item.CopyPayload(); copy[0] = 8;
@@ -36,6 +37,7 @@ static class Program
         }
         Reservations();
         checks += StateMachineTests.Run();
+        checks += await StorageTests.Run();
         Console.WriteLine($"PASS {checks} contract/scheduler/reservation assertions");
         ProbeAndBaseline();
     }

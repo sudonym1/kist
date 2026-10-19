@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 
 namespace ThorsKist.Sync
 {
@@ -11,9 +12,34 @@ namespace ThorsKist.Sync
         public JournalEntry Entry { get; }
         internal CommandResult(ItemCommand command, CommandStatus status, JournalEntry entry)
         { Command = command; Status = status; Entry = entry; }
+
+        public static CommandResult Restore(ItemCommand command, CommandStatus status, JournalEntry entry)
+        {
+            bool accepted = status == CommandStatus.Accepted;
+            if (!Enum.IsDefined(typeof(CommandStatus), status) || status == CommandStatus.RequestConflict || status == CommandStatus.WrongVault
+                || !entry.Identity.Contains(command.Address) || entry.Actor == null
+                || !JournalChecksum.SameAddress(entry.Actor, command.Address) || entry.RequestId != command.RequestId
+                || entry.Schema != JournalChecksum.Schema
+                || entry.Kind != (accepted ? command.Kind == ItemCommandKind.Deposit ? JournalEntryKind.Deposit : JournalEntryKind.Withdraw : JournalEntryKind.Rejected))
+                throw new InvalidDataException("Invalid persisted command result");
+            if (accepted)
+            {
+                var effect = entry.Effect;
+                if (effect == null || effect.OperationId != entry.OperationId || effect.RequestId != command.RequestId
+                    || !JournalChecksum.SameAddress(effect.Recipient, command.Address) || !JournalChecksum.SameItem(effect.Item, command.Item)
+                    || effect.Kind != (command.Kind == ItemCommandKind.Deposit ? CharacterEffectKind.RemoveReserved : CharacterEffectKind.Add)
+                    || (entry.ChangedStack?.Id ?? entry.DeletedStack) != command.StackId
+                    || (command.Kind == ItemCommandKind.Deposit && entry.ChangedStack == null)
+                    || (entry.ChangedStack != null && !JournalChecksum.SameItem(entry.ChangedStack.Item, command.Item, false)))
+                    throw new InvalidDataException("Persisted result effect differs from command");
+            }
+            else if (entry.Effect != null || entry.ChangedStack != null || entry.DeletedStack.HasValue)
+                throw new InvalidDataException("Rejected result changes stock");
+            return new CommandResult(command, status, entry);
+        }
     }
 
-    // Immutable candidate commit image. M3 must commit a transition before
+    // Immutable candidate commit image. JournalWriter commits a transition before
     // installing/publishing it. No database or transport work occurs here.
     public sealed class JournalMachineState
     {
@@ -35,6 +61,54 @@ namespace ThorsKist.Sync
             var snapshot = new JournalSnapshot(0, initial, JournalChecksum.Compute(initial));
             return new JournalMachineState(snapshot, initial, 0, Array.Empty<JournalEntry>(), Array.Empty<CommandResult>(), initial.Stacks.Select(s => s.Id));
         }
+
+        // Persistence is untrusted: reconstruct privately only after replay and
+        // materialized-row checks, including identities retained after pruning.
+        public static JournalMachineState Recover(JournalSnapshot checkpoint, VaultState current, long head,
+            IEnumerable<JournalEntry> journal, IEnumerable<CommandResult> results, IEnumerable<Guid> usedStackIds)
+        {
+            var entries = journal.ToArray(); var records = results.ToArray(); var used = usedStackIds.ToArray();
+            var replay = JournalReplay.Replay(checkpoint, entries);
+            if (replay.Sequence != head || !checkpoint.State.Identity.Matches(current.Identity)
+                || replay.Checksum != JournalChecksum.Compute(current)
+                || used.Any(id => id == Guid.Empty) || used.Distinct().Count() != used.Length
+                || checkpoint.State.Stacks.Concat(current.Stacks).Any(s => !used.Contains(s.Id))
+                || records.GroupBy(r => new { r.Command.Address.Player, r.Command.RequestId }).Any(g => g.Count() != 1)
+                || records.Select(r => r.Entry.Sequence).Distinct().Count() != records.Length
+                || records.Select(r => r.Entry.OperationId).Distinct().Count() != records.Length
+                || records.Where(r => r.Entry.Effect != null).Select(r => r.Entry.Effect!.EffectId).Distinct().Count() != records.Count(r => r.Entry.Effect != null))
+                throw new InvalidDataException("Invalid recovered state, results or stack identities");
+            foreach (var result in records)
+            {
+                RestoreResult(result);
+                if (!current.Identity.Contains(result.Command.Address) || result.Entry.Sequence > head
+                    || (result.Status == CommandStatus.Accepted && !used.Contains(result.Command.StackId)))
+                    throw new InvalidDataException("Result outside recovered history");
+            }
+            var operations = new HashSet<Guid>(records.Select(r => r.Entry.OperationId));
+            foreach (var entry in entries)
+            {
+                if (entry.Kind == JournalEntryKind.NoOp)
+                {
+                    if (entry.Actor != null || entry.RequestId != Guid.Empty || records.Any(r => r.Entry.Sequence == entry.Sequence) || !operations.Add(entry.OperationId))
+                        throw new InvalidDataException("Invalid no-op identity");
+                }
+                else
+                {
+                    var result = records.SingleOrDefault(r => r.Entry.Sequence == entry.Sequence);
+                    if (result == null || !SameEntry(result.Entry, entry)) throw new InvalidDataException("Journal/result mismatch");
+                }
+            }
+            return new JournalMachineState(checkpoint, current, head, entries, records, used);
+        }
+        private static void RestoreResult(CommandResult result) => CommandResult.Restore(result.Command, result.Status, result.Entry);
+        public static bool SameEntry(JournalEntry a, JournalEntry b) => a.Identity.Matches(b.Identity) && a.Sequence == b.Sequence
+            && a.Schema == b.Schema && a.OperationId == b.OperationId && a.RequestId == b.RequestId && a.Kind == b.Kind
+            && a.Checksum == b.Checksum && a.DeletedStack == b.DeletedStack
+            && (a.Actor == null ? b.Actor == null : b.Actor != null && JournalChecksum.SameAddress(a.Actor, b.Actor))
+            && (a.ChangedStack == null ? b.ChangedStack == null : b.ChangedStack != null && a.ChangedStack.Id == b.ChangedStack.Id
+                && a.ChangedStack.Slot == b.ChangedStack.Slot && JournalChecksum.SameItem(a.ChangedStack.Item, b.ChangedStack.Item))
+            && (a.Effect == null ? b.Effect == null : b.Effect != null && JournalChecksum.SameEffect(a.Effect, b.Effect));
     }
 
     public sealed class CommandTransition

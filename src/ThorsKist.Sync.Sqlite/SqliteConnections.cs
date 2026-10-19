@@ -3,8 +3,8 @@ using Microsoft.Data.Sqlite;
 
 namespace ThorsKist.Sync.Sqlite
 {
-    // M1 provider/configuration probe. No journal schema or migration yet.
-    // Caller owns the connection and must execute database work off the game thread.
+    // Shared production/probe configuration. Caller owns the connection and must
+    // execute database work off the game thread.
     public static class SqliteConnections
     {
         public static SqliteConnection Open(string path)

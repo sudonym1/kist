@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../ThorsKist.Sync/ThorsKist.Sync.csproj" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="8.0.25" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.14" />
   </ItemGroup>

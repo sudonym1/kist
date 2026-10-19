@@ -190,7 +190,10 @@ Any new checksum mismatch or acknowledgment timeout repeats this error flow.
 M1 implementation and current verification evidence are recorded in
 [the M1 work log](notes/network-journal-m1.md). Its game/runtime completion gates
 remain open. M2's library state machine and deterministic/model verification are
-implemented in [the M2 work log](notes/network-journal-m2.md); M3–M6 remain planned.
+implemented in [the M2 work log](notes/network-journal-m2.md). M3's storage,
+recovery, migration transaction and process-termination tests are implemented in
+[the M3 work log](notes/network-journal-m3.md). Live legacy-save decoding remains
+an M5 adapter gate; M4–M6 remain planned.
 
 Build a **state-sync library** without Unity dependencies and a **Valheim mod** adapting inventories, actions, RPCs, and UI to it. Inject clock and transport to test faults without launching the game. Test production library code, not a separate copy.
 
@@ -209,4 +212,4 @@ The performance goal is an architecture that enables performance through deltas,
 
 ## Test strategy
 
-Test the library with deterministic scenarios, independent model-based fault simulation, and SQLite crash recovery. Test the mod with adapters, existing CI verifiers, and real multiplayer sessions. The [detailed test plan](notes/network-journal-design.md#test-plan) defines assertions and evidence. Library tests need no Valheim runtime; mod integration requires supported game assemblies/sessions. M2 verification is recorded above; SQLite recovery, session fault simulations, mod integration and game validation remain outstanding.
+Test the library with deterministic scenarios, independent model-based fault simulation, and SQLite crash recovery. Test the mod with adapters, existing CI verifiers, and real multiplayer sessions. The [detailed test plan](notes/network-journal-design.md#test-plan) defines assertions and evidence. Library tests need no Valheim runtime; mod integration requires supported game assemblies/sessions. M2 and M3 library verification are recorded above; session fault simulations, real-save migration validation, mod integration and game validation remain outstanding.

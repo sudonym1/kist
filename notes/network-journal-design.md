@@ -3,9 +3,10 @@
 Companion to [the review plan](../PLAN-NETWORK-JOURNAL.md). The design uses one application journal for both Kist replication and item awards. It does not use a separate delivery protocol. Character saving is independent of journal acknowledgment.
 
 Implementation evidence and remaining integration gates are recorded in the
-[M1 work log](network-journal-m1.md) and [M2 work log](network-journal-m2.md).
-M2's library state machine is complete; SQLite recovery and legacy-save migration
-are the next milestone (M3), followed by sessions and mod integration.
+[M1 work log](network-journal-m1.md), [M2 work log](network-journal-m2.md), and
+[M3 work log](network-journal-m3.md). M3 implements SQLite storage/recovery and
+the atomic migration pipeline with process-termination evidence. Real legacy
+decoding remains an M5 adapter task. Sessions and mod integration follow.
 
 ## Terminology
 

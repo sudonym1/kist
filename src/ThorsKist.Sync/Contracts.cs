@@ -79,8 +79,8 @@ namespace ThorsKist.Sync
     // Called from worker code; transport adapter marshals RPC invocation as needed.
     public interface ICommandTransport { Task SendAsync(ItemCommand command, CancellationToken cancellationToken); }
     public interface ICommandHandler { Task HandleAsync(ItemCommand command, CancellationToken cancellationToken); }
-    // M3 implements atomic persistence of this typed candidate image and verifies
-    // recovered current rows against checkpoint replay before serving requests.
+    // SqliteJournalStorage atomically persists this typed candidate image and
+    // verifies recovered current rows against checkpoint replay before use.
     public interface IJournalStorage : IDisposable
     {
         Task<JournalMachineState?> ReadStateAsync(CancellationToken cancellationToken);

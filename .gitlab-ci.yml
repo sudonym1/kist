@@ -16,12 +16,13 @@ test:sync:
   image: mcr.microsoft.com/dotnet/sdk:8.0
   script:
     - dotnet build src/ThorsKist.Sync/ThorsKist.Sync.csproj -c Release
-    - dotnet run --project tests/ThorsKist.Sync.Harness -c Release > sync-baseline.txt
+    - THORSKIST_SYNC_ARTIFACTS="$CI_PROJECT_DIR/sync-crash-artifacts" dotnet run --project tests/ThorsKist.Sync.Harness -c Release > sync-baseline.txt 2>&1
     - cat sync-baseline.txt
   artifacts:
     when: always
     paths:
       - sync-baseline.txt
+      - sync-crash-artifacts/
     expire_in: 4 weeks
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
