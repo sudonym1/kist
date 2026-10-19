@@ -84,5 +84,47 @@ namespace ThorsKist.Sync.Sqlite
             var c = new ItemCommand(Address(r), Id(r), Id(r), (ItemCommandKind)r.ReadInt32(), Item(r));
             return CommandResult.Restore(c, (CommandStatus)r.ReadInt32(), Entry(r));
         }
+        internal static void Replication(BinaryWriter w, ReplicationState state)
+        {
+            w.Write(state.Revision); w.Write(state.NextHeartbeat.UtcDateTime.Ticks); w.Write(state.Sessions.Count);
+            foreach (var s in state.Sessions)
+            {
+                Address(w, s.Address); Id(w, s.LoginRequest);
+                var b = s.Baseline; Identity(w, b.State.Identity); w.Write(b.State.Capacity); w.Write(b.Sequence); Text(w, b.Checksum); w.Write(b.Schema);
+                w.Write(b.State.Stacks.Count); foreach (var stack in b.State.Stacks) Stack(w, stack);
+                w.Write(s.Catchup.Count); foreach (var e in s.Catchup) Entry(w, e);
+                w.Write(s.LoginMarker); w.Write((int)s.Phase); w.Write(s.Acknowledged); w.Write(s.QueuedThrough);
+                Id(w, s.LogoutRequest); w.Write(s.LogoutMarker); w.Write(s.BarrierDue.UtcDateTime.Ticks);
+                w.Write(s.SuspendedUntil.HasValue); if (s.SuspendedUntil.HasValue) w.Write(s.SuspendedUntil.Value.UtcDateTime.Ticks);
+                w.Write(s.Deadlines.Count); foreach (var d in s.Deadlines) { w.Write(d.Sequence); w.Write(d.Due.UtcDateTime.Ticks); }
+            }
+            w.Write(state.Settlements.Count);
+            foreach (var s in state.Settlements) { Id(w, s.Operation); w.Write((int)s.Kind); Id(w, s.Compensation); }
+        }
+        private static int Count(BinaryReader r)
+        {
+            int n = r.ReadInt32(); if (n < 0 || n > r.BaseStream.Length - r.BaseStream.Position) throw new InvalidDataException("Invalid replication count"); return n;
+        }
+        private static DateTimeOffset Time(BinaryReader r) => new DateTimeOffset(r.ReadInt64(), TimeSpan.Zero);
+        internal static ReplicationState Replication(BinaryReader r)
+        {
+            long revision = r.ReadInt64(); var heartbeat = Time(r); int count = Count(r);
+            var sessions = new System.Collections.Generic.List<ReplicationSession>();
+            for (int i = 0; i < count; i++)
+            {
+                var address = Address(r); var request = Id(r); var identity = Identity(r); int capacity = r.ReadInt32();
+                long sequence = r.ReadInt64(); string checksum = Text(r); int schema = r.ReadInt32();
+                var stacks = new System.Collections.Generic.List<StackRecord>(); int n = Count(r); for (int j = 0; j < n; j++) stacks.Add(Stack(r));
+                var baseline = new JournalSnapshot(sequence, new VaultState(identity, capacity, stacks), checksum, schema);
+                var entries = new System.Collections.Generic.List<JournalEntry>(); n = Count(r); for (int j = 0; j < n; j++) entries.Add(Entry(r));
+                long marker = r.ReadInt64(); var phase = (SessionPhase)r.ReadInt32(); long ack = r.ReadInt64(); long queued = r.ReadInt64();
+                var logout = Id(r); long logoutMarker = r.ReadInt64(); var due = Time(r); DateTimeOffset? suspended = r.ReadBoolean() ? Time(r) : (DateTimeOffset?)null;
+                var deadlines = new System.Collections.Generic.List<DeliveryDeadline>(); n = Count(r); for (int j = 0; j < n; j++) deadlines.Add(new DeliveryDeadline(r.ReadInt64(), Time(r)));
+                sessions.Add(new ReplicationSession(address, request, baseline, entries, marker, phase, ack, queued, logout, logoutMarker, due, suspended, deadlines));
+            }
+            var settlements = new System.Collections.Generic.List<EffectSettlement>(); count = Count(r);
+            for (int i = 0; i < count; i++) settlements.Add(new EffectSettlement(Id(r), (SettlementKind)r.ReadInt32(), Id(r)));
+            return new ReplicationState(revision, heartbeat, sessions, settlements);
+        }
     }
 }

@@ -89,10 +89,12 @@ namespace ThorsKist.Sync
     public sealed class StorageCommit
     {
         public long ExpectedHead { get; }
+        public long? ExpectedReplicationRevision { get; }
         public JournalMachineState State { get; }
-        public StorageCommit(long expectedHead, JournalMachineState state)
+        public StorageCommit(long expectedHead, JournalMachineState state, long? expectedReplicationRevision = null)
         {
             if (expectedHead < 0) throw new ArgumentOutOfRangeException(nameof(expectedHead));
+            ExpectedReplicationRevision = expectedReplicationRevision;
             ExpectedHead = expectedHead; State = state ?? throw new ArgumentNullException(nameof(state));
             if (state.Head < expectedHead) throw new ArgumentException("Commit cannot move head backwards", nameof(state));
         }

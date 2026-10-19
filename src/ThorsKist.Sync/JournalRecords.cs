@@ -109,7 +109,7 @@ namespace ThorsKist.Sync
             Checksum = checksum ?? throw new ArgumentNullException(nameof(checksum)); Schema = schema;
         }
     }
-    public enum JournalEntryKind { Deposit, Withdraw, Rejected, NoOp }
+    public enum JournalEntryKind { Deposit, Withdraw, Rejected, NoOp, Login, Logout, Compensation }
     public enum CommandStatus { Accepted, InsufficientStock, CapacityExceeded, StackConflict, RequestConflict, WrongVault }
 
     public sealed class JournalEntry
@@ -174,11 +174,20 @@ namespace ThorsKist.Sync
         }
         private static void ValidateDelta(VaultState state, JournalEntry entry)
         {
-            if (entry.Kind == JournalEntryKind.NoOp || entry.Kind == JournalEntryKind.Rejected)
+            if (entry.Kind == JournalEntryKind.Compensation)
+            {
+                if (entry.Effect != null || entry.DeletedStack.HasValue || entry.ChangedStack == null
+                    || entry.ChangedStack.Slot != -1 || state.Stacks.Any(s => s.Id == entry.ChangedStack.Id)
+                    || entry.RequestId == Guid.Empty || entry.Actor == null || !state.Identity.Contains(entry.Actor))
+                    throw new InvalidDataException("Invalid compensation delta");
+                return;
+            }
+            if (entry.Kind == JournalEntryKind.NoOp || entry.Kind == JournalEntryKind.Rejected
+                || entry.Kind == JournalEntryKind.Login || entry.Kind == JournalEntryKind.Logout)
             {
                 if (entry.ChangedStack != null || entry.DeletedStack.HasValue || entry.Effect != null)
                     throw new InvalidDataException("Non-item entry contains an item change");
-                if (entry.Kind == JournalEntryKind.Rejected && (entry.Actor == null || !state.Identity.Contains(entry.Actor) || entry.RequestId == Guid.Empty))
+                if (entry.Kind != JournalEntryKind.NoOp && (entry.Actor == null || !state.Identity.Contains(entry.Actor) || entry.RequestId == Guid.Empty))
                     throw new InvalidDataException("Rejection missing actor/request");
                 return;
             }

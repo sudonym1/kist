@@ -71,6 +71,7 @@ namespace ThorsKist.Sync.Sqlite
             using (var tx = db.BeginTransaction(deferred: false))
             {
                 var previous = Read(db, tx, identity);
+                if (previous != null && commit.ExpectedReplicationRevision.HasValue && previous.Replication.Revision != commit.ExpectedReplicationRevision.Value) throw new InvalidOperationException("Stale replication revision");
                 if ((previous?.Head ?? 0) != commit.ExpectedHead) throw new InvalidOperationException("Stale storage head");
                 if (previous != null) ValidateSuccessor(previous, commit.State);
                 else if (commit.ExpectedHead != 0) throw new InvalidOperationException("Uninitialized vault");
@@ -109,13 +110,20 @@ namespace ThorsKist.Sync.Sqlite
             {
                 q.CommandText = "PRAGMA user_version;";
                 long found = Convert.ToInt64(q.ExecuteScalar());
-                if (found == 1) return;
-                if (found != 0) throw new InvalidDataException("Unsupported database schema");
+                if (found == 2) return;
+                if (found != 0 && found != 1) throw new InvalidDataException("Unsupported database schema");
             }
             using (var tx = db.BeginTransaction(deferred: false))
             {
                 long version = Convert.ToInt64(Scalar(db, tx, "PRAGMA user_version;"));
-                if (version == 1) { tx.Commit(); return; }
+                if (version == 2) { tx.Commit(); return; }
+                if (version == 1)
+                {
+                    Execute(db, tx, "CREATE TABLE replication (vault_id INTEGER PRIMARY KEY REFERENCES vaults(id), body BLOB NOT NULL, checksum TEXT NOT NULL);");
+                    var empty = StorageEncoding.Encode(ReplicationState.Empty, StorageEncoding.Replication);
+                    Execute(db, tx, "INSERT INTO replication SELECT id,$body,$hash FROM vaults;", ("$body", empty), ("$hash", Hash(empty)));
+                    Execute(db, tx, "PRAGMA user_version=2;"); tx.Commit(); return;
+                }
                 if (version != 0 || Convert.ToInt64(Scalar(db, tx, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")) != 0)
                     throw new InvalidDataException("Unsupported database schema; refusing automatic replacement");
                 Execute(db, tx, @"
@@ -130,7 +138,8 @@ CREATE TABLE request_results (vault_id INTEGER NOT NULL REFERENCES vaults(id), p
 CREATE TABLE used_stack_ids (vault_id INTEGER NOT NULL REFERENCES vaults(id), stack_id TEXT NOT NULL, PRIMARY KEY(vault_id,stack_id));
 CREATE TABLE legacy_metadata (vault_id INTEGER PRIMARY KEY REFERENCES vaults(id), body BLOB NOT NULL);
 CREATE TABLE migration (id INTEGER PRIMARY KEY CHECK(id=1), source_hash TEXT NOT NULL, backup_path TEXT NOT NULL, source BLOB NOT NULL);
-PRAGMA user_version=1;");
+CREATE TABLE replication (vault_id INTEGER PRIMARY KEY REFERENCES vaults(id), body BLOB NOT NULL, checksum TEXT NOT NULL);
+PRAGMA user_version=2;");
                 tx.Commit();
             }
         }
@@ -144,7 +153,7 @@ PRAGMA user_version=1;");
             foreach (var arg in args) q.Parameters.AddWithValue(arg.Item1, arg.Item2);
             return q;
         }
-        internal static void Validate(JournalMachineState s) => JournalMachineState.Recover(s.Checkpoint, s.Current, s.Head, s.Journal, s.Results, s.UsedStackIds);
+        internal static void Validate(JournalMachineState s) => JournalMachineState.Recover(s.Checkpoint, s.Current, s.Head, s.Journal, s.Results, s.UsedStackIds, s.Replication);
         // Stock checksums intentionally exclude deduplication history. Protect its
         // persisted representation separately, even after the journal is pruned.
         private static string HistoryChecksum(IEnumerable<CommandResult> results, IEnumerable<Guid> used)
@@ -165,8 +174,24 @@ PRAGMA user_version=1;");
                 }
             }
         }
+        private static string Hash(byte[] bytes)
+        { using (var hash = SHA256.Create()) return BitConverter.ToString(hash.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant(); }
         private static void ValidateSuccessor(JournalMachineState old, JournalMachineState next)
         {
+            if (next.Replication.Revision < old.Replication.Revision) throw new InvalidOperationException("Replication revision regression");
+            foreach (var session in old.Replication.Sessions)
+            {
+                var retained = next.Replication.Sessions.SingleOrDefault(x => x.Address.Session == session.Address.Session);
+                if (retained == null || retained.Address.Player != session.Address.Player || retained.LoginRequest != session.LoginRequest
+                    || retained.LoginMarker != session.LoginMarker || retained.Baseline.Sequence != session.Baseline.Sequence
+                    || retained.Baseline.Checksum != session.Baseline.Checksum || retained.Acknowledged < session.Acknowledged
+                    || retained.QueuedThrough < session.QueuedThrough || (session.Phase == SessionPhase.Closed && retained.Phase != SessionPhase.Closed)
+                    || (int)retained.Phase < (int)session.Phase
+                    || (session.SuspendedUntil.HasValue && (!retained.SuspendedUntil.HasValue || retained.SuspendedUntil.Value < session.SuspendedUntil.Value)))
+                    throw new InvalidOperationException("Commit regresses session history");
+            }
+            foreach (var settlement in old.Replication.Settlements)
+                if (!next.Replication.Settlements.Any(x => x.Operation == settlement.Operation && x.Kind == settlement.Kind && x.Compensation == settlement.Compensation)) throw new InvalidOperationException("Settlement regression");
             if (next.Checkpoint.Sequence < old.Checkpoint.Sequence || next.Current.Capacity != old.Current.Capacity
                 || old.UsedStackIds.Except(next.UsedStackIds).Any()) throw new InvalidOperationException("Commit regresses durable history");
             foreach (var result in old.Results)
@@ -221,7 +246,14 @@ PRAGMA user_version=1;");
             using (var q = Query(db, tx, "SELECT stack_id FROM used_stack_ids WHERE vault_id=$id;", ("$id", id)))
             using (var r = q.ExecuteReader()) while (r.Read()) used.Add(Guid.ParseExact(r.GetString(0), "N"));
             if (historyHash != HistoryChecksum(results, used)) throw new InvalidDataException("Request/stack identity history checksum mismatch");
-            return JournalMachineState.Recover(snapshot, current, head, entries, results, used);
+            ReplicationState protocol;
+            using (var q = Query(db, tx, "SELECT body,checksum FROM replication WHERE vault_id=$id;", ("$id", id)))
+            using (var r = q.ExecuteReader())
+            {
+                if (!r.Read() || Hash((byte[])r[0]) != r.GetString(1)) throw new InvalidDataException("Missing/corrupt replication state");
+                protocol = StorageEncoding.Decode((byte[])r[0], StorageEncoding.Replication);
+            }
+            return JournalMachineState.Recover(snapshot, current, head, entries, results, used, protocol);
         }
         private static IEnumerable<StackRecord> Stacks(SqliteConnection db, SqliteTransaction tx, string table, long id)
         {
@@ -258,6 +290,9 @@ PRAGMA user_version=1;");
                 Execute(db, tx, "INSERT INTO request_results VALUES($id,$p,$r,$s,$body);", ("$id", id), ("$p", r.Command.Address.Player),
                     ("$r", r.Command.RequestId.ToString("N")), ("$s", r.Entry.Sequence), ("$body", StorageEncoding.Encode(r, StorageEncoding.Result)));
             foreach (var stack in state.UsedStackIds) Execute(db, tx, "INSERT INTO used_stack_ids VALUES($id,$stack);", ("$id", id), ("$stack", stack.ToString("N")));
+            var protocol = StorageEncoding.Encode(state.Replication, StorageEncoding.Replication);
+            Execute(db, tx, "INSERT INTO replication VALUES($id,$body,$hash) ON CONFLICT(vault_id) DO UPDATE SET body=excluded.body,checksum=excluded.checksum;",
+                ("$id", id), ("$body", protocol), ("$hash", Hash(protocol)));
             return id;
         }
         private static void InsertStack(SqliteConnection db, SqliteTransaction tx, string table, long id, StackRecord stack) => Execute(db, tx,

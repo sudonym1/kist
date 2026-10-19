@@ -37,9 +37,11 @@ namespace ThorsKist.Sync
         public Task<JournalMachineState> CheckpointAsync(long safeCutoff, CancellationToken token = default) => Run(async () =>
         { await Install(JournalMachine.Checkpoint(state, safeCutoff), token).ConfigureAwait(false); return state; }, token);
         public Task<JournalMachineState> ReadAsync(CancellationToken token = default) => Run(() => Task.FromResult(state), token);
+        internal Task<JournalMachineState> TransitionAsync(Func<JournalMachineState, JournalMachineState> transition) => Run(async () =>
+        { var next = transition(state); if (!ReferenceEquals(next, state)) await Install(next, default).ConfigureAwait(false); return state; }, default);
         private async Task Install(JournalMachineState next, CancellationToken token)
         {
-            try { await storage.CommitAsync(new StorageCommit(state.Head, next), token).ConfigureAwait(false); state = next; }
+            try { await storage.CommitAsync(new StorageCommit(state.Head, next, state.Replication.Revision), token).ConfigureAwait(false); state = next; }
             catch { faulted = true; throw; }
         }
         private Task<T> Run<T>(Func<Task<T>> action, CancellationToken token) => Task.Run(async () =>

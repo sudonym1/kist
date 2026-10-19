@@ -49,10 +49,11 @@ namespace ThorsKist.Sync
         public IReadOnlyList<JournalEntry> Journal { get; }
         public IReadOnlyList<CommandResult> Results { get; }
         public IReadOnlyList<Guid> UsedStackIds { get; }
+        public ReplicationState Replication { get; }
         internal JournalMachineState(JournalSnapshot checkpoint, VaultState current, long head,
-            IEnumerable<JournalEntry> journal, IEnumerable<CommandResult> results, IEnumerable<Guid> usedStackIds)
+            IEnumerable<JournalEntry> journal, IEnumerable<CommandResult> results, IEnumerable<Guid> usedStackIds, ReplicationState? replication = null)
         {
-            Checkpoint = checkpoint; Current = current; Head = head;
+            Checkpoint = checkpoint; Current = current; Head = head; Replication = replication ?? ReplicationState.Empty;
             Journal = Array.AsReadOnly(journal.ToArray()); Results = Array.AsReadOnly(results.ToArray());
             UsedStackIds = Array.AsReadOnly(usedStackIds.Distinct().ToArray());
         }
@@ -65,7 +66,7 @@ namespace ThorsKist.Sync
         // Persistence is untrusted: reconstruct privately only after replay and
         // materialized-row checks, including identities retained after pruning.
         public static JournalMachineState Recover(JournalSnapshot checkpoint, VaultState current, long head,
-            IEnumerable<JournalEntry> journal, IEnumerable<CommandResult> results, IEnumerable<Guid> usedStackIds)
+            IEnumerable<JournalEntry> journal, IEnumerable<CommandResult> results, IEnumerable<Guid> usedStackIds, ReplicationState? replication = null)
         {
             var entries = journal.ToArray(); var records = results.ToArray(); var used = usedStackIds.ToArray();
             var replay = JournalReplay.Replay(checkpoint, entries);
@@ -88,7 +89,19 @@ namespace ThorsKist.Sync
             var operations = new HashSet<Guid>(records.Select(r => r.Entry.OperationId));
             foreach (var entry in entries)
             {
-                if (entry.Kind == JournalEntryKind.NoOp)
+                if (entry.Kind == JournalEntryKind.Login || entry.Kind == JournalEntryKind.Logout || entry.Kind == JournalEntryKind.Compensation)
+                {
+                    if (!operations.Add(entry.OperationId)) throw new InvalidDataException("Duplicate system operation");
+                    if (entry.Kind == JournalEntryKind.Compensation)
+                    {
+                        var original = records.SingleOrDefault(r => r.Entry.OperationId == entry.RequestId);
+                        if (original?.Entry.Effect == null || original.Command.Kind != ItemCommandKind.Withdraw
+                            || entry.ChangedStack == null || !JournalChecksum.SameItem(original.Command.Item, entry.ChangedStack.Item)
+                            || entry.Actor == null || !JournalChecksum.SameAddress(original.Command.Address, entry.Actor))
+                            throw new InvalidDataException("Invalid compensation reference");
+                    }
+                }
+                else if (entry.Kind == JournalEntryKind.NoOp)
                 {
                     if (entry.Actor != null || entry.RequestId != Guid.Empty || records.Any(r => r.Entry.Sequence == entry.Sequence) || !operations.Add(entry.OperationId))
                         throw new InvalidDataException("Invalid no-op identity");
@@ -99,8 +112,10 @@ namespace ThorsKist.Sync
                     if (result == null || !SameEntry(result.Entry, entry)) throw new InvalidDataException("Journal/result mismatch");
                 }
             }
-            return new JournalMachineState(checkpoint, current, head, entries, records, used);
+            var recovered = new JournalMachineState(checkpoint, current, head, entries, records, used, replication);
+            recovered.Replication.Validate(recovered); return recovered;
         }
+        internal JournalMachineState WithReplication(ReplicationState replication) => new JournalMachineState(Checkpoint, Current, Head, Journal, Results, UsedStackIds, replication);
         private static void RestoreResult(CommandResult result) => CommandResult.Restore(result.Command, result.Status, result.Entry);
         public static bool SameEntry(JournalEntry a, JournalEntry b) => a.Identity.Matches(b.Identity) && a.Sequence == b.Sequence
             && a.Schema == b.Schema && a.OperationId == b.OperationId && a.RequestId == b.RequestId && a.Kind == b.Kind
@@ -171,7 +186,7 @@ namespace ThorsKist.Sync
                 command.Address, changed, deleted, effect, JournalChecksum.Compute(current));
             var result = new CommandResult(command, status, entry);
             var next = new JournalMachineState(state.Checkpoint, current, entry.Sequence, state.Journal.Concat(new[] { entry }),
-                state.Results.Concat(new[] { result }), changed == null ? state.UsedStackIds : state.UsedStackIds.Concat(new[] { changed.Id }));
+                state.Results.Concat(new[] { result }), changed == null ? state.UsedStackIds : state.UsedStackIds.Concat(new[] { changed.Id }), state.Replication);
             return new CommandTransition(next, status, result);
         }
         private static StackRecord WithQuantity(StackRecord stack, int quantity) => new StackRecord(stack.Id, stack.Slot,
@@ -182,7 +197,7 @@ namespace ThorsKist.Sync
         {
             var entry = new JournalEntry(state.Current.Identity, checked(state.Head + 1), Guid.NewGuid(), Guid.Empty,
                 JournalEntryKind.NoOp, null, null, null, null, JournalChecksum.Compute(state.Current));
-            return new JournalMachineState(state.Checkpoint, state.Current, entry.Sequence, state.Journal.Concat(new[] { entry }), state.Results, state.UsedStackIds);
+            return new JournalMachineState(state.Checkpoint, state.Current, entry.Sequence, state.Journal.Concat(new[] { entry }), state.Results, state.UsedStackIds, state.Replication);
         }
 
         // Caller supplies the protected cumulative-processing cutoff. M4 computes
@@ -191,7 +206,7 @@ namespace ThorsKist.Sync
         {
             if (cutoff < state.Checkpoint.Sequence || cutoff > state.Head) throw new ArgumentOutOfRangeException(nameof(cutoff));
             var checkpoint = JournalReplay.Replay(state.Checkpoint, state.Journal.Where(e => e.Sequence <= cutoff));
-            return new JournalMachineState(checkpoint, state.Current, state.Head, state.Journal.Where(e => e.Sequence > cutoff), state.Results, state.UsedStackIds);
+            return new JournalMachineState(checkpoint, state.Current, state.Head, state.Journal.Where(e => e.Sequence > cutoff), state.Results, state.UsedStackIds, state.Replication);
         }
     }
 }

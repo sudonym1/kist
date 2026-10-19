@@ -47,6 +47,29 @@ static class Program
                     throw new Exception("Journal recovery/deduplication failed");
                 Console.WriteLine("net472 M3 journal commit/checkpoint/reopen/retry passed");
             }
+            string sessionsPath = Path.Combine(directory, "sessions.db");
+            using (var server = ReplicationServer.OpenAsync(new SqliteJournalStorage(sessionsPath, identity), initial, new SystemReplicationClock(), 1).GetAwaiter().GetResult())
+            {
+                var login = server.LoginAsync("probe-player", Guid.NewGuid()).GetAwaiter().GetResult();
+                var session = login.Session;
+                server.AcknowledgeAsync(session.Address, session.LoginMarker).GetAwaiter().GetResult();
+                var deposit = new ItemCommand(session.Address, Guid.NewGuid(), Guid.NewGuid(), ItemCommandKind.Deposit, command.Item);
+                server.ExecuteAsync(deposit).GetAwaiter().GetResult();
+                server.QueueDeliveryAsync(session.Address, session.LoginMarker, 4).GetAwaiter().GetResult();
+                var head = server.ReadAsync().GetAwaiter().GetResult().Head;
+                server.AcknowledgeAsync(session.Address, head).GetAwaiter().GetResult();
+                var take = new ItemCommand(session.Address, Guid.NewGuid(), deposit.StackId, ItemCommandKind.Withdraw, command.Item);
+                server.ExecuteAsync(take).GetAwaiter().GetResult();
+                server.ExcludeAsync(session.Address, true).GetAwaiter().GetResult();
+                var state = server.CheckpointAsync().GetAwaiter().GetResult();
+                if (state.Current.Stacks.Count != 1 || state.Current.Stacks[0].Slot != -1 || state.Current.Stacks[0].Item.Quantity != 3
+                    || state.Replication.Settlements.Count != 2 || state.Checkpoint.Sequence != state.Head)
+                    throw new Exception("Session compensation/checkpoint failed");
+            }
+            using (var server = ReplicationServer.OpenAsync(new SqliteJournalStorage(sessionsPath, identity), initial, new SystemReplicationClock(), 1).GetAwaiter().GetResult())
+                if (server.LoginAsync("probe-player", Guid.NewGuid()).GetAwaiter().GetResult().Status != SessionStatus.Suspended)
+                    throw new Exception("Session cooldown recovery failed");
+            Console.WriteLine("net472 M4 login/ack/admission/overflow/settlement/checkpoint/cooldown reopen passed");
         }
         finally { Directory.Delete(directory, true); }
     }
