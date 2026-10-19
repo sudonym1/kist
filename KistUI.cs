@@ -76,6 +76,14 @@ namespace ThorsKist
         private static bool _lastCanTake;
         private static Vector2 _builtForScreen;
         private static readonly List<GameObject> _rows = new List<GameObject>();
+        private sealed class ItemRowView
+        {
+            public GameObject Root;
+            public Image Icon;
+            public TMP_Text Name, Count, Tag;
+            public Button[] Take;
+        }
+        private static readonly List<ItemRowView> _itemRows = new List<ItemRowView>();
 
         // ---- Metrics -------------------------------------------------------
         // One scale knob drives every size, so uiScale actually means something
@@ -248,6 +256,7 @@ namespace ThorsKist
         private static void Build()
         {
             if (_root != null) return;
+            _itemRows.Clear();
 
             Canvas canvas = InventoryGui.instance.GetComponentInParent<Canvas>();
             if (canvas == null) return;
@@ -431,6 +440,7 @@ namespace ThorsKist
         {
             foreach (GameObject go in _rows) if (go != null) Object.Destroy(go);
             _rows.Clear();
+            foreach (var view in _itemRows) if (view.Root != null) view.Root.SetActive(false);
         }
 
         private static void BuildKistRows()
@@ -476,11 +486,15 @@ namespace ThorsKist
 
         private static void AddItemRow(ItemDrop.ItemData item, string label, string tag, int index, bool canTake)
         {
+            if (index < _itemRows.Count)
+            {
+                BindItemRow(_itemRows[index], item, label, tag, index, canTake);
+                return;
+            }
             GameObject row = NewPanel("row", _content, index % 2 == 0 ? RowBg : RowAlt);
             LayoutElement le = row.AddComponent<LayoutElement>();
             le.minHeight = RowH;
             le.preferredHeight = RowH;
-            _rows.Add(row);
 
             GameObject iconGo = new GameObject("icon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             iconGo.transform.SetParent(row.transform, false);
@@ -515,12 +529,10 @@ namespace ThorsKist
             // Whatever the current sort is keyed on, spelled out. It is there to
             // be checked: a biome or a category that reads wrong is a table entry
             // worth reporting, and without it a wrong order just looks arbitrary.
-            if (!string.IsNullOrEmpty(tag))
-            {
-                TMP_Text tagText = NewText(row.transform, tag, FontSmall, Dim, TextAlignmentOptions.Right);
-                Place(tagText.rectTransform, new Vector2(1f, 0.5f),
-                      new Vector2(-(BtnStripW + 8f + 90f * S + 10f), 0f), new Vector2(130f * S, RowH));
-            }
+            TMP_Text tagText = NewText(row.transform, tag ?? "", FontSmall, Dim, TextAlignmentOptions.Right);
+            Place(tagText.rectTransform, new Vector2(1f, 0.5f),
+                  new Vector2(-(BtnStripW + 8f + 90f * S + 10f), 0f), new Vector2(130f * S, RowH));
+            tagText.gameObject.SetActive(!string.IsNullOrEmpty(tag));
 
             Vector2i slot = item.m_gridPos;
             string itemName = item.m_shared.m_name;
@@ -528,13 +540,36 @@ namespace ThorsKist
 
             float bh = RowH - 2f;
             // Right edges, measured from the row's right edge outwards.
-            AddTakeButton(row, "All", -BtnEdge, bh, canTake, slot, itemName, stack);
-            AddTakeButton(row, "10", -(BtnEdge + BtnW + BtnGap), bh, canTake && stack > 1, slot, itemName,
+            Button all = AddTakeButton(row, "All", -BtnEdge, bh, canTake, slot, itemName, stack);
+            Button ten = AddTakeButton(row, "10", -(BtnEdge + BtnW + BtnGap), bh, canTake && stack > 1, slot, itemName,
                           stack < 10 ? stack : 10);
-            AddTakeButton(row, "1", -(BtnEdge + (BtnW + BtnGap) * 2f), bh, canTake, slot, itemName, 1);
+            Button one = AddTakeButton(row, "1", -(BtnEdge + (BtnW + BtnGap) * 2f), bh, canTake, slot, itemName, 1);
+            _itemRows.Add(new ItemRowView { Root = row, Icon = icon, Name = name, Count = count, Tag = tagText, Take = new[] { all, ten, one } });
         }
 
-        private static void AddTakeButton(GameObject row, string label, float x, float h, bool enabled,
+        private static void BindItemRow(ItemRowView view, ItemDrop.ItemData item, string label, string tag, int index, bool canTake)
+        {
+            view.Root.SetActive(true);
+            view.Root.transform.SetAsLastSibling();
+            view.Root.GetComponent<Image>().color = index % 2 == 0 ? RowBg : RowAlt;
+            view.Icon.sprite = item.GetIcon();
+            view.Name.text = label + (item.m_shared.m_maxQuality > 1 ? "  <color=#8C8677>q" + item.m_quality + "</color>" : "");
+            view.Count.text = "x" + item.m_stack;
+            view.Tag.text = tag ?? "";
+            view.Tag.gameObject.SetActive(!string.IsNullOrEmpty(tag));
+            Vector2i slot = item.m_gridPos; string itemName = item.m_shared.m_name;
+            int[] amounts = { item.m_stack, Mathf.Min(10, item.m_stack), 1 };
+            for (int i = 0; i < view.Take.Length; i++)
+            {
+                var button = view.Take[i]; int amount = amounts[i];
+                button.onClick.RemoveAllListeners();
+                button.onClick.AddListener(() => KistClient.Take(slot, itemName, amount));
+                button.interactable = canTake && (i != 1 || item.m_stack > 1);
+                Tint(button, button.interactable ? BtnBg : new Color(0.16f, 0.15f, 0.13f, 1f));
+            }
+        }
+
+        private static Button AddTakeButton(GameObject row, string label, float x, float h, bool enabled,
                                           Vector2i slot, string itemName, int amount)
         {
             Button b = NewButton(row.transform, label, FontSmall, delegate
@@ -544,6 +579,7 @@ namespace ThorsKist
             Place(b.transform as RectTransform, new Vector2(1f, 0.5f), new Vector2(x, 0f), new Vector2(BtnW, h));
             b.interactable = enabled;
             if (!enabled) Tint(b, new Color(0.16f, 0.15f, 0.13f, 1f));
+            return b;
         }
 
         // ------------------------------------------------------------------

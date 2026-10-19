@@ -7,6 +7,10 @@
   <ItemGroup>
     <ProjectReference Include="../ThorsKist.Sync/ThorsKist.Sync.csproj" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="8.0.25" />
-    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.14" />
+    <!-- Use the same DllImport provider on CoreCLR, Framework and Unity Mono.
+         The bundle selects dynamic_cdecl for net472, which asks Unity for a
+         System.ValueTuple assembly it does not ship. -->
+    <PackageReference Include="SQLitePCLRaw.provider.e_sqlite3" Version="2.1.14" />
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.14" />
   </ItemGroup>
 </Project>

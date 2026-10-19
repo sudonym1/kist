@@ -46,6 +46,9 @@ test:build:
     - python3 scripts/version.py check
     - dotnet restore ThorsKist.csproj
     - dotnet build ThorsKist.csproj -c Release --no-restore
+    # Compile the real-game adapter probe against these same references. Running
+    # it requires Unity/Valheim; it is never copied into the release package.
+    - dotnet build tools/AdapterTests/AdapterTests.csproj -c Release
     # A green build proves nothing about whether the Harmony patches will bind:
     # a renamed game method or an ambiguous overload compiles fine and then does
     # nothing at runtime, logging one line nobody reads. Resolve every target

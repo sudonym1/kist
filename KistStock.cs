@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+
 namespace ThorsKist
 {
     /// <summary>
@@ -26,10 +30,38 @@ namespace ThorsKist
     /// </summary>
     internal static class KistStock
     {
+        private sealed class Counts
+        {
+            public bool Dirty = true;
+            public readonly Dictionary<string, Dictionary<int, int>> Values = new Dictionary<string, Dictionary<int, int>>(StringComparer.Ordinal);
+        }
+        private static readonly ConditionalWeakTable<Inventory, Counts> Cache = new ConditionalWeakTable<Inventory, Counts>();
         public static int Count(Inventory kist, string name, int quality)
         {
             if (kist == null || string.IsNullOrEmpty(name)) return 0;
-            return kist.CountItems(name, quality, false);
+            var counts = Cache.GetValue(kist, inventory =>
+            {
+                var value = new Counts();
+                inventory.m_onChanged += () => value.Dirty = true;
+                return value;
+            });
+            if (counts.Dirty)
+            {
+                counts.Values.Clear();
+                foreach (var item in kist.GetAllItems())
+                {
+                    if (item?.m_shared == null) continue;
+                    if (!counts.Values.TryGetValue(item.m_shared.m_name, out var qualities))
+                        counts.Values.Add(item.m_shared.m_name, qualities = new Dictionary<int, int>());
+                    qualities.TryGetValue(item.m_quality, out int old);
+                    qualities[item.m_quality] = (int)Math.Min(int.MaxValue, (long)old + item.m_stack);
+                }
+                counts.Dirty = false;
+            }
+            if (!counts.Values.TryGetValue(name, out var found)) return 0;
+            if (quality >= 0) return found.TryGetValue(quality, out int amount) ? amount : 0;
+            long total = 0; foreach (int value in found.Values) total += value;
+            return (int)Math.Min(int.MaxValue, total);
         }
 
         public static void Take(Inventory kist, string name, int amount, int quality)

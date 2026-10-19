@@ -3,6 +3,7 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net472</TargetFramework>
     <LangVersion>9.0</LangVersion>
+    <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/ThorsKist.Sync.Sqlite/ThorsKist.Sync.Sqlite.csproj" />
@@ -16,5 +17,6 @@
       <ProbeNative Include="$(PkgSQLitePCLRaw_lib_e_sqlite3)/runtimes/win-x64/native/*;$(PkgSQLitePCLRaw_lib_e_sqlite3)/runtimes/win-x86/native/*;$(PkgSQLitePCLRaw_lib_e_sqlite3)/runtimes/linux-x64/native/*;$(PkgSQLitePCLRaw_lib_e_sqlite3)/runtimes/osx-x64/native/*" />
     </ItemGroup>
     <Copy SourceFiles="@(ProbeNative)" DestinationFolder="$(OutDir)runtimes/$([System.IO.Directory]::GetParent('%(ProbeNative.RootDir)%(ProbeNative.Directory)').Parent.Name)/native" />
+    <Copy SourceFiles="$(PkgSQLitePCLRaw_lib_e_sqlite3)/runtimes/win-x64/native/e_sqlite3.dll" DestinationFolder="$(OutDir)" />
   </Target>
 </Project>

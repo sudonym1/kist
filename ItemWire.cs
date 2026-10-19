@@ -12,7 +12,17 @@ namespace ThorsKist
     {
         // Matches the constant Inventory.Save writes. Read back through the same
         // vanilla path, so it is only ever compared against itself.
-        private const int InventoryVersion = 109;
+        // Ask the running game: ItemData.Save writes its current layout, which
+        // must never be labelled with an older Inventory.Load version.
+        public static int InventoryVersion
+        {
+            get
+            {
+                var header = new ZPackage();
+                new Inventory("tk_version", null, 1, 1).Save(header);
+                return new ZPackage(header.GetArray()).ReadInt();
+            }
+        }
 
         public static void WriteItems(ZPackage pkg, List<ItemDrop.ItemData> items)
         {
