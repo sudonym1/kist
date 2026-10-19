@@ -358,3 +358,4 @@ dist/
 # Run scripts/setup-refs.sh to collect them from your own game install.
 lib/
 .refs/
+.tools/

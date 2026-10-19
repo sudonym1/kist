@@ -33,6 +33,9 @@ internal static class Program
         if (!Directory.Exists(libDir)) { Console.WriteLine($"ERROR: {libDir} not found"); return 1; }
 
         var paths = new List<string> { Path.GetFullPath(dll) };
+        // Project dependencies (such as ThorsKist.Sync) ship beside the mod,
+        // whereas game reference assemblies live in lib/.
+        paths.AddRange(Directory.GetFiles(Path.GetDirectoryName(Path.GetFullPath(dll)), "*.dll"));
         paths.AddRange(Directory.GetFiles(libDir, "*.dll").Select(Path.GetFullPath));
         // The net472 reference assemblies, so mscorlib and friends resolve.
         string refPack = FindReferenceAssemblies();

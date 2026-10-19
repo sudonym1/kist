@@ -20,7 +20,6 @@
 set -eu
 
 VERSION="$(cat version.txt)"
-DLL="bin/Release/net472/ThorsKist.dll"
 ZIP="dist/ThorsKist-${VERSION}.zip"
 PKG="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/thorskist/${VERSION}"
 
@@ -38,7 +37,7 @@ echo "Publishing ThorsKist ${VERSION} to project ${CI_PROJECT_ID}"
 # ---- the artefacts must exist -----------------------------------------------
 # A missing file here means the build job did not hand its artefacts over.
 # Uploading nothing and reporting success is the failure mode worth preventing.
-for f in "$DLL" "$ZIP"; do
+for f in "$ZIP"; do
     if [ ! -f "$f" ]; then
         echo "ERROR: $f does not exist. Did test:build's artifacts reach this job?" >&2
         exit 1
@@ -70,7 +69,6 @@ upload() {
     echo "  ok  ${name}  $(wc -c < "$src") bytes  sha256 $(echo "$want" | cut -c1-16)"
 }
 
-upload "$DLL" "ThorsKist.dll"
 upload "$ZIP" "ThorsKist-${VERSION}.zip"
 
 # ---- the release ------------------------------------------------------------
@@ -103,8 +101,6 @@ print(json.dumps({
     "ref": "main",
     "description": body,
     "assets": {"links": [
-        {"name": "ThorsKist.dll",
-         "url": pkg + "/ThorsKist.dll", "link_type": "package"},
         {"name": "ThorsKist-" + version + ".zip (Thunderstore/Hexium payload)",
          "url": pkg + "/ThorsKist-" + version + ".zip", "link_type": "package"},
     ]},
@@ -133,7 +129,6 @@ fi
 
 echo "  ok  release v${VERSION}"
 echo
-echo "DLL:     ${PKG}/ThorsKist.dll"
 echo "Payload: ${PKG}/ThorsKist-${VERSION}.zip"
 echo "Release: ${CI_PROJECT_URL:-}/-/releases/v${VERSION}"
 echo "SUCCESS: published and verified by read-back."

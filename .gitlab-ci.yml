@@ -11,6 +11,22 @@ variables:
   # Version lives in version.txt; scripts/version.py keeps manifest.json and
   # Main.cs in step with it.
 
+test:sync:
+  stage: test
+  image: mcr.microsoft.com/dotnet/sdk:8.0
+  script:
+    - dotnet build src/ThorsKist.Sync/ThorsKist.Sync.csproj -c Release
+    - dotnet run --project tests/ThorsKist.Sync.Harness -c Release > sync-baseline.txt
+    - cat sync-baseline.txt
+  artifacts:
+    when: always
+    paths:
+      - sync-baseline.txt
+    expire_in: 4 weeks
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+
 test:build:
   stage: test
   image: mcr.microsoft.com/dotnet/sdk:8.0
@@ -56,6 +72,7 @@ test:build:
     # package on disk -- and so the relative links resolve if it is unpacked.
     - cp hird1.png kist1.png "dist/ThorsKist-$VERSION/"
     - cp "bin/Release/net472/ThorsKist.dll" "dist/ThorsKist-$VERSION/plugins/"
+    - cp "bin/Release/net472/ThorsKist.Sync.dll" "dist/ThorsKist-$VERSION/plugins/"
     - python3 scripts/package_release.py "dist/ThorsKist-$VERSION" "$VERSION"
     - python3 scripts/verify_hexium.py "dist/ThorsKist-$VERSION.zip" "$VERSION"
   artifacts:
@@ -82,6 +99,8 @@ publish:release:
   needs:
     - job: test:build
       artifacts: true
+    - job: test:sync
+      artifacts: false
   script:
     - apk add --no-cache curl python3 bash
     - sh scripts/publish_release.sh

@@ -187,6 +187,10 @@ Any new checksum mismatch or acknowledgment timeout repeats this error flow.
 
 ## Modules and milestones
 
+M1 implementation and current verification evidence are recorded in
+[the M1 work log](notes/network-journal-m1.md). Its game/runtime completion gates
+remain open; subsequent milestones are not implemented.
+
 Build a **state-sync library** without Unity dependencies and a **Valheim mod** adapting inventories, actions, RPCs, and UI to it. Inject clock and transport to test faults without launching the game. All milestones are planned; test production library code, not a separate copy.
 
 In M1, prototype deposit reservations against the real inventory adapter before fixing its interface. Establish exact stack identity and behavior under merging, splitting, partial removal, death, unexpected inventory changes, and representative mods. Verify that reserved quantities cannot be spent, moved, or dropped and that failures never remove replacement items; complete adapter coverage in M5.

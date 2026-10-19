@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/ThorsKist.Sync.Sqlite/ThorsKist.Sync.Sqlite.csproj" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.14" GeneratePathProperty="true" />
+  </ItemGroup>
+  <!-- Framework project-reference output flattens native content; preserve
+       runtime directories explicitly at the executable packaging boundary. -->
+  <Target Name="StageNativeSqlite" AfterTargets="Build">
+    <ItemGroup>
+      <ProbeNative Include="$(PkgSQLitePCLRaw_lib_e_sqlite3)/runtimes/win-x64/native/*;$(PkgSQLitePCLRaw_lib_e_sqlite3)/runtimes/win-x86/native/*;$(PkgSQLitePCLRaw_lib_e_sqlite3)/runtimes/linux-x64/native/*;$(PkgSQLitePCLRaw_lib_e_sqlite3)/runtimes/osx-x64/native/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ProbeNative)" DestinationFolder="$(OutDir)runtimes/$([System.IO.Directory]::GetParent('%(ProbeNative.RootDir)%(ProbeNative.Directory)').Parent.Name)/native" />
+  </Target>
+</Project>

@@ -93,7 +93,8 @@ slam every member hears.
 ## Installing
 
 Needs [BepInEx](https://valheim.thunderstore.io/package/denikson/BepInExPack_Valheim/).
-Drop `ThorsKist.dll` into `BepInEx/plugins/`.
+Download the release ZIP and copy both DLLs from its `plugins/` directory
+(`ThorsKist.dll` and `ThorsKist.Sync.dll`) into `BepInEx/plugins/`.
 
 > **On the server too, not just the clients.** The server owns the vault. A
 > client with the mod talking to a server without it is simply told there's no

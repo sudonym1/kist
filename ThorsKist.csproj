@@ -22,7 +22,12 @@
        verifier is a separate project with its own target framework. -->
   <ItemGroup>
     <Compile Remove="tools/**/*.cs" />
+    <Compile Remove="src/**/*.cs;tests/**/*.cs" />
     <None Remove="tools/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="src/ThorsKist.Sync/ThorsKist.Sync.csproj" />
   </ItemGroup>
 
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">

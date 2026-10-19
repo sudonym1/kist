@@ -13,6 +13,7 @@ Usage:
           CHANGELOG.md      (optional; Hexium renders it on the versions page)
           icon.png
           plugins/ThorsKist.dll
+          plugins/ThorsKist.Sync.dll
 
     The script validates the payload and creates
     <staging_dir>/../<ModName>-<version>.zip containing the package CONTENTS
@@ -78,12 +79,13 @@ def validate(staging_dir, version):
         else:
             print(f"  icon.png: valid PNG, {size} bytes")
 
-    # plugins/ThorsKist.dll
-    dll_path = os.path.join(staging_dir, "plugins", f"{MOD_NAME}.dll")
-    if not os.path.isfile(dll_path):
-        ok = die(f"{dll_path} does not exist") and ok
-    else:
-        print(f"  {os.path.relpath(dll_path)}: present")
+    # Both the plugin and its state-sync dependency must be installed together.
+    for dll_name in (f"{MOD_NAME}.dll", "ThorsKist.Sync.dll"):
+        dll_path = os.path.join(staging_dir, "plugins", dll_name)
+        if not os.path.isfile(dll_path):
+            ok = die(f"{dll_path} does not exist") and ok
+        else:
+            print(f"  {os.path.relpath(dll_path)}: present")
 
     # README.md
     readme_path = os.path.join(staging_dir, "README.md")
