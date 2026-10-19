@@ -35,6 +35,7 @@ static class Program
             try { await canceled; throw new Exception("Cancellation ignored"); } catch (OperationCanceledException) { checks++; }
         }
         Reservations();
+        checks += StateMachineTests.Run();
         Console.WriteLine($"PASS {checks} contract/scheduler/reservation assertions");
         ProbeAndBaseline();
     }

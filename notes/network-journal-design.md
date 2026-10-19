@@ -2,6 +2,11 @@
 
 Companion to [the review plan](../PLAN-NETWORK-JOURNAL.md). The design uses one application journal for both Kist replication and item awards. It does not use a separate delivery protocol. Character saving is independent of journal acknowledgment.
 
+Implementation evidence and remaining integration gates are recorded in the
+[M1 work log](network-journal-m1.md) and [M2 work log](network-journal-m2.md).
+M2's library state machine is complete; SQLite recovery and legacy-save migration
+are the next milestone (M3), followed by sessions and mod integration.
+
 ## Terminology
 
 A hird is a player group; its Kist/vault is the shared inventory. The anchor is its world location for range checks. Deposits move items into it; takes move items out. The roster is the invite list of eligible connected players, not current membership. Stations are game objects that consume materials, such as smelters. A prefab is an item template. World-level filtering is the game's exclusion of older items from stock queries; Kist stock deliberately bypasses it. A listen host runs a server and local character together; a dedicated server has no local character. Harmony intercepts game methods.

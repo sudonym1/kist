@@ -79,22 +79,23 @@ namespace ThorsKist.Sync
     // Called from worker code; transport adapter marshals RPC invocation as needed.
     public interface ICommandTransport { Task SendAsync(ItemCommand command, CancellationToken cancellationToken); }
     public interface ICommandHandler { Task HandleAsync(ItemCommand command, CancellationToken cancellationToken); }
-    // M1 boundary: M3 will define typed atomic state/journal/checkpoint transactions.
+    // M3 implements atomic persistence of this typed candidate image and verifies
+    // recovered current rows against checkpoint replay before serving requests.
     public interface IJournalStorage : IDisposable
     {
-        Task<byte[]?> ReadRecoveryImageAsync(CancellationToken cancellationToken);
+        Task<JournalMachineState?> ReadStateAsync(CancellationToken cancellationToken);
         Task CommitAsync(StorageCommit commit, CancellationToken cancellationToken);
     }
     public sealed class StorageCommit
     {
         public long ExpectedHead { get; }
-        private readonly byte[] image;
-        public StorageCommit(long expectedHead, byte[] recoveryImage)
+        public JournalMachineState State { get; }
+        public StorageCommit(long expectedHead, JournalMachineState state)
         {
             if (expectedHead < 0) throw new ArgumentOutOfRangeException(nameof(expectedHead));
-            ExpectedHead = expectedHead; image = (byte[])(recoveryImage ?? throw new ArgumentNullException(nameof(recoveryImage))).Clone();
+            ExpectedHead = expectedHead; State = state ?? throw new ArgumentNullException(nameof(state));
+            if (state.Head < expectedHead) throw new ArgumentException("Commit cannot move head backwards", nameof(state));
         }
-        public byte[] CopyRecoveryImage() => (byte[])image.Clone();
     }
     public enum InventoryResult { Applied, AlreadyApplied, MissingReservation, InventoryChanged, NoCapacity, Failed }
     // All inventory methods run on the game thread. Only verified journal effects
