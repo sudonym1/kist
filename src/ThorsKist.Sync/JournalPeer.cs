@@ -1,0 +1,81 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+
+namespace ThorsKist.Sync
+{
+    // Facts captured from the current authenticated connection on the game
+    // thread; never deserialize these from the command's claimed header.
+    public sealed class JournalPeerIdentity
+    {
+        public object Connection { get; }
+        public string Account { get; }
+        public long Character { get; }
+        public VaultIdentity Vault { get; }
+        public JournalPeerIdentity(object connection, string account, long character, VaultIdentity vault)
+        {
+            if (connection == null || string.IsNullOrWhiteSpace(account) || character == 0) throw new ArgumentException("Authenticated peer required");
+            Connection = connection; Account = account; Character = character; Vault = vault ?? throw new ArgumentNullException(nameof(vault));
+        }
+    }
+
+    public sealed class JournalPeerBinding
+    {
+        private readonly JournalPeerIdentity peer;
+        private SessionAddress? session;
+        private bool closed;
+        private readonly object sync = new object();
+        public SessionAddress? Session { get { lock (sync) return session; } }
+        public JournalPeerBinding(JournalPeerIdentity peer) { this.peer = peer; }
+        public bool IsCurrent(JournalPeerIdentity current)
+        { lock (sync) return !closed && ReferenceEquals(peer.Connection, current.Connection)
+            && peer.Account == current.Account && peer.Character == current.Character && peer.Vault.Matches(current.Vault); }
+        public bool Bind(JournalPeerIdentity current, SessionAddress address)
+        {
+            lock (sync)
+            {
+            if (!IsCurrent(current) || !peer.Vault.Contains(address) || peer.Account != address.Player
+                || (session != null && !JournalChecksum.SameAddress(session, address))) return false;
+            session = address; return true;
+            }
+        }
+        public bool Authorizes(JournalPeerIdentity current, SessionAddress address)
+        { lock (sync) return IsCurrent(current) && session != null && JournalChecksum.SameAddress(session, address); }
+        public void Close() { lock (sync) { closed = true; session = null; } }
+    }
+
+    // Each direct connection has its own bounded queue. A blocked or flooding
+    // peer cannot occupy another peer's queue. No Unity calls under this lock.
+    public sealed class JournalSendQueue : IDisposable
+    {
+        private readonly Queue<byte[]> frames = new Queue<byte[]>();
+        private readonly int maximumBytes, maximumFrames;
+        private int bytes;
+        private bool closed;
+        public JournalSendQueue(int maximumBytes = 256 * 1024, int maximumFrames = 16)
+        {
+            if (maximumBytes < JournalWire.MaximumFrameBytes || maximumFrames <= 0) throw new ArgumentOutOfRangeException(nameof(maximumBytes));
+            this.maximumBytes = maximumBytes; this.maximumFrames = maximumFrames;
+        }
+        // Encoding, including large image hashing, must be performed on workers.
+        public bool TryEnqueue(byte[] encodedFrame)
+        {
+            if (encodedFrame == null || encodedFrame.Length > JournalWire.MaximumFrameBytes || encodedFrame.Length < JournalWire.FrameHeaderBytes)
+                throw new InvalidDataException("Invalid outbound frame size");
+            lock (frames)
+            {
+                if (closed || frames.Count >= maximumFrames || encodedFrame.Length > maximumBytes - bytes) return false;
+                frames.Enqueue((byte[])encodedFrame.Clone()); bytes += encodedFrame.Length; return true;
+            }
+        }
+        public byte[]? Dequeue()
+        {
+            lock (frames)
+            {
+                if (closed || frames.Count == 0) return null;
+                var frame = frames.Dequeue(); bytes -= frame.Length; return frame;
+            }
+        }
+        public void Dispose() { lock (frames) { closed = true; frames.Clear(); bytes = 0; } }
+    }
+}

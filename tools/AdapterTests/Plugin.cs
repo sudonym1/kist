@@ -21,6 +21,7 @@ namespace ThorsKist
         private bool ran;
         private int checks;
         private TcpProbe tcp;
+        private JournalTcpProbe journalTcp;
         private JournalGameThread gameThread;
         private Harmony harmony;
         private void Awake()
@@ -45,12 +46,13 @@ namespace ThorsKist
         private void Update()
         {
             tcp?.Tick();
+            journalTcp?.Tick();
             gameThread?.Drain(4);
             if (Player.m_localPlayer != null && Input.GetKeyDown(KeyCode.F8)) ViewFixture();
             if (Player.m_localPlayer != null && Input.GetKeyDown(KeyCode.F9)) { KistUI.Close(); KistClient.RequestState(); }
             if (ran || ObjectDB.instance == null || ObjectDB.instance.GetItemPrefab("Wood") == null) return;
             ran = true;
-            try { Items(); Legacy(); Dispatch(); tcp = new TcpProbe(message => Logger.LogInfo(message)); _ = Storage(); }
+            try { Items(); Legacy(); Dispatch(); tcp = new TcpProbe(message => Logger.LogInfo(message)); journalTcp = new JournalTcpProbe(message => Logger.LogInfo(message)); _ = Storage(); }
             catch (Exception error) { Logger.LogError("M5 ADAPTER FAIL " + error); }
         }
         private void ViewFixture()
@@ -83,7 +85,7 @@ namespace ThorsKist
             }
             catch (Exception error) { Logger.LogError("M5 POOLED UI FAIL " + error); }
         }
-        private void OnDestroy() { tcp?.Dispose(); gameThread?.Dispose(); harmony?.UnpatchSelf(); }
+        private void OnDestroy() { tcp?.Dispose(); journalTcp?.Dispose(); gameThread?.Dispose(); harmony?.UnpatchSelf(); }
         private void Dispatch()
         {
             var dispatcher = new JournalGameThread(2); int actions = 0;

@@ -8,8 +8,9 @@ Implementation evidence and remaining integration gates are recorded in the
 the atomic migration pipeline with process-termination evidence. The
 [M4 work log](network-journal-m4.md) records replication/session verification;
 [M5](network-journal-m5.md) completes adapter foundations and Windows game probes,
-including the real legacy decoder. [M6](network-journal-m6.md) now owns live
-integration and platform gates; game validation and release move to M7.
+including the real legacy decoder. [M6](network-journal-m6.md) completes transport foundations.
+[M7](network-journal-m7.md) owns all pending live integration and platform gates;
+game validation and release are [M8](network-journal-m8.md).
 
 ## Terminology
 
@@ -91,7 +92,7 @@ Use a configurable maximum transaction depth for admitted mutations queued for o
 
 Only initiating request validation/admission may be synchronous. Cross-client changes use committed journal entries and asynchronous sequence acknowledgments exclusively; no synchronous broadcast or all-client acknowledgment barrier is permitted. The single writer serializes database work outside the Unity game thread. Perform encoding, checksum calculation, snapshot/checkpoint work, and network fan-out outside that thread as well, using immutable records. Unity inventory/UI calls use bounded game-thread batches that yield between batches. No update loop drains an unbounded queue or rebuilds all clients' state. Slow-client sending and processing cannot block healthy clients' admitted work or acknowledgments; new work remains subject to the pending-transaction limit. Checkpoint retention never becomes a synchronous gameplay barrier.
 
-Assume reliable, ordered RPC delivery within each live connection. M5 records the installed-game transport audit and TCP loopback evidence; using ZRoutedRpc does not itself establish TCP or authenticate its claimed sender field. M6 connects authenticated direct RPCs; M7 confirms each supported transport during network disruption and reconnect on dedicated servers and listen hosts. Application recovery handles connection loss and uncertain outcomes across reconnects. Add retransmission or gap recovery only if validation shows the transport needs it. Library loss/reordering fault injection is defensive testing, not a claim that the live transport exposes individual lost packets or reordered RPCs.
+Assume reliable, ordered RPC delivery within each live connection. M5 records the installed-game transport audit and TCP loopback evidence; using ZRoutedRpc does not itself establish TCP or authenticate its claimed sender field. M6 supplies bounded transport foundations; M7 connects authenticated direct RPCs; M8 confirms each supported transport during network disruption and reconnect on dedicated servers and listen hosts. Application recovery handles connection loss and uncertain outcomes across reconnects. Add retransmission or gap recovery only if validation shows the transport needs it. Library loss/reordering fault injection is defensive testing, not a claim that the live transport exposes individual lost packets or reordered RPCs.
 
 ## Client processing and acknowledgment
 
@@ -173,14 +174,14 @@ Accounting tests distinguish normal operation from explicitly accepted faults: n
 
 Test the game adapters separately from protocol rules. Use test doubles for game-facing calls where practical, then exercise actual APIs against supported assemblies and in game. A fake inventory alone does not prove the real game's merge, capacity, or save behavior.
 
-Prototype deposit reservations in M1 before fixing the library's inventory interface. Establish exact stack identity across merges, splits, partial removals, death, unexpected inventory changes, and representative mods. M5 tests real inventory identity and unexpected-change detection. Complete gameplay interception of spending, moving, dropping, and repeated deposits in M6; failures must not remove unrelated replacement items.
+Prototype deposit reservations in M1 before fixing the library's inventory interface. Establish exact stack identity across merges, splits, partial removals, death, unexpected inventory changes, and representative mods. M5 tests real inventory identity and unexpected-change detection. Complete gameplay interception of spending, moving, dropping, and repeated deposits in M7; failures must not remove unrelated replacement items.
 
 | Area | Checks |
 | --- | --- |
 | Item conversion | Round-trip quantity, identity, quality, variant, durability, crafter/world-level fields, custom data, and unknown-prefab records. Confirm merges/splits match the records sent to the library. |
 | Award application | Successful addition immediately sends acknowledgment; failed/full inventory does not. Duplicate callbacks/entries add once during a session. No character-save request, wait, or local completion-file write is introduced. |
 | Deposit application | Reserve exact quantities without removing them before verified Deposit entries; block all local spending/moving paths while reserved. Remove once before acknowledgment, release on explicit rejection, and settle uncertain deposits on the server during exclusion without replaying character removals across rejoin. Never refund on timeout or reverse credits on logout/disconnect. |
-| RPCs and sessions | M5 records the transport audit and TCP loopback evidence. M6 wires authenticated direct RPCs and sessions; M7 confirms each supported transport under network disruption/reconnect on dedicated servers and listen hosts. Add application gap recovery only if evidence requires it. Validate vault/epoch/session/sequence and reject malformed/stale traffic. World changes, shutdown, disconnect, and normal login invalidate or create the correct sessions. |
+| RPCs and sessions | M5 records the transport audit and TCP loopback evidence. M6 supplies bounded transport foundations. M7 wires authenticated direct RPCs and sessions; M8 confirms each supported transport under network disruption/reconnect on dedicated servers and listen hosts. Add application gap recovery only if evidence requires it. Validate vault/epoch/session/sequence and reject malformed/stale traffic. World changes, shutdown, disconnect, and normal login invalidate or create the correct sessions. |
 | Access restrictions | Kist-only bans reject deposits/takes and shared-material use through every crafting/station entry point, including the listen host. Ordinary gameplay remains connected. Crafting and station materials use ordinary per-item withdrawal and compensation semantics; test accepted duplicate value when game effects precede a lost acknowledgment. |
 | Overflow and UI | Return into a full Kist, display occupancy above 100%, withdraw/use overflow, refresh/sort/filter, and reload without dropping records. Cached counts and pooled rows reflect real changes. |
 | Threads and packaging | Unity calls run on the game thread; database operations do not block it. Load the packaged native SQLite provider on supported platforms and check for dependency conflicts with representative mods. |

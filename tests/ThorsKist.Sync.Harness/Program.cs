@@ -17,6 +17,7 @@ static class Program
     {
         if (args.Length > 0 && args[0] == "--m4-child") { await SessionTests.Child(args); return; }
         if (args.Length > 0 && args[0] == "--m3-child") { await StorageTests.Child(args); return; }
+        if (args.Length > 0 && args[0] == "--wire-only") { await WireTests.Run(); return; }
         var bytes = new byte[] { 1, 2, 3 };
         var item = new ItemRecord("Wood", 3, 109, bytes);
         bytes[0] = 9; var copy = item.CopyPayload(); copy[0] = 8;
@@ -40,6 +41,7 @@ static class Program
         checks += StateMachineTests.Run();
         checks += await StorageTests.Run();
         checks += await SessionTests.Run();
+        checks += await WireTests.Run();
         Console.WriteLine($"PASS {checks} contract/scheduler/reservation assertions");
         ProbeAndBaseline();
     }

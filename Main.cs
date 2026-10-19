@@ -228,6 +228,7 @@ namespace ThorsKist
             // Before anything else: a station scope that outlived its frame
             // leaked, and must not be allowed to move items outside a station.
             StationScope.FrameReset();
+            JournalDirectRpc.Current?.Pump();
             KistConflicts.Tick();
             KistDialog.Tick();
             KistUI.Tick();
@@ -237,6 +238,7 @@ namespace ThorsKist
 
         private void OnDestroy()
         {
+            JournalDirectRpc.Current?.Dispose();
             if (_harmony != null) _harmony.UnpatchSelf();
         }
     }

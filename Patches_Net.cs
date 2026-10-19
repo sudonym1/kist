@@ -3,12 +3,19 @@ using HarmonyLib;
 namespace ThorsKist
 {
     /// <summary>
-    /// Wiring. Both routed RPCs are registered the moment the router exists, so
-    /// neither side can miss a message because it joined the world too late.
+    /// Wiring. Legacy routed RPCs register with the router; journal messages
+    /// register on each direct peer connection and require an installed owner.
     /// </summary>
     [HarmonyPatch]
     public static class Patches_Net
     {
+        [HarmonyPatch(typeof(ZNet), "OnNewConnection", new[] { typeof(ZNetPeer) })]
+        [HarmonyPostfix]
+        public static void RegisterJournalPeer(ZNetPeer peer)
+        {
+            JournalDirectRpc.Register(peer);
+        }
+
         [HarmonyPatch(typeof(ZRoutedRpc), MethodType.Constructor, new[] { typeof(bool) })]
         [HarmonyPostfix]
         public static void RegisterRpcs(ZRoutedRpc __instance)
@@ -22,6 +29,7 @@ namespace ThorsKist
         [HarmonyPrefix]
         public static void OnShutdown()
         {
+            JournalDirectRpc.Current?.Dispose();
             KistServer.Reset();
             KistClient.Reset();
             // The progression table is read out of ZoneSystem and ObjectDB, so
