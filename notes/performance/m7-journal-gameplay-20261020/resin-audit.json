@@ -1,0 +1,35 @@
+{
+  "legacy_resin": 731,
+  "prior_vault_resin": 281,
+  "prior_saved_character_resin": 450,
+  "current_vault_resin": 732,
+  "current_saved_character": {
+    "name": "M7Testlocal",
+    "character": 2144103681,
+    "profile_version": 47,
+    "player_data_version": 34,
+    "inventory_version": 110,
+    "items": 3,
+    "resin": 0,
+    "sha512_valid": true
+  },
+  "session_accepted_deposit_resin": 2644,
+  "session_accepted_withdraw_resin": 2193,
+  "session_settlement_kinds": {
+    "0": 100
+  },
+  "capture_accepted_withdrawals": 30,
+  "capture_accepted_deposits": 15,
+  "capture_withdrawn_resin": 1462,
+  "capture_deposited_resin": 731,
+  "extra_deposit_after_capture": {
+    "sequence": 273,
+    "quantity": 1,
+    "settlement": "Processed"
+  },
+  "database_head_checkpoint": [
+    276,
+    275
+  ],
+  "integrity_check": "ok"
+}

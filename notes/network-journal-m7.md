@@ -5,6 +5,50 @@ left after [M6: Transport foundations](network-journal-m6.md). The scope was mov
 here at the user's request on 2026-10-19; no unfinished integration gate was
 claimed to have passed. Game validation and release are now **M8**.
 
+## Loaded-world v15 performance capture (2026-10-20 UTC)
+
+User capture `20261020-050706-eec92a` confirms the steady-state transfer
+improvement: 26.0658 seconds, 8,740 completed events, no drops, unfinished spans,
+thread violations, cooldowns or logged warnings/errors. All 45 captured resin
+requests were accepted and acknowledged: 30 withdrawals (1,462 resin) and 15
+deposits (731 resin). This covers two withdrawals of the full test batch and its
+intervening deposit; another deposit after capture restored the batch.
+
+| Measured interval | Mean ms | p95 ms | Maximum ms |
+| --- | ---: | ---: | ---: |
+| Command request/reply | 22.1234 | 26.2998 | 37.1517 |
+| Submission to character effect complete | 74.2058 | 119.1968 | 122.7558 |
+| Submission to acknowledgment complete | 93.0425 | 134.6200 | 139.1982 |
+| Ack round trip alone | 18.566 | 25.228 | 34.857 |
+| Client application queue wait | 0.018 | 0.021 | 0.021 |
+
+The main-thread transfer work scopes peaked at **0.4207 ms**; the broader
+`JournalGameplaySession.Tick` profiler target peaked at **0.4318 ms**. No sampled
+transfer work exceeded 1 ms. This is a warmed loaded-world capture, not a new
+cold-start guarantee. Kist drawing/layout remains excluded from the investigation.
+All worker verification/SQLite probes respected their thread requirements.
+Command SQLite operations averaged 16.0585 ms; across all 154 database operations,
+the mean was 12.794 ms. No full-recovery, candidate/successor-validation or full
+replacement events occurred. Two real timer commits correspond to heartbeats.
+
+Compared with the failed v13 capture, ack mean fell from 1,506 ms to 18.6 ms and
+client queue maximum from 10,310 ms to 0.021 ms. Command processing is now usually
+within the requested 10–30 ms range. Click-to-item completion remains slower
+because of the separate 100 ms server delivery poll; it remains the next latency
+target, not a claim that end-to-end withdrawal already meets 30 ms.
+
+Read-only audit: prior vault 281 + session deposits 2,644 - withdrawals 2,193 =
+**732 resin** in the final vault, zero on the SHA512-verified saved character.
+The original 731 test resin is accounted for; a separate one-resin deposit at
+sequence **273**, after profiling stopped, explains the extra item. All 100
+session resin results are settled as Processed, without compensation. SQLite
+integrity is `ok`, head/checkpoint 276/275. The raw capture/logs and closed-game
+database/character are preserved in
+`.tools/m7/checkpoints/journal-gameplay-v15-20261020.zip`.
+[The committed report](performance/m7-journal-gameplay-20261020) includes a reusable
+CSV analysis script, matched request latencies, summaries and conservation audit.
+No gameplay code or installers changed during this analysis.
+
 ## Incremental storage and database ownership audit (2026-10-20 UTC)
 
 The v15 candidate removes full-vault recovery/validation/replacement from live

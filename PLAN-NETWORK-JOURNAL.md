@@ -2,6 +2,12 @@
 
 ## M7 integrated Windows candidate (2026-10-20 UTC)
 
+The user's v15 loaded-world capture completes 45 resin transfers with no queue
+overflow or cooldown. Traced main-thread work peaks at 0.421 ms; command reply
+mean is 22.1 ms, while click-to-item mean remains 74.2 ms due to delivery polling.
+The original resin batch is accounted for, plus one separately journaled later
+deposit. [Capture report](notes/network-journal-m7.md#loaded-world-v15-performance-capture-2026-10-20-utc).
+
 **v15** replaces full-vault live commits with transactional row deltas and a
 constant-size durable revision check. The replace-capable snapshot helper is
 removed; new-vault creation cannot overwrite existing identities. Production
