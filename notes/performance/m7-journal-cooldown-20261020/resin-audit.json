@@ -1,0 +1,117 @@
+{
+  "legacy_resin": 731,
+  "vault_resin": 281,
+  "character": {
+    "name": "M7Testlocal",
+    "character": 2144103681,
+    "profile_version": 47,
+    "player_data_version": 34,
+    "inventory_version": 110,
+    "items": 11,
+    "resin": 450,
+    "sha512_valid": true
+  },
+  "total_resin": 731,
+  "integrity_check": "ok",
+  "database_head": 124,
+  "accepted_withdrawals_this_run": [
+    {
+      "sequence": 90,
+      "settlement": {
+        "kind": 0,
+        "comp": "00000000000000000000000000000000"
+      }
+    },
+    {
+      "sequence": 91,
+      "settlement": {
+        "kind": 0,
+        "comp": "00000000000000000000000000000000"
+      }
+    },
+    {
+      "sequence": 92,
+      "settlement": {
+        "kind": 0,
+        "comp": "00000000000000000000000000000000"
+      }
+    },
+    {
+      "sequence": 93,
+      "settlement": {
+        "kind": 0,
+        "comp": "00000000000000000000000000000000"
+      }
+    },
+    {
+      "sequence": 94,
+      "settlement": {
+        "kind": 0,
+        "comp": "00000000000000000000000000000000"
+      }
+    },
+    {
+      "sequence": 95,
+      "settlement": {
+        "kind": 0,
+        "comp": "00000000000000000000000000000000"
+      }
+    },
+    {
+      "sequence": 96,
+      "settlement": {
+        "kind": 0,
+        "comp": "00000000000000000000000000000000"
+      }
+    },
+    {
+      "sequence": 99,
+      "settlement": {
+        "kind": 0,
+        "comp": "00000000000000000000000000000000"
+      }
+    },
+    {
+      "sequence": 100,
+      "settlement": {
+        "kind": 0,
+        "comp": "00000000000000000000000000000000"
+      }
+    },
+    {
+      "sequence": 102,
+      "settlement": {
+        "kind": 2,
+        "comp": "0685d8224797470f94a6acff837ee276"
+      }
+    },
+    {
+      "sequence": 103,
+      "settlement": {
+        "kind": 2,
+        "comp": "d019ba96a7e642309452075cfa517687"
+      }
+    },
+    {
+      "sequence": 104,
+      "settlement": {
+        "kind": 2,
+        "comp": "3dfb70c8223745c4b703c232abf09888"
+      }
+    },
+    {
+      "sequence": 111,
+      "settlement": {
+        "kind": 2,
+        "comp": "eb009dc8b8e048df84a9e78550a5edf4"
+      }
+    },
+    {
+      "sequence": 113,
+      "settlement": {
+        "kind": 2,
+        "comp": "4b5c820d10284e96a4ca88c86d90d02c"
+      }
+    }
+  ]
+}

@@ -1,0 +1,335 @@
+{
+  "capture": "20261020-044927-dade9f",
+  "stages": {
+    "client.ack.round_trip": {
+      "calls": 12,
+      "mean_ms": 1506.1544166666665,
+      "max_ms": 3046.9034
+    },
+    "client.application_queue.wait": {
+      "calls": 13,
+      "mean_ms": 2711.616107692308,
+      "max_ms": 10309.9508
+    },
+    "client.command.elapsed": {
+      "calls": 27,
+      "mean_ms": 1916.8500074074075,
+      "max_ms": 3761.7844
+    },
+    "client.entry.verify": {
+      "calls": 13,
+      "mean_ms": 1.7331923076923077,
+      "max_ms": 2.2661
+    },
+    "client.reply.received": {
+      "calls": 39,
+      "mean_ms": 9.230769230769232e-05,
+      "max_ms": 0.0002
+    },
+    "client.request.round_trip": {
+      "calls": 39,
+      "mean_ms": 1790.3862923076922,
+      "max_ms": 3761.7187
+    },
+    "client.withdraw.submitted": {
+      "calls": 32,
+      "mean_ms": 7.8125e-05,
+      "max_ms": 0.0001
+    },
+    "listen.replies_queue.wait": {
+      "calls": 68,
+      "mean_ms": 2.5524573529411767,
+      "max_ms": 14.1361
+    },
+    "listen.requests_queue.wait": {
+      "calls": 40,
+      "mean_ms": 1327.457885,
+      "max_ms": 3152.4366
+    },
+    "server.command.validate_wire": {
+      "calls": 28,
+      "mean_ms": 0.029607142857142856,
+      "max_ms": 0.047
+    },
+    "server.connection_gate.wait": {
+      "calls": 40,
+      "mean_ms": 235.3005,
+      "max_ms": 427.0446
+    },
+    "server.delivery.elapsed": {
+      "calls": 109,
+      "mean_ms": 125.59803027522935,
+      "max_ms": 430.3364
+    },
+    "server.delivery.encode": {
+      "calls": 29,
+      "mean_ms": 0.025372413793103447,
+      "max_ms": 0.0815
+    },
+    "server.delivery.select_encode": {
+      "calls": 29,
+      "mean_ms": 0.02493103448275862,
+      "max_ms": 0.0621
+    },
+    "server.delivery_gate.wait": {
+      "calls": 109,
+      "mean_ms": 63.21623027522936,
+      "max_ms": 315.0357
+    },
+    "server.operation.elapsed": {
+      "calls": 532,
+      "mean_ms": 52.241730639097746,
+      "max_ms": 236.0952
+    },
+    "server.reply.encode": {
+      "calls": 40,
+      "mean_ms": 0.0331775,
+      "max_ms": 0.0875
+    },
+    "server.reply.ready": {
+      "calls": 40,
+      "mean_ms": 8.5e-05,
+      "max_ms": 0.0002
+    },
+    "server.request.decode": {
+      "calls": 40,
+      "mean_ms": 0.021525,
+      "max_ms": 0.0352
+    },
+    "server.request.elapsed": {
+      "calls": 40,
+      "mean_ms": 277.8314725,
+      "max_ms": 415.498
+    },
+    "server.serial_queue.wait": {
+      "calls": 532,
+      "mean_ms": 37.21655507518797,
+      "max_ms": 236.1769
+    },
+    "sqlite.candidate.validate": {
+      "calls": 184,
+      "mean_ms": 36.30092663043478,
+      "max_ms": 70.536
+    },
+    "sqlite.checkpoint_stacks.write": {
+      "calls": 184,
+      "mean_ms": 7.9221260869565215,
+      "max_ms": 24.5649
+    },
+    "sqlite.connection.close": {
+      "calls": 184,
+      "mean_ms": 3.957129891304348,
+      "max_ms": 78.8066
+    },
+    "sqlite.connection.open_configure": {
+      "calls": 184,
+      "mean_ms": 1.777675,
+      "max_ms": 3.943
+    },
+    "sqlite.current_stacks.write": {
+      "calls": 184,
+      "mean_ms": 8.21019347826087,
+      "max_ms": 24.9791
+    },
+    "sqlite.gate.wait": {
+      "calls": 184,
+      "mean_ms": 0.00047826086956521735,
+      "max_ms": 0.0015
+    },
+    "sqlite.journal.write": {
+      "calls": 184,
+      "mean_ms": 0.1355983695652174,
+      "max_ms": 0.7019
+    },
+    "sqlite.operation.work": {
+      "calls": 184,
+      "mean_ms": 149.92136195652174,
+      "max_ms": 235.9157
+    },
+    "sqlite.previous.read_verify": {
+      "calls": 184,
+      "mean_ms": 55.54196467391304,
+      "max_ms": 136.2921
+    },
+    "sqlite.protocol.write": {
+      "calls": 184,
+      "mean_ms": 2.590657608695652,
+      "max_ms": 18.4749
+    },
+    "sqlite.results.write": {
+      "calls": 184,
+      "mean_ms": 2.3129717391304347,
+      "max_ms": 12.5037
+    },
+    "sqlite.rows.delete_all": {
+      "calls": 184,
+      "mean_ms": 1.2334929347826087,
+      "max_ms": 11.3659
+    },
+    "sqlite.rows.write": {
+      "calls": 184,
+      "mean_ms": 33.70555054347826,
+      "max_ms": 65.8585
+    },
+    "sqlite.schedule.wait": {
+      "calls": 184,
+      "mean_ms": 0.015792391304347828,
+      "max_ms": 0.0336
+    },
+    "sqlite.schema.check": {
+      "calls": 184,
+      "mean_ms": 0.02060054347826087,
+      "max_ms": 0.0523
+    },
+    "sqlite.successor.validate": {
+      "calls": 184,
+      "mean_ms": 12.836313043478262,
+      "max_ms": 57.304
+    },
+    "sqlite.transaction.begin": {
+      "calls": 184,
+      "mean_ms": 0.08455,
+      "max_ms": 0.1612
+    },
+    "sqlite.transaction.commit_flush": {
+      "calls": 184,
+      "mean_ms": 5.674787500000001,
+      "max_ms": 14.1181
+    },
+    "sqlite.used_ids.write": {
+      "calls": 184,
+      "mean_ms": 5.622496739130434,
+      "max_ms": 22.5697
+    },
+    "unity.effect.work": {
+      "calls": 13,
+      "mean_ms": 0.5551615384615385,
+      "max_ms": 4.1002
+    },
+    "unity.effect_dispatch.wait": {
+      "calls": 13,
+      "mean_ms": 3.181246153846154,
+      "max_ms": 10.4206
+    },
+    "unity.inventory.add": {
+      "calls": 9,
+      "mean_ms": 0.0005222222222222222,
+      "max_ms": 0.001
+    },
+    "unity.inventory.changed_callbacks": {
+      "calls": 9,
+      "mean_ms": 0.2236333333333333,
+      "max_ms": 0.581
+    },
+    "unity.inventory.find_slot": {
+      "calls": 9,
+      "mean_ms": 0.0015444444444444444,
+      "max_ms": 0.0027
+    },
+    "unity.inventory.restore": {
+      "calls": 9,
+      "mean_ms": 0.38164444444444445,
+      "max_ms": 3.2346
+    },
+    "unity.inventory.verify_added": {
+      "calls": 9,
+      "mean_ms": 0.03068888888888889,
+      "max_ms": 0.1199
+    },
+    "unity.inventory_effect.work": {
+      "calls": 9,
+      "mean_ms": 0.6828888888888889,
+      "max_ms": 3.9581
+    },
+    "unity.withdraw.submit": {
+      "calls": 32,
+      "mean_ms": 0.045209375,
+      "max_ms": 0.2144
+    },
+    "writer.commit.elapsed": {
+      "calls": 184,
+      "mean_ms": 149.9499581521739,
+      "max_ms": 235.9414
+    },
+    "writer.gate.wait": {
+      "calls": 532,
+      "mean_ms": 0.0007637218045112782,
+      "max_ms": 0.0018
+    },
+    "writer.schedule.wait": {
+      "calls": 532,
+      "mean_ms": 0.01591296992481203,
+      "max_ms": 0.353
+    },
+    "writer.transition.compute": {
+      "calls": 184,
+      "mean_ms": 1.0183722826086956,
+      "max_ms": 32.5232
+    }
+  },
+  "withdraw_submissions": 32,
+  "main_over_1ms": [
+    {
+      "span": "2070",
+      "stage": "unity.effect.work",
+      "operation": "entry",
+      "request": "1d4686d26d6a4f20affa2d8f12e88cf4",
+      "sequence": "90",
+      "kind": "Work",
+      "expected_thread": "Main",
+      "start_thread": "1",
+      "end_thread": "1",
+      "start_on_main": "1",
+      "end_on_main": "1",
+      "thread_violation": "0",
+      "begin_frame": "5011",
+      "count": "0",
+      "start_ms": "11650.172100",
+      "duration_ms": "4.100200"
+    },
+    {
+      "span": "2071",
+      "stage": "unity.inventory_effect.work",
+      "operation": "character_effect",
+      "request": "1d4686d26d6a4f20affa2d8f12e88cf4",
+      "sequence": "90",
+      "kind": "Work",
+      "expected_thread": "Main",
+      "start_thread": "1",
+      "end_thread": "1",
+      "start_on_main": "1",
+      "end_on_main": "1",
+      "thread_violation": "0",
+      "begin_frame": "5011",
+      "count": "50",
+      "start_ms": "11650.180700",
+      "duration_ms": "3.958100"
+    },
+    {
+      "span": "2072",
+      "stage": "unity.inventory.restore",
+      "operation": "character_effect",
+      "request": "1d4686d26d6a4f20affa2d8f12e88cf4",
+      "sequence": "90",
+      "kind": "Work",
+      "expected_thread": "Main",
+      "start_thread": "1",
+      "end_thread": "1",
+      "start_on_main": "1",
+      "end_on_main": "1",
+      "thread_violation": "0",
+      "begin_frame": "5011",
+      "count": "0",
+      "start_ms": "11650.193900",
+      "duration_ms": "3.234600"
+    }
+  ],
+  "main_spike_frame": {
+    "frame": 5011,
+    "frame_wall_ms": 38.4319,
+    "gc0": 1,
+    "gc1": 1,
+    "gc2": 1,
+    "note": "GC overlaps the first resin restore; timings do not isolate CPU from GC pauses."
+  }
+}

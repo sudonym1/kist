@@ -1,0 +1,8 @@
+Journal transfer diagnostics; Kist drawing is outside this trace.
+started_utc=2026-10-20T04:49:27.5913775+00:00 main_thread=1 stopwatch_frequency=10000000
+duration_ms=46515.589800 events=6891 capacity=131072 dropped=0 started_spans=6927 incomplete_or_unpublished=36
+thread_violations=0 main_transfer_work_over_1ms=3 main_transfer_work_max_ms=4.100200
+Work is synchronous elapsed time on its recorded thread; Wait/Elapsed can cross awaits and are not main-thread blocking time.
+Overlapping/nested stages must not be added. Counts represent rows/items/bytes according to stage. Frame is the current main frame at span start.
+Request IDs and sequence markers join submissions, server replies, verification, effects and acknowledgments. No item payloads or account identifiers are recorded.
+Events finishing after capture stops are excluded; started/completed differences disclose in-flight spans. A full buffer drops new completed events.
