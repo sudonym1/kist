@@ -88,14 +88,15 @@ def validate(staging_dir, version):
             print(f"  {os.path.relpath(dll_path)}: present")
 
     plugins = os.path.join(staging_dir, "plugins")
-    if os.path.isfile(os.path.join(plugins, "ThorsKist.Sync.Sqlite.dll")) or os.path.isfile(os.path.join(plugins, "journal-runtime.json")):
-        try:
-            from pathlib import Path
-            from stage_journal_runtime import verify
-            runtime = verify(Path(plugins))
-            print("  journal dependencies: checksums and native architectures verified (" + ", ".join(runtime["rids"]) + ")")
-        except (ValueError, OSError, KeyError) as error:
-            ok = die(str(error)) and ok
+    # SQLite is mandatory for current releases. Never accept the obsolete
+    # two-DLL payload merely because the SQLite files are both absent.
+    try:
+        from pathlib import Path
+        from stage_journal_runtime import verify
+        runtime = verify(Path(plugins))
+        print("  journal dependencies: checksums and native architectures verified (" + ", ".join(runtime["rids"]) + ")")
+    except (ValueError, OSError, KeyError) as error:
+        ok = die(str(error)) and ok
 
     # README.md
     readme_path = os.path.join(staging_dir, "README.md")

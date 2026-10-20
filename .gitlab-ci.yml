@@ -69,16 +69,10 @@ test:build:
     # Assemble and validate the store payload on every commit, not on release
     # day, so packaging rules (exact 256x256 icon, manifest limits) fail early.
     - VERSION="$(cat version.txt)"
-    - rm -rf dist && mkdir -p "dist/ThorsKist-$VERSION/plugins"
-    - cp manifest.json README.md CHANGELOG.md icon.png "dist/ThorsKist-$VERSION/"
     # The README's screenshots travel with the payload. Thunderstore renders the
     # README from a URL, not from the zip, so these are for anyone reading the
     # package on disk -- and so the relative links resolve if it is unpacked.
-    - cp hird1.png kist1.png "dist/ThorsKist-$VERSION/"
-    - cp "bin/Release/net472/ThorsKist.dll" "dist/ThorsKist-$VERSION/plugins/"
-    - cp "bin/Release/net472/ThorsKist.Sync.dll" "dist/ThorsKist-$VERSION/plugins/"
-    - python3 scripts/package_release.py "dist/ThorsKist-$VERSION" "$VERSION"
-    - python3 scripts/verify_hexium.py "dist/ThorsKist-$VERSION.zip" "$VERSION"
+    - python3 scripts/prepare_hexium.py tools/AdapterTests/bin/Release/net472 "${NUGET_PACKAGES:-$HOME/.nuget/packages}"
   artifacts:
     when: always
     paths:

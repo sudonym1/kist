@@ -1,8 +1,8 @@
 ﻿{
   "name": "ThorsKist",
   "description": "A shared global storage vault for your hird. Alt-click to deposit, F3 to open, craft from anywhere.",
-  "version_number": "0.8.6",
-  "website_url": "https://gitlab.phospher.com/brianmiller/thorskist",
+  "version_number": "0.9.0",
+  "website_url": "https://github.com/sudonym1/kist",
   "dependencies": [
     "denikson-BepInExPack_Valheim-5.4.2350"
   ]
