@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.1
+
+- Update the release version to 0.9.1 and rebuild the publishing package.
+- Retain the SQLite/journal migration and runtime validation notes from 0.9.0.
+
 ## 0.9.0
 
 Performance fork of Thor's Kist by Brian Miller (posixone).
