@@ -20,13 +20,16 @@ namespace ThorsKist.Sync
     {
         public SessionStatus Status { get; }
         public ReplicationSession? Session { get; }
+        private readonly SessionPhase? phase;
+        public SessionPhase? Phase => Session?.Phase ?? phase;
         public CommandTransition? Command { get; }
         public IReadOnlyList<JournalEntry> Entries { get; }
         public IReadOnlyList<Guid> SettledEffects { get; }
         public SessionReply(SessionStatus status, ReplicationSession? session = null, CommandTransition? command = null,
-            IEnumerable<JournalEntry>? entries = null, IEnumerable<Guid>? settled = null)
+            IEnumerable<JournalEntry>? entries = null, IEnumerable<Guid>? settled = null, SessionPhase? phase = null)
         { if (!Enum.IsDefined(typeof(SessionStatus), status)) throw new ArgumentOutOfRangeException(nameof(status));
-            Status = status; Session = session; Command = command; Entries = Array.AsReadOnly((entries ?? Array.Empty<JournalEntry>()).ToArray()); SettledEffects = Array.AsReadOnly((settled ?? Array.Empty<Guid>()).ToArray()); }
+            if (phase.HasValue && !Enum.IsDefined(typeof(SessionPhase), phase.Value)) throw new ArgumentOutOfRangeException(nameof(phase));
+            Status = status; Session = session; this.phase = phase; Command = command; Entries = Array.AsReadOnly((entries ?? Array.Empty<JournalEntry>()).ToArray()); SettledEffects = Array.AsReadOnly((settled ?? Array.Empty<Guid>()).ToArray()); }
     }
     // Owns its writer exclusively. Calls enqueue in invocation order; no transport,
     // Unity callbacks or waits for peers run under the writer. Authentication and
@@ -90,7 +93,8 @@ namespace ThorsKist.Sync
         private static ReplicationSession? Find(IEnumerable<ReplicationSession> sessions, SessionAddress address) => sessions.FirstOrDefault(s => JournalChecksum.SameAddress(s.Address, address));
         private static JournalMachineState Finish(JournalMachineState s, IEnumerable<ReplicationSession> sessions, IEnumerable<EffectSettlement> settlements, DateTimeOffset? next = null)
             => s.WithReplication(new ReplicationState(checked(s.Replication.Revision + 1), next ?? s.Replication.NextHeartbeat, sessions, settlements));
-        private static IEnumerable<Guid> Settled(JournalMachineState state) => state.Results.Where(r => r.Entry.Effect != null
+        private static IEnumerable<Guid> Settled(JournalMachineState state, ReplicationSession? session) => state.Results.Where(r => session != null
+            && r.Entry.Sequence > session.Baseline.Sequence && r.Entry.Sequence <= session.LoginMarker && r.Entry.Effect != null
             && state.Replication.Settlements.Any(s => s.Operation == r.Entry.OperationId)).Select(r => r.Entry.Effect!.EffectId);
         private static JournalMachineState Marker(JournalMachineState state, SessionAddress address, Guid request, JournalEntryKind kind)
         {
@@ -116,10 +120,10 @@ namespace ThorsKist.Sync
                     catchup.Select(e => new DeliveryDeadline(e.Sequence, Now + TimeSpan.FromSeconds(30))));
                 return Finish(s, s.Replication.Sessions.Concat(new[] { answer }), s.Replication.Settlements);
             }).ConfigureAwait(false);
-            return new SessionReply(status, answer, entries: answer?.Catchup, settled: Settled(state));
+            return new SessionReply(status, answer, entries: answer?.Catchup, settled: Settled(state, answer));
         });
         private static bool Same(ItemCommand a, ItemCommand b) => JournalChecksum.SameAddress(a.Address, b.Address)
-            && a.Kind == b.Kind && a.StackId == b.StackId && JournalChecksum.SameItem(a.Item, b.Item);
+            && a.Kind == b.Kind && a.Purpose == b.Purpose && a.StackId == b.StackId && JournalChecksum.SameItem(a.Item, b.Item);
         public Task<SessionReply> ExecuteAsync(ItemCommand command)
         {
             lock (sync)
@@ -189,7 +193,7 @@ namespace ThorsKist.Sync
                 foreach (var r in s.Results.Where(r => r.Entry.Effect != null && JournalChecksum.SameAddress(r.Command.Address, address) && r.Entry.Sequence <= sequence))
                     if (!settlements.Any(x => x.Operation == r.Entry.OperationId)) settlements.Add(new EffectSettlement(r.Entry.OperationId, SettlementKind.Processed, Guid.Empty));
                 if (session.Phase == SessionPhase.LoggingIn && sequence >= session.LoginMarker) session.Phase = SessionPhase.Active;
-                if (session.Phase == SessionPhase.LoggingOut && sequence >= session.LogoutMarker) { session.Phase = SessionPhase.Closed; session.Deadlines = Array.Empty<DeliveryDeadline>(); }
+                if (session.Phase == SessionPhase.LoggingOut && sequence >= session.LogoutMarker) { session.Phase = SessionPhase.Closed; session.Deadlines = Array.Empty<DeliveryDeadline>(); session.ReleaseLoginImage(); }
                 reply = new SessionReply(SessionStatus.Ok, session);
                 return Finish(s, sessions, settlements, !hadActive && session.Phase == SessionPhase.Active ? Now + TimeSpan.FromSeconds(10) : (DateTimeOffset?)null);
             }).ConfigureAwait(false); return reply;
@@ -215,6 +219,7 @@ namespace ThorsKist.Sync
         {
             state = Settle(state, session.Address, settlements);
             session.Phase = SessionPhase.Closed; session.Deadlines = Array.Empty<DeliveryDeadline>(); session.SuspendedUntil = suspension;
+            session.ReleaseLoginImage();
             return state;
         }
         private static JournalMachineState Settle(JournalMachineState state, SessionAddress address, List<EffectSettlement> settlements)

@@ -447,6 +447,12 @@ namespace ThorsKist
         {
             if (_countLabel != null) _countLabel.text = "";
 
+            if (JournalGameplaySession.Current != null)
+            {
+                BuildJournalRows(JournalGameplaySession.Current);
+                return;
+            }
+
             if (!KistClient.InHird)
             {
                 AddNotice(_content, "You are not in a hird. Open the HIRD tab to found one.");
@@ -540,10 +546,10 @@ namespace ThorsKist
 
             float bh = RowH - 2f;
             // Right edges, measured from the row's right edge outwards.
-            Button all = AddTakeButton(row, "All", -BtnEdge, bh, canTake, slot, itemName, stack);
-            Button ten = AddTakeButton(row, "10", -(BtnEdge + BtnW + BtnGap), bh, canTake && stack > 1, slot, itemName,
-                          stack < 10 ? stack : 10);
-            Button one = AddTakeButton(row, "1", -(BtnEdge + (BtnW + BtnGap) * 2f), bh, canTake, slot, itemName, 1);
+            Button all = AddTakeButton(row, "All", -BtnEdge, bh, canTake, KistClient.TakeAction(item, stack));
+            Button ten = AddTakeButton(row, "10", -(BtnEdge + BtnW + BtnGap), bh, canTake && stack > 1,
+                          KistClient.TakeAction(item, stack < 10 ? stack : 10));
+            Button one = AddTakeButton(row, "1", -(BtnEdge + (BtnW + BtnGap) * 2f), bh, canTake, KistClient.TakeAction(item, 1));
             _itemRows.Add(new ItemRowView { Root = row, Icon = icon, Name = name, Count = count, Tag = tagText, Take = new[] { all, ten, one } });
         }
 
@@ -563,23 +569,56 @@ namespace ThorsKist
             {
                 var button = view.Take[i]; int amount = amounts[i];
                 button.onClick.RemoveAllListeners();
-                button.onClick.AddListener(() => KistClient.Take(slot, itemName, amount));
+                var take = KistClient.TakeAction(item, amount);
+                button.onClick.AddListener(() => take());
                 button.interactable = canTake && (i != 1 || item.m_stack > 1);
                 Tint(button, button.interactable ? BtnBg : new Color(0.16f, 0.15f, 0.13f, 1f));
             }
         }
 
         private static Button AddTakeButton(GameObject row, string label, float x, float h, bool enabled,
-                                          Vector2i slot, string itemName, int amount)
+                                          System.Action take)
         {
             Button b = NewButton(row.transform, label, FontSmall, delegate
             {
-                KistClient.Take(slot, itemName, amount);
+                take();
             });
             Place(b.transform as RectTransform, new Vector2(1f, 0.5f), new Vector2(x, 0f), new Vector2(BtnW, h));
             b.interactable = enabled;
             if (!enabled) Tint(b, new Color(0.16f, 0.15f, 0.13f, 1f));
             return b;
+        }
+
+        private static void BuildJournalRows(JournalGameplaySession session)
+        {
+            string filter = _search != null ? (_search.text ?? "").Trim().ToLowerInvariant() : "";
+            var known = new List<ItemDrop.ItemData>();
+            var unknown = new List<JournalStockProjection.Row>();
+            foreach (var row in session.Stock.Rows)
+                if (row.Item != null) known.Add(row.Item); else unknown.Add(row);
+            var mode = Main.KistSortMode.Value;
+            known = KistSort.Arrange(known, mode); if (_sortReversed) known.Reverse();
+            int shown = 0;
+            foreach (var item in known)
+            {
+                string label = KistSort.DisplayName(item);
+                if (filter.Length != 0 && label.ToLowerInvariant().IndexOf(filter) < 0) continue;
+                string tag = KistSort.RowTag(item, mode);
+                if (session.Stock.Find(session.Stock.Identify(item), out var stack) && stack.Slot < 0) tag = "overflow";
+                AddItemRow(item, label, tag, shown++, KistClient.CanTake);
+            }
+            foreach (var row in unknown)
+            {
+                string label = row.Stack.Item.Prefab;
+                if (filter.Length != 0 && label.ToLowerInvariant().IndexOf(filter) < 0) continue;
+                AddNotice(_content, label + " x" + row.Stack.Item.Quantity + " (item mod unavailable; retained" + (row.Stack.Slot < 0 ? ", overflow" : "") + ")");
+                shown++;
+            }
+            if (_countLabel != null) _countLabel.text = shown + " of " + session.Stock.Count + " stacks";
+            if (!session.Stock.Ready) AddNotice(_content, "Loading Kist items...");
+            else if (!session.AccessEnabled) AddNotice(_content, "Waiting for Kist session...");
+            else if (session.Stock.Count == 0) AddNotice(_content, "The Kist is empty.");
+            else if (shown == 0) AddNotice(_content, "Nothing here matches the search.");
         }
 
         // ------------------------------------------------------------------

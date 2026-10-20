@@ -40,6 +40,7 @@ namespace ThorsKist.Sync
         private bool Matches(Reservation reservation) => inventory.ContainsReference(reservation.Stack)
             && inventory.Quantity(reservation.Stack) >= reservation.Quantity
             && inventory.Capture(reservation.Stack).SequenceEqual(reservation.Snapshot);
+        public bool IsIntact(Guid requestId) => pending.TryGetValue(requestId, out var reservation) && Matches(reservation);
         public InventoryResult ApplyVerifiedRemoval(Guid requestId, Guid effectId, int quantity)
         {
             if (effectId == Guid.Empty) return InventoryResult.Failed;

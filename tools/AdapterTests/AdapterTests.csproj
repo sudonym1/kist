@@ -12,6 +12,7 @@
     <Reference Include="UnityEngine"><HintPath>../../lib/UnityEngine.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.CoreModule"><HintPath>../../lib/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.InputLegacyModule"><HintPath>../../lib/UnityEngine.InputLegacyModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>../../lib/UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="assembly_valheim"><HintPath>../../.refs/assembly_valheim.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="assembly_utils"><HintPath>../../lib/assembly_utils.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="netstandard"><HintPath>../../lib/netstandard.dll</HintPath><Private>false</Private></Reference>

@@ -6,7 +6,7 @@ using System.Text;
 
 namespace ThorsKist.Sync
 {
-    public enum JournalMessage : byte { Login = 1, Command, Acknowledge, Logout, Suspend, Reply, Entries, Transfer }
+    public enum JournalMessage : byte { Login = 1, Command, Acknowledge, Logout, Suspend, Reply, Entries, Transfer, CommandChunk, EntriesChunk }
 
     // Independent of the legacy routed protocol and the SQLite envelope. Decode
     // only after the adapter has authenticated the actual incoming connection.
@@ -19,7 +19,8 @@ namespace ThorsKist.Sync
         {
             if (!Enum.IsDefined(typeof(JournalMessage), message) || correlation == Guid.Empty)
                 throw new ArgumentException("Invalid frame identity");
-            if (body == null || body.Length > JournalWire.MaximumFrameBody) throw new ArgumentException("Invalid frame size");
+            int maximum = message == JournalMessage.Command || message == JournalMessage.Entries ? JournalWire.MaximumLogicalBody : JournalWire.MaximumFrameBody;
+            if (body == null || body.Length > maximum) throw new ArgumentException("Invalid frame size");
             Message = message; Correlation = correlation; this.body = (byte[])body.Clone();
         }
         public byte[] CopyBody() => (byte[])body.Clone();
@@ -27,13 +28,14 @@ namespace ThorsKist.Sync
 
     public static class JournalWire
     {
-        public const int Version = 1;
+        public const int Version = 3;
         public const int MaximumFrameBody = 60 * 1024;
         public const int FrameHeaderBytes = 29;
         public const int MaximumFrameBytes = FrameHeaderBytes + MaximumFrameBody;
         public const int MaximumTransferBytes = 64 * 1024 * 1024;
         // An entry may contain the item twice (delta and character effect).
-        public const int MaximumItemBytes = 24 * 1024;
+        public const int MaximumItemBytes = 256 * 1024;
+        public const int MaximumLogicalBody = 1024 * 1024;
         public const int MaximumEntries = 32;
         private const uint Magic = 0x4a4b4854; // THKJ
         private static readonly Encoding Utf8 = new UTF8Encoding(false, true);
@@ -51,10 +53,13 @@ namespace ThorsKist.Sync
 
         public static byte[] EncodeCommand(ItemCommand command) => Encode(w =>
         {
-            Address(w, command.Address); Id(w, command.RequestId); Id(w, command.StackId); w.Write((byte)command.Kind); Item(w, command.Item);
-        }, MaximumFrameBody);
+            Address(w, command.Address); Id(w, command.RequestId); Id(w, command.StackId); w.Write((byte)((int)command.Kind | ((int)command.Purpose << 2))); Item(w, command.Item);
+        }, MaximumLogicalBody);
         public static ItemCommand DecodeCommand(byte[] bytes) => Decode(bytes, r =>
-            new ItemCommand(Address(r), Id(r), Id(r), (ItemCommandKind)r.ReadByte(), Item(r)), MaximumFrameBody);
+        {
+            var address = Address(r); var request = Id(r); var stack = Id(r); int action = r.ReadByte();
+            return new ItemCommand(address, request, stack, (ItemCommandKind)(action & 3), Item(r), (ItemCommandPurpose)(action >> 2));
+        }, MaximumLogicalBody);
 
         public static byte[] EncodePosition(SessionAddress address, long sequence) => Encode(w =>
         { Address(w, address); if (sequence < 0) throw new InvalidDataException("Negative position"); w.Write(sequence); }, MaximumFrameBody);
@@ -93,8 +98,8 @@ namespace ThorsKist.Sync
             return new SessionReply(SessionStatus.Ok, s, entries: entries, settled: settled);
         }, MaximumTransferBytes);
 
-        public static byte[] EncodeEntries(SessionAddress address, IReadOnlyList<JournalEntry> entries) => Encode(w =>
-        { Address(w, address); Count(w, entries.Count, MaximumEntries); foreach (var e in entries) Entry(w, e); }, MaximumFrameBody);
+        public static byte[] EncodeEntries(SessionAddress address, IReadOnlyList<JournalEntry> entries, bool large = false) => Encode(w =>
+        { Address(w, address); Count(w, entries.Count, large ? 1 : MaximumEntries); foreach (var e in entries) Entry(w, e); }, large ? MaximumLogicalBody : MaximumFrameBody);
         public static (SessionAddress Address, IReadOnlyList<JournalEntry> Entries) DecodeEntries(byte[] bytes) => Decode(bytes, r =>
         {
             var address = Address(r); int n = Count(r, MaximumEntries, 64); var entries = new List<JournalEntry>();
@@ -103,7 +108,7 @@ namespace ThorsKist.Sync
                 var entry = Entry(r); if (!entry.Identity.Contains(address)) throw new InvalidDataException("Wrong delivery vault"); entries.Add(entry);
             }
             return (address, (IReadOnlyList<JournalEntry>)entries.AsReadOnly());
-        }, MaximumFrameBody);
+        }, MaximumLogicalBody);
 
         internal static byte[] Encode(Action<BinaryWriter> write, int maximum)
         {
@@ -137,8 +142,8 @@ namespace ThorsKist.Sync
         private static string Text(BinaryReader r, int maximum = 256) => Utf8.GetString(Bytes(r, maximum));
         private static void Identity(BinaryWriter w, VaultIdentity v) { Text(w, v.World); Text(w, v.Vault); Id(w, v.Epoch); }
         private static VaultIdentity Identity(BinaryReader r) => new VaultIdentity(Text(r), Text(r), Id(r));
-        private static void Address(BinaryWriter w, SessionAddress a) { Identity(w, new VaultIdentity(a.World, a.Vault, a.Epoch)); Text(w, a.Player); Id(w, a.Session); }
-        private static SessionAddress Address(BinaryReader r) { var v = Identity(r); return new SessionAddress(v.World, v.Vault, v.Epoch, Text(r), Id(r)); }
+        internal static void Address(BinaryWriter w, SessionAddress a) { Identity(w, new VaultIdentity(a.World, a.Vault, a.Epoch)); Text(w, a.Player); Id(w, a.Session); }
+        internal static SessionAddress Address(BinaryReader r) { var v = Identity(r); return new SessionAddress(v.World, v.Vault, v.Epoch, Text(r), Id(r)); }
         private static void Item(BinaryWriter w, ItemRecord i) { Text(w, i.Prefab); w.Write(i.Quantity); w.Write(i.FormatVersion); Bytes(w, i.CopyPayload(), MaximumItemBytes); }
         private static ItemRecord Item(BinaryReader r) => new ItemRecord(Text(r), r.ReadInt32(), r.ReadInt32(), Bytes(r, MaximumItemBytes));
         private static void Stack(BinaryWriter w, StackRecord s) { Id(w, s.Id); w.Write(s.Slot); Item(w, s.Item); }

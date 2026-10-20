@@ -25,8 +25,9 @@ namespace ThorsKist.Sync
     {
         public SessionAddress Address { get; }
         public Guid LoginRequest { get; }
-        public JournalSnapshot Baseline { get; }
-        public IReadOnlyList<JournalEntry> Catchup { get; }
+        public JournalSnapshot Baseline { get; private set; }
+        public IReadOnlyList<JournalEntry> Catchup { get; private set; }
+        public bool LoginImageReleased { get; private set; }
         public long LoginMarker { get; }
         public SessionPhase Phase { get; internal set; }
         public long Acknowledged { get; internal set; }
@@ -39,16 +40,28 @@ namespace ThorsKist.Sync
         public ReplicationSession(SessionAddress address, Guid loginRequest, JournalSnapshot baseline,
             IEnumerable<JournalEntry> catchup, long loginMarker, SessionPhase phase, long acknowledged, long queuedThrough,
             Guid logoutRequest, long logoutMarker, DateTimeOffset barrierDue, DateTimeOffset? suspendedUntil,
-            IEnumerable<DeliveryDeadline> deadlines)
+            IEnumerable<DeliveryDeadline> deadlines, bool loginImageReleased = false)
         {
             Address = address; LoginRequest = loginRequest; Baseline = baseline;
             Catchup = Array.AsReadOnly(catchup.ToArray()); LoginMarker = loginMarker; Phase = phase;
             Acknowledged = acknowledged; QueuedThrough = queuedThrough; LogoutRequest = logoutRequest;
             LogoutMarker = logoutMarker; BarrierDue = barrierDue; SuspendedUntil = suspendedUntil;
             Deadlines = Array.AsReadOnly(deadlines.ToArray());
+            LoginImageReleased = loginImageReleased;
+        }
+        internal void ReleaseLoginImage()
+        {
+            if (Phase != SessionPhase.Closed) throw new InvalidOperationException("Open session needs its immutable login image");
+            var empty = new VaultState(Baseline.State.Identity, Baseline.State.Capacity, Array.Empty<StackRecord>());
+            Baseline = new JournalSnapshot(Baseline.Sequence, empty, JournalChecksum.Compute(empty));
+            Catchup = Array.Empty<JournalEntry>(); LoginImageReleased = true;
+        }
+        public ReplicationSession CompactClosed()
+        {
+            var copy = Copy(); copy.ReleaseLoginImage(); return copy;
         }
         internal ReplicationSession Copy() => new ReplicationSession(Address, LoginRequest, Baseline, Catchup,
-            LoginMarker, Phase, Acknowledged, QueuedThrough, LogoutRequest, LogoutMarker, BarrierDue, SuspendedUntil, Deadlines);
+            LoginMarker, Phase, Acknowledged, QueuedThrough, LogoutRequest, LogoutMarker, BarrierDue, SuspendedUntil, Deadlines, LoginImageReleased);
     }
     public sealed class ReplicationState
     {
@@ -81,6 +94,13 @@ namespace ThorsKist.Sync
                     || s.Deadlines.Select(d => d.Sequence).Distinct().Count() != s.Deadlines.Count
                     || (s.Phase != SessionPhase.Closed && s.Deadlines.Count != s.QueuedThrough - s.Acknowledged))
                     throw new InvalidDataException("Invalid session position");
+                if (s.LoginImageReleased)
+                {
+                    if (s.Phase != SessionPhase.Closed || s.Baseline.State.Stacks.Count != 0 || s.Catchup.Count != 0
+                        || s.Deadlines.Count != 0 || s.Baseline.Checksum != JournalChecksum.Compute(s.Baseline.State))
+                        throw new InvalidDataException("Invalid closed session tombstone");
+                    continue;
+                }
                 var catchup = JournalReplay.Replay(s.Baseline, s.Catchup);
                 var marker = s.Catchup.LastOrDefault();
                 if (catchup.Sequence != s.LoginMarker || marker == null || marker.Kind != JournalEntryKind.Login

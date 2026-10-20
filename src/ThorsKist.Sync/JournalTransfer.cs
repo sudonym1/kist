@@ -13,19 +13,21 @@ namespace ThorsKist.Sync
         public const int ChunkBytes = JournalWire.MaximumFrameBody - HeaderBytes;
         private readonly byte[] image, digest;
         public Guid Id { get; }
+        private readonly JournalMessage message;
         public int FrameCount => (image.Length + ChunkBytes - 1) / ChunkBytes;
-        public JournalTransfer(Guid id, byte[] image)
+        public JournalTransfer(Guid id, byte[] image, JournalMessage message = JournalMessage.Transfer)
         {
             if (id == Guid.Empty || image == null || image.Length == 0 || image.Length > JournalWire.MaximumTransferBytes)
                 throw new ArgumentException("Invalid transfer bounds");
-            Id = id; this.image = (byte[])image.Clone();
+            if (message != JournalMessage.Transfer && message != JournalMessage.CommandChunk && message != JournalMessage.EntriesChunk) throw new ArgumentException("Invalid transfer direction");
+            Id = id; this.image = (byte[])image.Clone(); this.message = message;
             using (var hash = SHA256.Create()) digest = hash.ComputeHash(this.image);
         }
         public JournalFrame Frame(int index)
         {
             if (index < 0 || index >= FrameCount) throw new ArgumentOutOfRangeException(nameof(index));
             int offset = checked(index * ChunkBytes); int size = Math.Min(ChunkBytes, image.Length - offset);
-            return new JournalFrame(JournalMessage.Transfer, Id, JournalWire.Encode(w =>
+            return new JournalFrame(message, Id, JournalWire.Encode(w =>
             { w.Write(image.Length); w.Write(offset); w.Write(digest); w.Write(image, offset, size); }, JournalWire.MaximumFrameBody));
         }
     }
@@ -56,8 +58,10 @@ namespace ThorsKist.Sync
         private int received;
         private TimeSpan due;
         private bool disposed;
-        public JournalTransferReceiver(JournalTransferBudget budget, IReplicationClock clock)
-        { this.budget = budget; this.clock = clock; }
+        private readonly int maximum;
+        private JournalMessage message;
+        public JournalTransferReceiver(JournalTransferBudget budget, IReplicationClock clock, int maximum = JournalWire.MaximumTransferBytes)
+        { if (maximum <= 0 || maximum > JournalWire.MaximumTransferBytes) throw new ArgumentOutOfRangeException(nameof(maximum)); this.budget = budget; this.clock = clock; this.maximum = maximum; }
         public byte[]? Accept(JournalFrame frame)
         {
             if (disposed) throw new ObjectDisposedException(nameof(JournalTransferReceiver));
@@ -65,19 +69,19 @@ namespace ThorsKist.Sync
             {
                 return JournalWire.Decode(frame.CopyBody(), r =>
                 {
-                    if (frame.Message != JournalMessage.Transfer) throw new InvalidDataException("Not a transfer");
+                    if (frame.Message != JournalMessage.Transfer && frame.Message != JournalMessage.CommandChunk && frame.Message != JournalMessage.EntriesChunk) throw new InvalidDataException("Not a transfer");
                     int total = r.ReadInt32(), offset = r.ReadInt32(); var expected = r.ReadBytes(32);
                     int size = checked((int)(r.BaseStream.Length - r.BaseStream.Position));
-                    if (total <= 0 || total > JournalWire.MaximumTransferBytes || offset < 0 || offset >= total
+                    if (total <= 0 || total > maximum || offset < 0 || offset >= total
                         || expected.Length != 32 || size != Math.Min(JournalTransfer.ChunkBytes, total - offset))
                         throw new InvalidDataException("Invalid transfer chunk");
                     if (image == null)
                     {
                         if (offset != 0 || !budget.Reserve(total)) throw new InvalidDataException("Transfer start/budget rejected");
                         try { image = new byte[total]; } catch { budget.Release(total); throw; }
-                        id = frame.Correlation; digest = expected; received = 0; due = clock.Elapsed + TimeSpan.FromSeconds(30);
+                        id = frame.Correlation; message = frame.Message; digest = expected; received = 0; due = clock.Elapsed + TimeSpan.FromSeconds(30);
                     }
-                    if (clock.Elapsed >= due || id != frame.Correlation || total != image.Length || offset != received || !expected.SequenceEqual(digest!))
+                    if (clock.Elapsed >= due || id != frame.Correlation || message != frame.Message || total != image.Length || offset != received || !expected.SequenceEqual(digest!))
                         throw new InvalidDataException("Transfer identity/order/deadline mismatch");
                     int n = r.Read(image, received, size); if (n != size) throw new EndOfStreamException(); received += n;
                     if (received != total) return null;

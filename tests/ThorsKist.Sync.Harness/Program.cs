@@ -15,9 +15,16 @@ static class Program
     static void Check(bool condition, string message) { if (!condition) throw new Exception(message); checks++; }
     static async Task Main(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--timing-only") { TimingTests.Run(); return; }
         if (args.Length > 0 && args[0] == "--m4-child") { await SessionTests.Child(args); return; }
         if (args.Length > 0 && args[0] == "--m3-child") { await StorageTests.Child(args); return; }
         if (args.Length > 0 && args[0] == "--wire-only") { await WireTests.Run(); return; }
+        if (args.Length > 0 && args[0] == "--runtime-only") { await RuntimeTests.Run(); return; }
+        if (args.Length > 0 && args[0] == "--bridge-only") { await ClientBridgeTests.Run(); return; }
+        if (args.Length > 0 && args[0] == "--access-only") { await AccessTests.Run(); return; }
+        if (args.Length > 0 && args[0] == "--world-only") { await WorldRuntimeTests.Run(); return; }
+        if (args.Length > 0 && args[0] == "--retention-only") { await RetentionTests.Run(); return; }
+        if (args.Length > 0 && args[0] == "--m7-only") { await CoordinatorTests.Run(); await CatalogTests.Run(); await RuntimeTests.Run(); await ClientBridgeTests.Run(); await AccessTests.Run(); await WorldRuntimeTests.Run(); return; }
         var bytes = new byte[] { 1, 2, 3 };
         var item = new ItemRecord("Wood", 3, 109, bytes);
         bytes[0] = 9; var copy = item.CopyPayload(); copy[0] = 8;
@@ -38,10 +45,18 @@ static class Program
             try { await canceled; throw new Exception("Cancellation ignored"); } catch (OperationCanceledException) { checks++; }
         }
         Reservations();
+        checks += TimingTests.Run();
         checks += StateMachineTests.Run();
         checks += await StorageTests.Run();
         checks += await SessionTests.Run();
         checks += await WireTests.Run();
+        checks += await CoordinatorTests.Run();
+        checks += await CatalogTests.Run();
+        checks += await RuntimeTests.Run();
+        checks += await ClientBridgeTests.Run();
+        checks += await AccessTests.Run();
+        checks += await WorldRuntimeTests.Run();
+        checks += await RetentionTests.Run();
         Console.WriteLine($"PASS {checks} contract/scheduler/reservation assertions");
         ProbeAndBaseline();
     }
@@ -54,6 +69,7 @@ static class Program
             var request = Guid.NewGuid(); var effect = Guid.NewGuid();
             Check(reservations.TryReserve(request, stack, 3), "Reserve");
             Check(stack.Quantity == 10 && reservations.IsBlocked(stack), "Reservation keeps items present and locks source");
+            Check(reservations.IsIntact(request), "Reserved snapshot is initially intact");
             Check(reservations.TryReserve(request, stack, 3), "Same reservation retry");
             Check(!reservations.TryReserve(Guid.NewGuid(), stack, 1), "Block double deposit");
             if (mutation == "merge") stack.Quantity++;
@@ -61,6 +77,7 @@ static class Program
             if (mutation == "metadata") stack.Metadata++;
             if (mutation == "death") inventory.Items.Clear();
             if (mutation == "replacement") { inventory.Items.Clear(); inventory.Items.Add(new Stack { Quantity = 10 }); }
+            Check(reservations.IsIntact(request) == (mutation == "none"), "Polling detects changed reservation: " + mutation);
             var result = reservations.ApplyVerifiedRemoval(request, effect, 3);
             if (mutation == "none")
             {

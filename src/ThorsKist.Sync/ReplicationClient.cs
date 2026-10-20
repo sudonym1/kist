@@ -56,6 +56,7 @@ namespace ThorsKist.Sync
             int processed = 0;
             foreach (var entry in entries)
             {
+                if (Stopped) break;
                 ReplicaResult result;
                 if (entry.Sequence <= replica.Sequence) result = replica.Process(deliverySession, entry);
                 else
@@ -67,7 +68,7 @@ namespace ThorsKist.Sync
                         replica.VerificationFailed(deliverySession); Stopped = true; AccessEnabled = false;
                         await suspend(address).ConfigureAwait(false); break;
                     }
-                    result = await dispatch(() => replica.ProcessVerified(deliverySession, update)).ConfigureAwait(false);
+                    result = await dispatch(() => Stopped ? ReplicaResult.Blocked : replica.ProcessVerified(deliverySession, update)).ConfigureAwait(false);
                 }
                 if (result == ReplicaResult.NeedsSuspension)
                 { Stopped = true; AccessEnabled = false; await suspend(address).ConfigureAwait(false); break; }
@@ -75,8 +76,8 @@ namespace ThorsKist.Sync
                 { Stopped = true; AccessEnabled = false; break; }
                 processed++;
                 var reply = await acknowledge(address, replica.Sequence).ConfigureAwait(false);
-                AccessEnabled = !requestsStopped && reply.Status == SessionStatus.Ok && reply.Session?.Phase == SessionPhase.Active;
-                if (reply.Status != SessionStatus.Ok || reply.Session?.Phase == SessionPhase.Closed)
+                AccessEnabled = !requestsStopped && reply.Status == SessionStatus.Ok && reply.Phase == SessionPhase.Active;
+                if (reply.Status != SessionStatus.Ok || reply.Phase == SessionPhase.Closed)
                 { Stopped = true; AccessEnabled = false; break; }
             }
             return processed;
@@ -87,5 +88,6 @@ namespace ThorsKist.Sync
             return true;
         });
         public void StopRequests() { requestsStopped = true; AccessEnabled = false; }
+        public void StopProcessing() { requestsStopped = true; Stopped = true; AccessEnabled = false; }
     }
 }

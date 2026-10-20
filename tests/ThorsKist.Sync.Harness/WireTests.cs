@@ -29,7 +29,7 @@ static class WireTests
         for (int length = 0; length < encoded.Length; length++)
             Invalid(() => JournalWire.DecodeFrame(encoded.Take(length).ToArray()), "truncated frame " + length);
         Invalid(() => JournalWire.DecodeFrame(encoded.Concat(new byte[] { 0 }).ToArray()), "trailing frame");
-        var wrongVersion = (byte[])encoded.Clone(); wrongVersion[4] = 2;
+        var wrongVersion = (byte[])encoded.Clone(); Array.Copy(BitConverter.GetBytes(JournalWire.Version + 1), 0, wrongVersion, 4, 4);
         Invalid(() => JournalWire.DecodeFrame(wrongVersion), "version");
         var wrongKind = (byte[])encoded.Clone(); wrongKind[8] = 255;
         Invalid(() => JournalWire.DecodeFrame(wrongKind), "opcode");
@@ -96,8 +96,8 @@ static class WireTests
         var result = await server.ExecuteAsync(JournalWire.DecodeCommand(JournalWire.EncodeCommand(command)));
         var entry = result.Command!.Result!.Entry;
         await server.QueueDeliveryAsync(a, client.Sequence, 1);
-        var delivery = JournalWire.DecodeEntries(JournalWire.EncodeEntries(a, new[] { entry }));
-        Check(delivery.Entries[0].Effect != null && delivery.Entries[0].ChangedStack != null, "largest admitted item fits delta and effect frame");
+        var delivery = JournalWire.DecodeEntries(JournalWire.EncodeEntries(a, new[] { entry }, true));
+        Check(delivery.Entries[0].Effect != null && delivery.Entries[0].ChangedStack != null, "largest admitted item fits bounded delta and effect transfer");
         Check(await client.ProcessBatchAsync(a, delivery.Entries) == 1 && replica.Sequence == entry.Sequence, "wire item effect acknowledged");
         Check((await server.ReadAsync()).Current.Stacks.Count == 2, "overflow plus ordinary stack retained");
         var retry = await server.ExecuteAsync(command);
@@ -132,6 +132,18 @@ static class WireTests
         receiver.Accept(new JournalFrame(JournalMessage.Transfer, transfer.Id, corrupted));
         receiver.Accept(transfer.Frame(1)); Invalid(() => receiver.Accept(transfer.Frame(2)), "whole image hash corruption");
         Check(budget.Used == 0, "corruption releases buffer");
+        foreach (var kind in new[] { JournalMessage.CommandChunk, JournalMessage.EntriesChunk })
+        {
+            using var typed = new JournalTransferReceiver(budget, clock, JournalWire.MaximumLogicalBody);
+            var chunks = new JournalTransfer(Guid.NewGuid(), original, kind);
+            Check(typed.Accept(chunks.Frame(0)) == null, "Typed transfer starts with bounded allocation");
+            var second = chunks.Frame(1);
+            var changedKind = kind == JournalMessage.CommandChunk ? JournalMessage.EntriesChunk : JournalMessage.CommandChunk;
+            Invalid(() => typed.Accept(new JournalFrame(changedKind, second.Correlation, second.CopyBody())), "Chunk direction cannot change mid-transfer");
+            Check(budget.Used == 0, "Wrong-direction chunk releases shared allocation");
+        }
+        using (var small = new JournalTransferReceiver(budget, clock, 1024))
+            Invalid(() => small.Accept(transfer.Frame(0)), "Logical transfer cap checked before allocation");
         receiver.Accept(transfer.Frame(0)); receiver.Dispose(); receiver.Dispose();
         Check(budget.Used == 0, "teardown releases once");
     }

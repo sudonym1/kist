@@ -19,8 +19,19 @@ namespace ThorsKist
         // Caller captures immutable file bytes and backs up before the library's
         // transactional migration. This decoder never reads/writes save files.
         public static IReadOnlyList<JournalLegacyVault> Decode(byte[] bytes, string world, int capacity)
+            => Decode(bytes, world, capacity, ItemWire.InventoryVersion, hash =>
+            {
+                var prefab = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(hash) : null;
+                return prefab != null ? prefab.name : null;
+            });
+        internal static IReadOnlyList<JournalLegacyVault> DecodeCaptured(byte[] bytes, string world, int capacity,
+            int currentVersion, IReadOnlyDictionary<int, string> prefabNames)
+            => Decode(bytes, world, capacity, currentVersion, hash => prefabNames.TryGetValue(hash, out var name) ? name : null);
+
+        private static IReadOnlyList<JournalLegacyVault> Decode(byte[] bytes, string world, int capacity,
+            int currentVersion, Func<int, string> prefabName)
         {
-            if (bytes == null || bytes.Length > 64 * 1024 * 1024 || capacity <= 0)
+            if (bytes == null || bytes.Length > 64 * 1024 * 1024 || capacity <= 0 || currentVersion != 110)
                 throw new InvalidDataException("Invalid legacy save bounds");
             var p = new ZPackage(bytes);
             if (p.ReadInt() != Wire.SaveFormat) throw new InvalidDataException("Unsupported legacy save version");
@@ -50,11 +61,11 @@ namespace ThorsKist
                 }
                 byte[] header = bytes.Skip(headerStart).Take(p.GetPos() - headerStart).ToArray();
                 var inventory = p.ReadPackage(); int version = inventory.ReadInt(); int stacks = inventory.ReadUShort();
-                JournalItemCodec.ValidateLegacyVersion(version);
+                if (currentVersion != 110 || version < 108 || version > currentVersion) throw new InvalidDataException("Unsupported compact inventory format");
                 var records = new List<StackRecord>(); var occupied = new HashSet<int>();
                 for (int j = 0; j < stacks; j++)
                 {
-                    var item = JournalItemCodec.ReadLegacyItem(inventory, version, out var position);
+                    var item = JournalItemCodec.ReadLegacyItem(inventory, version, currentVersion, prefabName, out var position);
                     int slot = position.y * 8 + position.x;
                     if (position.x >= 8 || slot >= capacity || !occupied.Add(slot)) slot = -1;
                     records.Add(new StackRecord(Guid.NewGuid(), slot, item));

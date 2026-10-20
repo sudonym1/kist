@@ -18,11 +18,14 @@ namespace ThorsKist
     {
         private static int _depth;
         private static int _reentry;
+        // Raw counting suppresses Kist widening, but must still exclude
+        // reserved local stacks when choosing who pays a material cost.
+        internal static bool EvaluatingMaterials => _depth > 0;
 
         /// <summary>True while vanilla is evaluating a recipe's material cost.</summary>
         public static bool Active
         {
-            get { return _depth > 0 && _reentry == 0 && KistClient.CanCraft; }
+            get { return EvaluatingMaterials && _reentry == 0 && KistClient.CanCraft; }
         }
 
         public static void Push() { _depth++; }

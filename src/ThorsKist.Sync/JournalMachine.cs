@@ -148,7 +148,7 @@ namespace ThorsKist.Sync
             var old = state.Results.FirstOrDefault(r => r.Command.Address.Player == command.Address.Player && r.Command.RequestId == command.RequestId);
             if (old != null)
             {
-                bool same = JournalChecksum.SameAddress(old.Command.Address, command.Address) && old.Command.Kind == command.Kind
+                bool same = JournalChecksum.SameAddress(old.Command.Address, command.Address) && old.Command.Kind == command.Kind && old.Command.Purpose == command.Purpose
                     && old.Command.StackId == command.StackId && JournalChecksum.SameItem(old.Command.Item, command.Item);
                 return new CommandTransition(state, same ? old.Status : CommandStatus.RequestConflict, same ? old : null, same);
             }

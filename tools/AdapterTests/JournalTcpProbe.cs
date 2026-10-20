@@ -21,7 +21,7 @@ namespace ThorsKist
         private readonly DateTime due = DateTime.UtcNow.AddSeconds(15);
         private readonly ItemCommand[] commands;
         private readonly byte[] image = new byte[JournalTransfer.ChunkBytes * 2 + 7];
-        private int processed, chunks;
+        private int processed, chunks, replies;
         private volatile bool snapshotComplete;
         private string failure;
         private bool complete;
@@ -35,6 +35,11 @@ namespace ThorsKist
             new Random(246).NextBytes(image);
             foreach (var command in commands)
                 outbound.Enqueue(JournalWire.EncodeFrame(new JournalFrame(JournalMessage.Command, command.RequestId, JournalWire.EncodeCommand(command))));
+            outbound.Enqueue(JournalWire.EncodeFrame(new JournalFrame(JournalMessage.Reply, commands[0].RequestId,
+                new JournalReply(JournalMessage.Command, SessionStatus.Ok, command: CommandStatus.Accepted,
+                    operation: Guid.NewGuid(), sequence: 12).Encode())));
+            outbound.Enqueue(JournalWire.EncodeFrame(new JournalFrame(JournalMessage.Reply, commands[1].RequestId,
+                new JournalReply(JournalMessage.Command, SessionStatus.TransactionDepthExceeded).Encode())));
             var transfer = new JournalTransfer(Guid.NewGuid(), image);
             for (int i = 0; i < transfer.FrameCount; i++) outbound.Enqueue(JournalWire.EncodeFrame(transfer.Frame(i)));
             transfers = new JournalTransferReceiver(new JournalTransferBudget(image.Length), new SystemReplicationClock());
@@ -47,6 +52,14 @@ namespace ThorsKist
                         || command.StackId != expected.StackId || !JournalChecksum.SameItem(command.Item, expected.Item))
                         throw new Exception("Loopback command identity/payload changed");
                     Interlocked.Increment(ref processed);
+                }
+                else if (frame.Message == JournalMessage.Reply)
+                {
+                    var reply = JournalReply.Decode(frame.CopyBody());
+                    if ((replies == 0 && (reply.Command != CommandStatus.Accepted || reply.Sequence != 12 || frame.Correlation != commands[0].RequestId))
+                        || (replies == 1 && (reply.Status != SessionStatus.TransactionDepthExceeded || frame.Correlation != commands[1].RequestId)))
+                        throw new Exception("Loopback control reply correlation/result changed");
+                    Interlocked.Increment(ref replies);
                 }
                 else
                 {
@@ -82,9 +95,11 @@ namespace ThorsKist
             if (failure == null && worker.Failure != null) failure = worker.Failure.ToString();
             if (failure == null && DateTime.UtcNow <= due && (!snapshotComplete || processed != commands.Length)) return;
             complete = true;
-            report(failure == null && snapshotComplete && processed == 4 && chunks == 3
+            report(failure == null && snapshotComplete && processed == 4 && chunks == 3 && replies == 2
                 ? "M6 JOURNAL TCP PASS 4 exact commands and 3 snapshot chunks through bounded worker and real ZRpc/ZSocket2"
                 : "M6 JOURNAL TCP FAIL processed=" + processed + " chunks=" + chunks + " " + failure);
+            report(failure == null && replies == 2 ? "M7 CONTROL WIRE MONO PASS 2 correlated compact replies through real ZRpc/ZSocket2"
+                : "M7 CONTROL WIRE MONO FAIL replies=" + replies + " " + failure);
             Dispose();
         }
         public void Dispose()

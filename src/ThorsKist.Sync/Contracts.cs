@@ -39,21 +39,25 @@ namespace ThorsKist.Sync
         }
     }
     public enum ItemCommandKind { Deposit, Withdraw }
+    public enum ItemCommandPurpose { Inventory, Craft, Station }
     public sealed class ItemCommand
     {
         public SessionAddress Address { get; }
         public Guid RequestId { get; }
         public Guid StackId { get; }
         public ItemCommandKind Kind { get; }
+        public ItemCommandPurpose Purpose { get; }
         public ItemRecord Item { get; }
         // Exactly one stack and one exact quantity; multi-stack actions split before admission.
-        public ItemCommand(SessionAddress address, Guid requestId, Guid stackId, ItemCommandKind kind, ItemRecord item)
+        public ItemCommand(SessionAddress address, Guid requestId, Guid stackId, ItemCommandKind kind, ItemRecord item, ItemCommandPurpose purpose = ItemCommandPurpose.Inventory)
         {
             if (requestId == Guid.Empty || stackId == Guid.Empty) throw new ArgumentException("UUID required");
             if (!Enum.IsDefined(typeof(ItemCommandKind), kind)) throw new ArgumentOutOfRangeException(nameof(kind));
+            if (!Enum.IsDefined(typeof(ItemCommandPurpose), purpose) || (kind == ItemCommandKind.Deposit && purpose != ItemCommandPurpose.Inventory))
+                throw new ArgumentException("Invalid item action purpose", nameof(purpose));
             Address = address ?? throw new ArgumentNullException(nameof(address));
             Item = item ?? throw new ArgumentNullException(nameof(item));
-            RequestId = requestId; StackId = stackId; Kind = kind;
+            RequestId = requestId; StackId = stackId; Kind = kind; Purpose = purpose;
         }
     }
     public enum CharacterEffectKind { Add, RemoveReserved }

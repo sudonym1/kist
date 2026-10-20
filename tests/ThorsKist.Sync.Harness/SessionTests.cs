@@ -476,7 +476,8 @@ static class SessionTests
             Check((await server.LoginAsync("alice", request)).Session!.Address.Session == a.Session, "restart duplicate login cannot reopen old UUID");
             var checkpoint = await server.CheckpointAsync(); Check(checkpoint.Checkpoint.Sequence == checkpoint.Head, "closed deposits don't pin checkpoint");
             var login = await Active(server); var next = login.Session!.Address;
-            Check(login.SettledEffects.Count == 2, "login supplies durable per-item settlement identities");
+            Check(login.SettledEffects.Count == 0 && (await server.ReadAsync()).Replication.Settlements.Count == 2,
+                "Checkpointed effects retain durable settlements without inflating a later login image");
             var overflow = (await server.ReadAsync()).Current.Stacks.Single(s => s.Slot < 0);
             Check((await server.ExecuteAsync(Command(next, ItemCommandKind.Withdraw, 1, overflow.Id))).Command!.Status == CommandStatus.Accepted, "overflow is usable");
             await server.ExcludeAsync(next, true);
@@ -487,7 +488,7 @@ static class SessionTests
         string oldPath = path + ".m3";
         using (var writer = await JournalWriter.OpenAsync(new SqliteJournalStorage(oldPath, Vault), Initial()))
             await writer.ExecuteAsync(Command(a, ItemCommandKind.Deposit, 2));
-        using (var db = SqliteConnections.Open(oldPath)) { using var q = db.CreateCommand(); q.CommandText = "DROP TABLE replication; PRAGMA user_version=1;"; q.ExecuteNonQuery(); }
+        using (var db = SqliteConnections.Open(oldPath)) { using var q = db.CreateCommand(); q.CommandText = "DROP TABLE replication_sessions; DROP TABLE replication_settlements; DROP TABLE replication; PRAGMA user_version=1;"; q.ExecuteNonQuery(); }
         using (var storage = new SqliteJournalStorage(oldPath, Vault))
         {
             var upgraded = (await storage.ReadStateAsync(default))!;

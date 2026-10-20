@@ -84,15 +84,17 @@ namespace ThorsKist
             return DistanceToAnchor <= radius;
         }
 
-        public static bool CanDeposit { get { return KistUnlocked && InRange(Main.DepositRadius.Value); } }
-        public static bool CanTake { get { return KistUnlocked && InRange(Main.TakeRadius.Value); } }
+        public static bool CanDeposit { get { return KistUnlocked && InRange(Main.DepositRadius.Value) && (JournalGameplaySession.Current == null || JournalGameplaySession.Current.AccessEnabled); } }
+        public static bool CanTake { get { return KistUnlocked && InRange(Main.TakeRadius.Value) && (JournalGameplaySession.Current == null || JournalGameplaySession.Current.AccessEnabled); } }
         public static bool CanCraft
         {
-            get { return Main.CraftFromKist.Value && KistUnlocked && InRange(Main.CraftRadius.Value); }
+            get { return JournalGameplaySession.Current == null && Main.CraftFromKist.Value && KistUnlocked && InRange(Main.CraftRadius.Value); }
         }
 
         public static void Reset()
         {
+            JournalGameplaySession.Current?.Dispose();
+            JournalGameplaySession.Current = null;
             Hird = null;
             Kist = null;
             Roster.Clear();
@@ -210,7 +212,10 @@ namespace ThorsKist
         /// </summary>
         public static bool Deposit(Inventory from, ItemDrop.ItemData item, int amount)
         {
+            if (JournalGameplaySession.Current != null)
+                return CanDeposit && JournalGameplaySession.Current.Deposit(from, item, amount <= 0 && item != null ? item.m_stack : amount);
             if (item == null || from == null) return false;
+            if (JournalReservationGuard.Blocks(item)) return false;
             if (amount <= 0 || amount > item.m_stack) amount = item.m_stack;
 
             ItemDrop.ItemData sent = item.Clone();
@@ -240,12 +245,25 @@ namespace ThorsKist
 
         public static void Take(Vector2i slot, string expectName, int amount)
         {
+            if (JournalGameplaySession.Current != null) return;
             ZPackage pkg = NewMessage(Wire.C2S.Take);
             pkg.Write(_nextToken++);
             pkg.Write(slot);
             pkg.Write(expectName ?? "");
             pkg.Write(amount);
             Send(pkg);
+        }
+
+        internal static Action TakeAction(ItemDrop.ItemData item, int amount)
+        {
+            var session = JournalGameplaySession.Current;
+            if (session != null)
+            {
+                var id = session.Stock.Identify(item);
+                return () => { if (ReferenceEquals(session, JournalGameplaySession.Current) && CanTake) session.Take(id, amount); };
+            }
+            var slot = item.m_gridPos; var name = item.m_shared.m_name;
+            return () => { if (JournalGameplaySession.Current == null) Take(slot, name, amount); };
         }
 
         /// <summary>
@@ -299,6 +317,8 @@ namespace ThorsKist
                     return;
                 }
                 Wire.S2C op = (Wire.S2C)pkg.ReadByte();
+                if (JournalGameplaySession.Current != null && (op == Wire.S2C.TakeResult
+                    || op == Wire.S2C.DepositAck || op == Wire.S2C.DepositRejected)) return;
                 switch (op)
                 {
                     case Wire.S2C.State:

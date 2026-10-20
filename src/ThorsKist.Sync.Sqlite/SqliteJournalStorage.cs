@@ -15,7 +15,7 @@ namespace ThorsKist.Sync.Sqlite
 
     // One instance per writer. All provider calls (including open, schema, hashes
     // and recovery) execute on a worker. SQLite also serializes independent hosts.
-    public sealed class SqliteJournalStorage : IJournalStorage
+    public sealed partial class SqliteJournalStorage : IJournalStorage
     {
         private readonly string path;
         private readonly VaultIdentity identity;
@@ -110,19 +110,50 @@ namespace ThorsKist.Sync.Sqlite
             {
                 q.CommandText = "PRAGMA user_version;";
                 long found = Convert.ToInt64(q.ExecuteScalar());
-                if (found == 2) return;
-                if (found != 0 && found != 1) throw new InvalidDataException("Unsupported database schema");
+                if (found == 5) return;
+                if (found < 0 || found > 5) throw new InvalidDataException("Unsupported database schema");
             }
             using (var tx = db.BeginTransaction(deferred: false))
             {
                 long version = Convert.ToInt64(Scalar(db, tx, "PRAGMA user_version;"));
-                if (version == 2) { tx.Commit(); return; }
+                if (version == 5) { tx.Commit(); return; }
                 if (version == 1)
                 {
                     Execute(db, tx, "CREATE TABLE replication (vault_id INTEGER PRIMARY KEY REFERENCES vaults(id), body BLOB NOT NULL, checksum TEXT NOT NULL);");
                     var empty = StorageEncoding.Encode(ReplicationState.Empty, StorageEncoding.Replication);
                     Execute(db, tx, "INSERT INTO replication SELECT id,$body,$hash FROM vaults;", ("$body", empty), ("$hash", Hash(empty)));
-                    Execute(db, tx, "PRAGMA user_version=2;"); tx.Commit(); return;
+                    version = 2;
+                }
+                if (version == 2)
+                {
+                    Execute(db, tx, "CREATE TABLE IF NOT EXISTS world_catalog (id INTEGER PRIMARY KEY CHECK(id=1), world TEXT NOT NULL);");
+                    version = 3;
+                }
+                if (version == 3)
+                {
+                    Execute(db, tx, "CREATE TABLE IF NOT EXISTS retired_vaults (vault_id INTEGER PRIMARY KEY REFERENCES vaults(id));");
+                    version = 4;
+                }
+                if (version == 4)
+                {
+                    CreateProtocolRows(db, tx);
+                    var ids = new List<long>();
+                    using (var q = Query(db, tx, "SELECT vault_id FROM replication;"))
+                    using (var r = q.ExecuteReader()) while (r.Read()) ids.Add(r.GetInt64(0));
+                    foreach (var id in ids)
+                    {
+                        ReplicationState protocol;
+                        using (var q = Query(db, tx, "SELECT body,checksum FROM replication WHERE vault_id=$id;", ("$id", id)))
+                        using (var r = q.ExecuteReader())
+                        {
+                            if (!r.Read() || Hash((byte[])r[0]) != r.GetString(1)) throw new InvalidDataException("Corrupt legacy replication state");
+                            protocol = StorageEncoding.Decode((byte[])r[0], StorageEncoding.Replication);
+                        }
+                        protocol = new ReplicationState(protocol.Revision, protocol.NextHeartbeat,
+                            protocol.Sessions.Select(s => s.Phase == SessionPhase.Closed ? s.CompactClosed() : s), protocol.Settlements);
+                        WriteProtocol(db, tx, id, protocol);
+                    }
+                    Execute(db, tx, "PRAGMA user_version=5;"); tx.Commit(); return;
                 }
                 if (version != 0 || Convert.ToInt64(Scalar(db, tx, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")) != 0)
                     throw new InvalidDataException("Unsupported database schema; refusing automatic replacement");
@@ -139,7 +170,10 @@ CREATE TABLE used_stack_ids (vault_id INTEGER NOT NULL REFERENCES vaults(id), st
 CREATE TABLE legacy_metadata (vault_id INTEGER PRIMARY KEY REFERENCES vaults(id), body BLOB NOT NULL);
 CREATE TABLE migration (id INTEGER PRIMARY KEY CHECK(id=1), source_hash TEXT NOT NULL, backup_path TEXT NOT NULL, source BLOB NOT NULL);
 CREATE TABLE replication (vault_id INTEGER PRIMARY KEY REFERENCES vaults(id), body BLOB NOT NULL, checksum TEXT NOT NULL);
-PRAGMA user_version=2;");
+CREATE TABLE world_catalog (id INTEGER PRIMARY KEY CHECK(id=1), world TEXT NOT NULL);
+CREATE TABLE retired_vaults (vault_id INTEGER PRIMARY KEY REFERENCES vaults(id));
+PRAGMA user_version=5;");
+                CreateProtocolRows(db, tx);
                 tx.Commit();
             }
         }
@@ -184,7 +218,8 @@ PRAGMA user_version=2;");
                 var retained = next.Replication.Sessions.SingleOrDefault(x => x.Address.Session == session.Address.Session);
                 if (retained == null || retained.Address.Player != session.Address.Player || retained.LoginRequest != session.LoginRequest
                     || retained.LoginMarker != session.LoginMarker || retained.Baseline.Sequence != session.Baseline.Sequence
-                    || retained.Baseline.Checksum != session.Baseline.Checksum || retained.Acknowledged < session.Acknowledged
+                    || (!retained.LoginImageReleased && retained.Baseline.Checksum != session.Baseline.Checksum)
+                    || (session.LoginImageReleased && !retained.LoginImageReleased) || retained.Acknowledged < session.Acknowledged
                     || retained.QueuedThrough < session.QueuedThrough || (session.Phase == SessionPhase.Closed && retained.Phase != SessionPhase.Closed)
                     || (int)retained.Phase < (int)session.Phase
                     || (session.SuspendedUntil.HasValue && (!retained.SuspendedUntil.HasValue || retained.SuspendedUntil.Value < session.SuspendedUntil.Value)))
@@ -246,13 +281,7 @@ PRAGMA user_version=2;");
             using (var q = Query(db, tx, "SELECT stack_id FROM used_stack_ids WHERE vault_id=$id;", ("$id", id)))
             using (var r = q.ExecuteReader()) while (r.Read()) used.Add(Guid.ParseExact(r.GetString(0), "N"));
             if (historyHash != HistoryChecksum(results, used)) throw new InvalidDataException("Request/stack identity history checksum mismatch");
-            ReplicationState protocol;
-            using (var q = Query(db, tx, "SELECT body,checksum FROM replication WHERE vault_id=$id;", ("$id", id)))
-            using (var r = q.ExecuteReader())
-            {
-                if (!r.Read() || Hash((byte[])r[0]) != r.GetString(1)) throw new InvalidDataException("Missing/corrupt replication state");
-                protocol = StorageEncoding.Decode((byte[])r[0], StorageEncoding.Replication);
-            }
+            var protocol = ReadProtocol(db, tx, id);
             return JournalMachineState.Recover(snapshot, current, head, entries, results, used, protocol);
         }
         private static IEnumerable<StackRecord> Stacks(SqliteConnection db, SqliteTransaction tx, string table, long id)
@@ -290,9 +319,7 @@ PRAGMA user_version=2;");
                 Execute(db, tx, "INSERT INTO request_results VALUES($id,$p,$r,$s,$body);", ("$id", id), ("$p", r.Command.Address.Player),
                     ("$r", r.Command.RequestId.ToString("N")), ("$s", r.Entry.Sequence), ("$body", StorageEncoding.Encode(r, StorageEncoding.Result)));
             foreach (var stack in state.UsedStackIds) Execute(db, tx, "INSERT INTO used_stack_ids VALUES($id,$stack);", ("$id", id), ("$stack", stack.ToString("N")));
-            var protocol = StorageEncoding.Encode(state.Replication, StorageEncoding.Replication);
-            Execute(db, tx, "INSERT INTO replication VALUES($id,$body,$hash) ON CONFLICT(vault_id) DO UPDATE SET body=excluded.body,checksum=excluded.checksum;",
-                ("$id", id), ("$body", protocol), ("$hash", Hash(protocol)));
+            WriteProtocol(db, tx, id, state.Replication);
             return id;
         }
         private static void InsertStack(SqliteConnection db, SqliteTransaction tx, string table, long id, StackRecord stack) => Execute(db, tx,

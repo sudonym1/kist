@@ -4,6 +4,8 @@ using System.IO;
 
 namespace ThorsKist.Sync
 {
+    [Flags]
+    public enum JournalAccess { None = 0, Login = 1, Deposit = 2, Take = 4, Craft = 8, Station = 16, All = 31 }
     // Facts captured from the current authenticated connection on the game
     // thread; never deserialize these from the command's claimed header.
     public sealed class JournalPeerIdentity
@@ -12,10 +14,12 @@ namespace ThorsKist.Sync
         public string Account { get; }
         public long Character { get; }
         public VaultIdentity Vault { get; }
-        public JournalPeerIdentity(object connection, string account, long character, VaultIdentity vault)
+        public JournalAccess Access { get; }
+        public JournalPeerIdentity(object connection, string account, long character, VaultIdentity vault, JournalAccess access = JournalAccess.All)
         {
             if (connection == null || string.IsNullOrWhiteSpace(account) || character == 0) throw new ArgumentException("Authenticated peer required");
-            Connection = connection; Account = account; Character = character; Vault = vault ?? throw new ArgumentNullException(nameof(vault));
+            if ((access & ~JournalAccess.All) != 0) throw new ArgumentOutOfRangeException(nameof(access));
+            Connection = connection; Account = account; Character = character; Vault = vault ?? throw new ArgumentNullException(nameof(vault)); Access = access;
         }
     }
 
@@ -26,6 +30,7 @@ namespace ThorsKist.Sync
         private bool closed;
         private readonly object sync = new object();
         public SessionAddress? Session { get { lock (sync) return session; } }
+        public bool IsClosed { get { lock (sync) return closed; } }
         public JournalPeerBinding(JournalPeerIdentity peer) { this.peer = peer; }
         public bool IsCurrent(JournalPeerIdentity current)
         { lock (sync) return !closed && ReferenceEquals(peer.Connection, current.Connection)
@@ -41,6 +46,16 @@ namespace ThorsKist.Sync
         }
         public bool Authorizes(JournalPeerIdentity current, SessionAddress address)
         { lock (sync) return IsCurrent(current) && session != null && JournalChecksum.SameAddress(session, address); }
+        // Kist sessions are shorter-lived than game connections. Release only
+        // after the writer confirms closure; old UUIDs immediately lose ingress.
+        public bool ReleaseSession(JournalPeerIdentity current, SessionAddress address)
+        {
+            lock (sync)
+            {
+                if (!Authorizes(current, address)) return false;
+                session = null; return true;
+            }
+        }
         public void Close() { lock (sync) { closed = true; session = null; } }
     }
 

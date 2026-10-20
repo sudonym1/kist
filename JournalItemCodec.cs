@@ -28,17 +28,27 @@ namespace ThorsKist
         // Decode without Inventory.Load: that method discards unavailable mod
         // prefabs. A stable hash and the complete metadata survive migration.
         public static ItemRecord ReadLegacyItem(ZPackage package, int version, out Vector2i slot)
+            => ReadLegacyItem(package, version, ItemWire.InventoryVersion, hash =>
+            {
+                var prefab = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(hash) : null;
+                return prefab != null ? prefab.name : null;
+            }, out slot);
+
+        // Scalar decoding/canonicalization is worker-safe when prefab names and
+        // the audited current version have already been captured on Unity's thread.
+        internal static ItemRecord ReadLegacyItem(ZPackage package, int version, int currentVersion,
+            Func<int, string> prefabName, out Vector2i slot)
         {
-            ValidateLegacyVersion(version);
+            if (currentVersion != 110 || version < 108 || version > currentVersion)
+                throw new InvalidDataException("Legacy inventory requires audited compact formats 108-110");
             int start = package.GetPos();
             var parsed = ItemDrop.ItemData.Load(package, (Version.Item)version);
             var item = parsed.itemData;
             slot = item.m_gridPos;
             if (parsed.prefabHash == 0 || item.m_stack <= 0 || package.GetPos() - start > MaximumPayload)
                 throw new InvalidDataException("Invalid legacy item");
-            var prefab = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(parsed.prefabHash) : null;
-            string name = prefab != null ? prefab.name : UnknownPrefix + parsed.prefabHash.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            return new ItemRecord(name, item.m_stack, ItemWire.InventoryVersion, Encode(item, parsed.prefabHash));
+            string name = prefabName(parsed.prefabHash) ?? UnknownPrefix + parsed.prefabHash.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return new ItemRecord(name, item.m_stack, currentVersion, Encode(item, parsed.prefabHash));
         }
 
         public static void ValidateLegacyVersion(int version)

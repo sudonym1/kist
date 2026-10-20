@@ -1,5 +1,38 @@
 # ThorsKist network journal plan
 
+## Next session: complete M7 journal and SQLite cutover
+
+User direction after the single-machine baseline: integrate the new system
+before requesting further gameplay tests. **Normal listen-host and remote Kist
+gameplay must use the journal, and SQLite must replace `.dat` as the sole live
+persistence authority.** This includes actual owner/session startup and shutdown,
+authenticated transport, inventory actions, crafting/stations, membership/access
+changes, lifecycle handling and incremental UI. Do not stop at dormant components
+or fixture-only demonstrations.
+
+Preserve the existing test vault by backing up and migrating its current `.dat`
+once, including hird metadata and every item/unknown/overflow record. After
+successful migration, reopen from SQLite and disable legacy load/save and item
+mutation paths for that world. Keep the source as a backup; never dual-write,
+silently fall back to `.dat`, or reimport stale data over journal changes. A
+failed migration or provider/commit failure closes Kist access with a clear error.
+
+Implement and verify this cutover in the separate Windows test installations,
+then update both PCs' installers with matching managed/native dependencies and
+explicit startup evidence identifying SQLite/journal authority. Before asking
+the user to test again, show that ordinary actions produce journal entries and
+SQLite state, that a restart restores that state, and that the legacy `.dat`
+remains unchanged. Fixtures and loopback tests alone do not satisfy this gate.
+Further user-attended tests cover the new system; do not repeat legacy gameplay.
+
+Profiling is saved as the **legacy baseline**, not journal evidence: idle mean
+0.012 ms/frame; opening 486.586 ms; transfer frames mean 83.938 ms, maximum
+101.457 ms. Preserve the test-only F4 profiler and compare the journal build to
+this capture after cutover. See the [M7 implementation and handoff](notes/network-journal-m7.md)
+for source files, evidence, environment and remaining work. Windows only, two
+Steam accounts, Thor's Kist + BepInEx, isolated game/saves on both PCs. The user
+drives gameplay; never modify the main installation or original saves.
+
 Thor's Kist is a Valheim mod that provides shared item storage. A **hird** is a player group; its **Kist**, or **vault**, is the shared inventory. An **anchor** is its world location for access-distance checks. A **take** (withdrawal) moves items to a character; a **deposit** moves them back. A **stack** groups items in an inventory slot. A **station**, such as a smelter, consumes materials. The **invite list** (roster in code) lists connected players eligible for invitation.
 
 Use one server-ordered **replication log**, also called the **journal**, for Kist changes and item deliveries. SQLite stores state, log entries, request results, and acknowledgments. Its write-ahead log (WAL) handles database crash recovery separately from our replication log. Details, terminology references, and tests are in [the companion document](notes/network-journal-design.md).
@@ -205,6 +238,11 @@ At the user's request, all unfinished live RPC coordination, persistence,
 interception, crafting, lifecycle, UI and platform integration gates move to
 [M7: Live journal integration](notes/network-journal-m7.md). Normal gameplay
 continues using the legacy authority until M7's activation gates pass.
+M7 is in progress: client/server/world lifetimes, action-specific access,
+bounded transfers for 256 KiB items, SQLite catalog and session-row persistence,
+reservation interception, and a UUID-based gameplay/display session are implemented.
+The full harness and isolated Unity/Mono session probes pass. Normal-world owner
+wiring, crafting/station integration, cutover and platform activation gates remain open.
 [M8: Game validation and release](notes/network-journal-m8.md) follows M7.
 Earlier milestone work logs retain their historical numbering.
 

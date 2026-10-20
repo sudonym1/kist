@@ -16,14 +16,21 @@ namespace ThorsKist
     // test installation with -savedir; never alters the player's inventory.
     [BepInPlugin("posixone_ThorsKist_AdapterTests", "ThorsKist Adapter Tests", "1.0.0")]
     [BepInDependency(Main.GUID)]
-    public sealed class AdapterTests : BaseUnityPlugin
+    public sealed partial class AdapterTests : BaseUnityPlugin
     {
         private bool ran;
         private int checks;
         private TcpProbe tcp;
         private JournalTcpProbe journalTcp;
+        private JournalSessionTcpProbe journalSessionTcp;
         private JournalGameThread gameThread;
+        private AuthenticatedPeerProbe authenticatedPeers;
+        private Action<string> timingLog;
         private Harmony harmony;
+        private byte[] legacyBytes;
+        private LegacyVaultImport[] legacyImports;
+        private System.Collections.Generic.IReadOnlyDictionary<int, string> legacyPrefabNames;
+        private int legacyOwnerThread, legacyVersion;
         private void Awake()
         {
             var arguments = Environment.GetCommandLineArgs();
@@ -37,22 +44,42 @@ namespace ThorsKist
             // Valheim 1.0.20 only parses -savedir in its dedicated-server path.
             // Set it before menu startup too; this affects only this test process.
             Utils.SetSaveDataPath(expected);
+            TestSaveIsolation.Root = expected;
+            Main.MinHirdSize.Value = 1;
             harmony = new Harmony("posixone_ThorsKist_AdapterTests");
             harmony.PatchAll(typeof(AdapterTests).Assembly);
+            if (FileHelpers.CloudStorageSupported || FileHelpers.CloudStorageSupportedAndEnabled
+                || !string.Equals(Utils.GetSaveDataPath(FileHelpers.FileSource.Legacy), expected, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Test process save isolation did not install");
+            authenticatedPeers = new AuthenticatedPeerProbe(message => Logger.LogInfo(message));
+            timingLog = message => Logger.LogInfo(message);
+            Logger.LogInfo("M7 MAIN THREAD TIMING ready: " + MainThreadProfiler.TargetCount + " methods; F4 starts/stops a capture in BepInEx/timings");
             Logger.LogInfo("M5 TEST SAVE ISOLATION " + expected);
+            Logger.LogInfo("M7 LOCAL-ONLY SAVE ISOLATION installed; Steam cloud provider/enumeration hidden in this process; Steam settings unchanged");
         }
         private void Check(bool ok, string message)
         { if (!ok) throw new Exception(message); checks++; }
         private void Update()
         {
+            MainThreadProfiler.Tick(timingLog);
             tcp?.Tick();
             journalTcp?.Tick();
+            journalSessionTcp?.Tick();
             gameThread?.Drain(4);
+            ManualKeys();
+            TickManualImport();
+            authenticatedPeers?.Tick();
             if (Player.m_localPlayer != null && Input.GetKeyDown(KeyCode.F8)) ViewFixture();
             if (Player.m_localPlayer != null && Input.GetKeyDown(KeyCode.F9)) { KistUI.Close(); KistClient.RequestState(); }
             if (ran || ObjectDB.instance == null || ObjectDB.instance.GetItemPrefab("Wood") == null) return;
             ran = true;
-            try { Items(); Legacy(); Dispatch(); tcp = new TcpProbe(message => Logger.LogInfo(message)); journalTcp = new JournalTcpProbe(message => Logger.LogInfo(message)); _ = Storage(); }
+            try
+            {
+                Items(); ReservationInterception(); Projection(); Legacy(); Dispatch();
+                tcp = new TcpProbe(message => Logger.LogInfo(message)); journalTcp = new JournalTcpProbe(message => Logger.LogInfo(message));
+                journalSessionTcp = new JournalSessionTcpProbe(Wood(10), Path.Combine(Paths.BepInExRootPath, "m7-session-" + Guid.NewGuid().ToString("N") + ".db"), message => Logger.LogInfo(message));
+                _ = Storage();
+            }
             catch (Exception error) { Logger.LogError("M5 ADAPTER FAIL " + error); }
         }
         private void ViewFixture()
@@ -85,7 +112,7 @@ namespace ThorsKist
             }
             catch (Exception error) { Logger.LogError("M5 POOLED UI FAIL " + error); }
         }
-        private void OnDestroy() { tcp?.Dispose(); journalTcp?.Dispose(); gameThread?.Dispose(); harmony?.UnpatchSelf(); }
+        private void OnDestroy() { MainThreadProfiler.Stop(); authenticatedPeers?.Dispose(); manualInventory?.Dispose(); tcp?.Dispose(); journalTcp?.Dispose(); journalSessionTcp?.Dispose(); gameThread?.Dispose(); harmony?.UnpatchSelf(); }
         private void Dispatch()
         {
             var dispatcher = new JournalGameThread(2); int actions = 0;
@@ -113,6 +140,11 @@ namespace ThorsKist
                 var items = new ZPackage(); inventory.Save(items);
                 var save = new ZPackage(); save.Write(Wire.SaveFormat); save.Write(1); hird.WriteHeader(save); save.Write(items);
                 var bytes = save.GetArray(); var decoded = JournalLegacyDecoder.Decode(bytes, "m5-world", 1).Single();
+                legacyBytes = bytes;
+                legacyImports = new[] { new LegacyVaultImport(decoded.State, decoded.CopyHeader()) };
+                legacyPrefabNames = new System.Collections.ObjectModel.ReadOnlyDictionary<int, string>(
+                    new System.Collections.Generic.Dictionary<int, string> { [known.m_dropPrefab.name.GetStableHashCode()] = known.m_dropPrefab.name });
+                legacyOwnerThread = System.Threading.Thread.CurrentThread.ManagedThreadId; legacyVersion = ItemWire.InventoryVersion;
                 Check(decoded.CopyHeader().SequenceEqual(header.GetArray()), "Legacy hird header preserved byte for byte");
                 Check(decoded.State.Stacks.Count == 2 && decoded.State.Stacks.Sum(s => s.Item.Quantity) == 12, "Legacy quantities retained");
                 var missing = decoded.State.Stacks.Single(s => s.Item.Prefab.StartsWith("hash:"));
@@ -122,6 +154,30 @@ namespace ThorsKist
                 var oldSave = new ZPackage(); oldSave.Write(Wire.SaveFormat); oldSave.Write(1); hird.WriteHeader(oldSave); oldSave.Write(new ZPackage(oldItems));
                 Check(JournalLegacyDecoder.Decode(oldSave.GetArray(), "m5-world", 1).Single().State.Stacks.All(s => s.Item.FormatVersion == 110),
                     "Legacy compact format 109 upgrades to current canonical metadata");
+                // Format 108 predates the trailing cheat flags byte. Use actual
+                // vanilla Save records, removing that byte from EACH item, not
+                // just relabeling a modern inventory (which would misalign it).
+                using (var stream = new MemoryStream())
+                using (var writer = new BinaryWriter(stream))
+                {
+                    writer.Write(108); writer.Write((ushort)2);
+                    foreach (var item in new[] { known, unknown })
+                    {
+                        var entry = new ZPackage(); item.Save(entry); var raw = entry.GetArray();
+                        writer.Write(raw, 0, raw.Length - 1);
+                    }
+                    writer.Flush();
+                    var compact = new ZPackage(); compact.Write(Wire.SaveFormat); compact.Write(1); hird.WriteHeader(compact);
+                    compact.Write(new ZPackage(stream.ToArray()));
+                    var upgraded = JournalLegacyDecoder.Decode(compact.GetArray(), "m5-world", 1).Single();
+                    Check(upgraded.CopyHeader().SequenceEqual(header.GetArray()) && upgraded.State.Stacks.Count == 2
+                        && upgraded.State.Stacks.Sum(s => s.Item.Quantity) == 12, "Format 108 preserves header and every quantity");
+                    Check(upgraded.State.Stacks.All(s => s.Item.FormatVersion == 110)
+                        && upgraded.State.Stacks.Single(s => s.Item.Prefab.StartsWith("hash:")).Slot == -1,
+                        "Format 108 preserves unknown prefab and overflow");
+                    Check(JournalChecksum.SameItem(upgraded.State.Stacks.Single(s => s.Item.Prefab == "Wood").Item,
+                        decoded.State.Stacks.Single(s => s.Item.Prefab == "Wood").Item), "Format 108 metadata canonicalizes identically to format 110");
+                }
                 try { JournalLegacyDecoder.Decode(bytes.Concat(new byte[] { 1 }).ToArray(), "m5-world", 1); throw new Exception("Trailing save bytes accepted"); }
                 catch (InvalidDataException) { checks++; }
                 Logger.LogInfo("M5 LEGACY DECODER PASS " + checks + " cumulative assertions (unknown prefab preserved)");
@@ -219,6 +275,35 @@ namespace ThorsKist
                 using var character = new JournalCharacterInventory(inventory);
                 gameThread = new JournalGameThread(8);
                 string path = Path.Combine(Paths.BepInExRootPath, "m5-runtime-" + Guid.NewGuid().ToString("N") + ".db");
+                string catalogPath = path + ".catalog.db", legacyPath = path + ".legacy.dat";
+                int decoderThread = 0;
+                var capturedDecode = await Task.Run(() =>
+                {
+                    decoderThread = System.Threading.Thread.CurrentThread.ManagedThreadId;
+                    return JournalLegacyDecoder.DecodeCaptured(legacyBytes, "m5-world", 1, legacyVersion, legacyPrefabNames).Single();
+                });
+                Check(decoderThread != legacyOwnerThread && capturedDecode.CopyHeader().SequenceEqual(legacyImports[0].CopyMetadata()),
+                    "Captured migration decoder runs off Unity and retains hird header");
+                Check(capturedDecode.State.Stacks.All(s => legacyImports[0].State.Stacks.Any(old => old.Slot == s.Slot && JournalChecksum.SameItem(old.Item, s.Item))),
+                    "Worker migration preserves known and unavailable prefab records exactly");
+                Logger.LogInfo("M7 WORKER MIGRATION DECODER PASS canonical items and unknowns decoded outside Unity thread");
+                File.WriteAllBytes(legacyPath, legacyBytes);
+                var catalog = await JournalWorldCatalog.OpenAsync(catalogPath, "m5-world", legacyPath, bytes =>
+                {
+                    Check(bytes.SequenceEqual(legacyBytes), "Real save bytes reach catalog import unchanged");
+                    return legacyImports; // Decoded on the Unity thread above.
+                });
+                var imported = (await catalog.ReadAsync()).Single();
+                Check(imported.CopyMetadata().SequenceEqual(legacyImports[0].CopyMetadata())
+                    && JournalChecksum.Compute(imported.State.Current) == JournalChecksum.Compute(legacyImports[0].State),
+                    "Real legacy import preserves all item records, header, unknowns and overflow");
+                Check(File.ReadAllBytes(legacyPath).SequenceEqual(legacyBytes)
+                    && Directory.GetFiles(Path.GetDirectoryName(legacyPath), Path.GetFileName(legacyPath) + ".journal-backup-*").Length == 1,
+                    "Real legacy import leaves source intact with verified backup");
+                File.WriteAllBytes(legacyPath, new byte[] { 255 });
+                catalog = await JournalWorldCatalog.OpenAsync(catalogPath, "m5-world", legacyPath, _ => throw new Exception("Old save reimported"));
+                Check((await catalog.ReadAsync()).Single().Identity.Epoch == imported.Identity.Epoch, "Mono catalog reopen ignores stale .dat and retains epoch");
+                Logger.LogInfo("M7 CATALOG MONO PASS real decoder/import/backup/reopen " + catalogPath);
                 var identity = new VaultIdentity("m5-world", "m5-vault", Guid.NewGuid());
                 using (var server = await ReplicationServer.OpenAsync(new SqliteJournalStorage(path, identity),
                     new VaultState(identity, 1, Array.Empty<StackRecord>()), new SystemReplicationClock(), 4))

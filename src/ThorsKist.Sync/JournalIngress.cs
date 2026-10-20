@@ -20,7 +20,7 @@ namespace ThorsKist.Sync
             if (frame.Message == JournalMessage.Login)
             {
                 var vault = JournalWire.DecodeLogin(frame.CopyBody());
-                if (!current.Vault.Matches(vault)) throw new InvalidDataException("Wrong login vault");
+                if (!current.Vault.Matches(vault) || (current.Access & JournalAccess.Login) == 0) throw new InvalidDataException("Wrong or inaccessible login vault");
                 return new JournalRequest(frame, vault: vault);
             }
             if (frame.Message == JournalMessage.Command)
@@ -28,6 +28,10 @@ namespace ThorsKist.Sync
                 var command = JournalWire.DecodeCommand(frame.CopyBody());
                 if (frame.Correlation != command.RequestId || !binding.Authorizes(current, command.Address))
                     throw new InvalidDataException("Unbound command");
+                var access = command.Kind == ItemCommandKind.Deposit ? JournalAccess.Deposit
+                    : command.Purpose == ItemCommandPurpose.Craft ? JournalAccess.Craft
+                    : command.Purpose == ItemCommandPurpose.Station ? JournalAccess.Station : JournalAccess.Take;
+                if ((current.Access & access) == 0) throw new InvalidDataException("Action outside authorized access range");
                 return new JournalRequest(frame, command: command, address: command.Address);
             }
             if (frame.Message != JournalMessage.Acknowledge && frame.Message != JournalMessage.Logout && frame.Message != JournalMessage.Suspend)

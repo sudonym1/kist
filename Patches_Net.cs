@@ -29,6 +29,7 @@ namespace ThorsKist
         [HarmonyPrefix]
         public static void OnShutdown()
         {
+            JournalReservationGuard.Reset();
             JournalDirectRpc.Current?.Dispose();
             KistServer.Reset();
             KistClient.Reset();

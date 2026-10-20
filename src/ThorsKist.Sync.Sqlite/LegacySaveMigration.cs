@@ -61,6 +61,8 @@ namespace ThorsKist.Sync.Sqlite
                         if (!string.Equals((string)previous, hash, StringComparison.Ordinal)) throw new InvalidDataException("A different save was already imported");
                         tx.Commit(); return; // No decoder, no overwrite after restart/retry.
                     }
+                    if (Convert.ToInt64(SqliteJournalStorage.Scalar(db, tx, "SELECT count(*) FROM world_catalog;")) != 0)
+                        throw new InvalidOperationException("Migration cannot replace an initialized world authority");
                     if (Convert.ToInt64(SqliteJournalStorage.Scalar(db, tx, "SELECT count(*) FROM vaults;")) != 0)
                         throw new InvalidOperationException("Migration requires an empty database");
                     var imports = decode((byte[])source.Clone()) ?? throw new InvalidDataException("Decoder returned no result");

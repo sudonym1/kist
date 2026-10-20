@@ -12,7 +12,7 @@ namespace ThorsKist
     // must never create a second item authority beside the legacy path.
     internal sealed class JournalDirectRpc : IDisposable
     {
-        internal const string RpcName = "ThorsKist_Journal_v1";
+        internal const string RpcName = "ThorsKist_Journal_v3";
         internal static JournalDirectRpc Current;
         private sealed class Connection : IDisposable
         {
@@ -26,15 +26,15 @@ namespace ThorsKist
         private readonly ZNet world;
         // Must check catalog account/character membership and action range using
         // this captured position, never the legacy claimed header or roster map.
-        private readonly Func<string, long, Vector3, VaultIdentity> resolve;
+        private readonly Func<string, long, Vector3, (VaultIdentity Vault, JournalAccess Access)> resolve;
         private readonly Func<JournalPeerIdentity, JournalPeerBinding, JournalSendQueue, JournalFrame, CancellationToken, Task> receive;
-        private readonly Action<SessionAddress> excluded;
+        private readonly Action<JournalPeerBinding> excluded;
         private readonly Dictionary<ZNetPeer, Connection> connections = new Dictionary<ZNetPeer, Connection>();
         private readonly int owner = Thread.CurrentThread.ManagedThreadId;
         private bool disposed;
-        internal JournalDirectRpc(ZNet world, Func<string, long, Vector3, VaultIdentity> resolve,
+        internal JournalDirectRpc(ZNet world, Func<string, long, Vector3, (VaultIdentity Vault, JournalAccess Access)> resolve,
             Func<JournalPeerIdentity, JournalPeerBinding, JournalSendQueue, JournalFrame, CancellationToken, Task> receive,
-            Action<SessionAddress> excluded)
+            Action<JournalPeerBinding> excluded)
         {
             this.world = world ?? throw new ArgumentNullException(nameof(world));
             this.resolve = resolve ?? throw new ArgumentNullException(nameof(resolve));
@@ -71,8 +71,8 @@ namespace ThorsKist
                 || character.GetLong(ZDOVars.s_playerID, 0L) != peer.m_playerID) return null;
             var position = character.GetPosition();
             if (!Finite(position.x) || !Finite(position.y) || !Finite(position.z)) return null;
-            var vault = resolve(account, peer.m_playerID, position);
-            return vault == null ? null : new JournalPeerIdentity(peer.m_rpc, account, peer.m_playerID, vault);
+            var access = resolve(account, peer.m_playerID, position);
+            return access.Vault == null ? null : new JournalPeerIdentity(peer.m_rpc, account, peer.m_playerID, access.Vault, access.Access);
         }
         private void Receive(ZNetPeer peer, ZRpc rpc, ZPackage package)
         {
@@ -87,21 +87,22 @@ namespace ThorsKist
             {
                 c = Open(peer, identity);
             }
-            if (!c.Worker.TryReceive(package.GetArray())) Remove(peer);
+            if (!c.Worker.TryReceive(package.GetArray(), identity)) Remove(peer);
         }
         private Connection Open(ZNetPeer peer, JournalPeerIdentity identity)
         {
             var c = new Connection { Peer = peer, Identity = identity, Binding = identity == null ? null : new JournalPeerBinding(identity) };
             var connection = c;
-            c.Worker = new JournalConnectionWorker((frame, token) =>
+            c.Worker = new JournalConnectionWorker((frame, context, token) =>
             {
                 if (worldIsServer && frame.Message != JournalMessage.Login && frame.Message != JournalMessage.Command
-                    && frame.Message != JournalMessage.Acknowledge && frame.Message != JournalMessage.Logout && frame.Message != JournalMessage.Suspend)
+                    && frame.Message != JournalMessage.Acknowledge && frame.Message != JournalMessage.Logout && frame.Message != JournalMessage.Suspend && frame.Message != JournalMessage.CommandChunk)
                     throw new System.IO.InvalidDataException("Invalid client journal direction");
-                if (!worldIsServer && frame.Message != JournalMessage.Reply && frame.Message != JournalMessage.Entries && frame.Message != JournalMessage.Transfer)
+                if (!worldIsServer && frame.Message != JournalMessage.Reply && frame.Message != JournalMessage.Entries && frame.Message != JournalMessage.Transfer && frame.Message != JournalMessage.EntriesChunk)
                     throw new System.IO.InvalidDataException("Invalid server journal direction");
-                if (worldIsServer) JournalRequest.Decode(frame, connection.Identity, connection.Binding);
-                return receive(connection.Identity, connection.Binding, connection.Outgoing, frame, token);
+                // The authority decodes session controls, including recorded
+                // logout retries after the binding's Kist UUID was released.
+                return receive(worldIsServer ? (JournalPeerIdentity)context : null, connection.Binding, connection.Outgoing, frame, token);
             });
             connections.Add(peer, c);
             return c;
@@ -151,11 +152,11 @@ namespace ThorsKist
         private void Remove(ZNetPeer peer)
         {
             if (!connections.TryGetValue(peer, out var c)) return;
-            var session = c.Binding?.Session;
+            var binding = c.Binding;
             connections.Remove(peer); c.Dispose();
             // The authority callback enqueues exclusion/settlement; it must never
             // wait on the writer or another client from this game-thread call.
-            if (session != null) excluded(session);
+            if (binding != null) excluded(binding);
         }
         public void Dispose()
         {

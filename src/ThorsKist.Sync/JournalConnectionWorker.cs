@@ -10,7 +10,7 @@ namespace ThorsKist.Sync
     public sealed class JournalConnectionWorker : IDisposable
     {
         private readonly object sync = new object();
-        private readonly Func<JournalFrame, CancellationToken, Task> handle;
+        private readonly Func<JournalFrame, object?, CancellationToken, Task> handle;
         private readonly CancellationTokenSource cancellation = new CancellationTokenSource();
         private readonly int maximumBytes, maximumFrames;
         private Task tail = Task.CompletedTask;
@@ -21,11 +21,17 @@ namespace ThorsKist.Sync
         public Exception? Failure { get { lock (sync) return failure; } }
         public Task Completion { get { lock (sync) return tail; } }
         public JournalConnectionWorker(Func<JournalFrame, CancellationToken, Task> handle, int maximumBytes = 256 * 1024, int maximumFrames = 16)
+            : this((frame, _, token) => handle(frame, token), maximumBytes, maximumFrames)
+        { if (handle == null) throw new ArgumentNullException(nameof(handle)); }
+        public JournalConnectionWorker(Func<JournalFrame, object?, CancellationToken, Task> handle, int maximumBytes = 256 * 1024, int maximumFrames = 16)
         {
             if (maximumBytes < JournalWire.MaximumFrameBytes || maximumFrames <= 0) throw new ArgumentOutOfRangeException(nameof(maximumBytes));
             this.handle = handle ?? throw new ArgumentNullException(nameof(handle)); this.maximumBytes = maximumBytes; this.maximumFrames = maximumFrames;
         }
-        public bool TryReceive(byte[] bytes)
+        public bool TryReceive(byte[] bytes) => TryReceive(bytes, null);
+        // Trusted adapter facts are captured with each frame, not serialized in
+        // the client-controlled payload or read from mutable Unity objects later.
+        public bool TryReceive(byte[] bytes, object? context)
         {
             if (bytes == null || bytes.Length < JournalWire.FrameHeaderBytes || bytes.Length > JournalWire.MaximumFrameBytes) return false;
             lock (sync)
@@ -38,7 +44,7 @@ namespace ThorsKist.Sync
                     {
                         await previous.ConfigureAwait(false);
                         cancellation.Token.ThrowIfCancellationRequested();
-                        await handle(JournalWire.DecodeFrame(immutable), cancellation.Token).ConfigureAwait(false);
+                        await handle(JournalWire.DecodeFrame(immutable), context, cancellation.Token).ConfigureAwait(false);
                     }
                     catch (Exception error)
                     {

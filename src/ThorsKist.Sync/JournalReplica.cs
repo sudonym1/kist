@@ -11,13 +11,15 @@ namespace ThorsKist.Sync
     public sealed class JournalReplica
     {
         private readonly ICharacterInventory inventory;
+        private readonly Action<VaultState, JournalEntry?>? changed;
         private readonly Dictionary<Guid, CharacterEffect> applied = new Dictionary<Guid, CharacterEffect>();
         private HashSet<Guid> settled = new HashSet<Guid>();
         private SessionAddress? address;
         public VaultState? Current { get; private set; }
         public long Sequence { get; private set; }
         public bool NeedsSuspension { get; private set; }
-        public JournalReplica(ICharacterInventory inventory) { this.inventory = inventory ?? throw new ArgumentNullException(nameof(inventory)); }
+        public JournalReplica(ICharacterInventory inventory, Action<VaultState, JournalEntry?>? changed = null)
+        { this.inventory = inventory ?? throw new ArgumentNullException(nameof(inventory)); this.changed = changed; }
 
         // Only ordinary login supplies a new session and authoritative settled
         // effect IDs. Preserve known effects through checkpoint reset/replay.
@@ -29,7 +31,7 @@ namespace ThorsKist.Sync
             address = session;
             if (!snapshot.State.Identity.Contains(session) || !JournalReplay.Verify(snapshot)) { NeedsSuspension = true; return false; }
             Current = snapshot.State; Sequence = snapshot.Sequence;
-            settled = new HashSet<Guid>(settledEffects); NeedsSuspension = false; return true;
+            settled = new HashSet<Guid>(settledEffects); NeedsSuspension = false; changed?.Invoke(Current, null); return true;
         }
         // Convenience for deterministic hosts. Game adapters use worker-side
         // JournalReplay.Prepare and game-thread ProcessVerified instead.
@@ -77,7 +79,7 @@ namespace ThorsKist.Sync
                     applied.Add(effect.EffectId, effect);
                 }
             }
-            Current = update.State; Sequence = entry.Sequence; return ReplicaResult.Applied;
+            Current = update.State; Sequence = entry.Sequence; changed?.Invoke(Current, entry); return ReplicaResult.Applied;
         }
         private ReplicaResult Fail() { NeedsSuspension = true; return ReplicaResult.NeedsSuspension; }
     }
