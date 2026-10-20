@@ -59,6 +59,10 @@ def verify(plugins):
     if not rids or len(set(rids)) != len(rids) or any(r not in NATIVE for r in rids):
         raise ValueError("Invalid runtime selection")
     expected = set(MANAGED) | {NATIVE[r] for r in rids}
+    if manifest.get("windows_build"):
+        if "win-x64" not in rids:
+            raise ValueError("Windows build requires win-x64 runtime")
+        expected |= {"e_sqlite3.pdb", "sqlite-build.json"}
     if len({NATIVE[r] for r in rids}) != len(rids):
         raise ValueError("Native loader names collide; use separate architecture packages")
     if set(manifest["sha256"]) != expected:
@@ -71,6 +75,13 @@ def verify(plugins):
             raise ValueError("Journal dependency checksum mismatch: " + name)
     for rid in rids:
         native_architecture(plugins / NATIVE[rid], rid)
+    if manifest.get("windows_build"):
+        from native_symbols import verify_pdb
+        receipt = json.loads((plugins / "sqlite-build.json").read_text(encoding="utf-8"))
+        symbols = verify_pdb(plugins / "e_sqlite3.dll", plugins / "e_sqlite3.pdb")
+        if symbols != receipt["symbols"] or any(receipt["sha256"][name] != manifest["sha256"][name]
+                                                for name in ("e_sqlite3.dll", "e_sqlite3.pdb")):
+            raise ValueError("Windows native build receipt does not match packaged runtime")
     return manifest
 
 
@@ -80,15 +91,25 @@ def main():
     parser.add_argument("nuget_packages", type=Path)
     parser.add_argument("plugins", type=Path)
     parser.add_argument("--rids", nargs="+", choices=NATIVE, default=["win-x64", "linux-x64", "osx-x64"])
+    parser.add_argument("--sqlite-windows-build", type=Path,
+                        help="Locally built e_sqlite3.dll, matching PDB and sqlite-build.json")
     args = parser.parse_args()
     if len(set(NATIVE[r] for r in args.rids)) != len(args.rids):
         parser.error("Native loader names collide; stage separate architecture packages")
     sources = {name: args.build / name for name in MANAGED}
     native_root = args.nuget_packages / NATIVE_PACKAGE / NATIVE_VERSION / "runtimes"
     for rid in args.rids:
-        source = native_root / rid / "native" / NATIVE[rid]
+        source = (args.sqlite_windows_build / "e_sqlite3.dll" if rid == "win-x64" and args.sqlite_windows_build
+                  else native_root / rid / "native" / NATIVE[rid])
         native_architecture(source, rid)
         sources[NATIVE[rid]] = source
+    if args.sqlite_windows_build:
+        if "win-x64" not in args.rids:
+            parser.error("Windows native build requires win-x64 runtime")
+        from native_symbols import verify_pdb
+        verify_pdb(args.sqlite_windows_build / "e_sqlite3.dll", args.sqlite_windows_build / "e_sqlite3.pdb")
+        for name in ("e_sqlite3.pdb", "sqlite-build.json"):
+            sources[name] = args.sqlite_windows_build / name
     for source in sources.values():
         if not source.is_file():
             parser.error("Missing built dependency: " + str(source))
@@ -99,6 +120,8 @@ def main():
         shutil.copyfile(source, args.plugins / name)
     manifest = {"schema": 1, "native_package": NATIVE_PACKAGE, "native_version": NATIVE_VERSION,
                 "rids": args.rids, "sha256": {name: digest(path) for name, path in sources.items()}}
+    if args.sqlite_windows_build:
+        manifest["windows_build"] = True
     (args.plugins / "journal-runtime.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     verify(args.plugins)
     print("Staged and verified journal dependencies: " + ", ".join(args.rids))

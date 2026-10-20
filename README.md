@@ -97,8 +97,19 @@ slam every member hears.
 ## Installing
 
 Needs [BepInEx](https://valheim.thunderstore.io/package/denikson/BepInExPack_Valheim/).
-Download the release ZIP and copy both DLLs from its `plugins/` directory
-(`ThorsKist.dll` and `ThorsKist.Sync.dll`) into `BepInEx/plugins/`.
+Install with your mod manager, or copy **all files** from the release ZIP's
+`plugins/` directory into `BepInEx/plugins/ThorsKist/`. Keep the managed DLLs,
+native SQLite libraries and `journal-runtime.json` together. Remove the old
+`ThorsKist.dll` and `ThorsKist.Sync.dll` from any other plugin folder when upgrading;
+do not install this fork alongside the original mod.
+
+The package includes Windows x64 and Linux x64 SQLite libraries. Windows
+Unity/Mono provider checks have passed; Linux provider execution and the full
+authenticated multiplayer release matrix remain unverified. macOS and ARM
+native libraries are not included in this release.
+
+Version 0.9.0 is the performance fork's SQLite/journal release candidate.
+See the backup and migration instructions below before upgrading an existing world.
 
 > **On the server too, not just the clients.** The server owns the vault. A
 > client with the mod talking to a server without it is simply told there's no

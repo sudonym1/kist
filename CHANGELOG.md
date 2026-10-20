@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.0
+
+Performance fork of Thor's Kist by Brian Miller (posixone).
+
+- Replace whole-vault save/sync work with SQLite-backed journal storage and
+  incremental replication. Existing `.dat` vaults are imported once with a
+  verified backup; subsequent saves use SQLite.
+- Use immediate Kist payments for crafting, building and station inputs.
+- Improve inventory stacking and remote peer identity handling.
+- Add a per-row delete button that discards items through the withdrawal path.
+- Disable optional diagnostic profiling by default.
+- Bundle the SQLite managed dependencies and Windows/Linux x64 native libraries.
+- Build Windows SQLite 3.54.0 from official source and include its matching
+  native PDB and build provenance for symbol-based upload review.
+
+Windows Unity/Mono provider checks exist. Linux runtime validation and the full
+authenticated multiplayer release matrix remain pending. Back up host vault,
+world and player saves before upgrading; see README.md for migration and rollback.
+
 ## 0.8.6
 
 **Fixed: the Invite button had no label.**
