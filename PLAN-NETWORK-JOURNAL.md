@@ -1,5 +1,14 @@
 # ThorsKist network journal plan
 
+## Active follow-up plan (2026-10-20)
+
+[Local spending and asynchronous journal reconciliation](PLAN-LOCAL-FIRST-JOURNAL.md)
+is the active plan for the post-fork design review. It supersedes conflicting
+requirements below for server-authorized takes, coupled replication/effect
+acknowledgments, and abandoned optimistic payments. Destination durability
+remains explicitly out of scope. The implementation notes below describe the
+existing system and its historical validation, not completion of the follow-up.
+
 ## M7 integrated Windows candidate (2026-10-20 UTC)
 
 The user confirmed the v22 remote invite fix works. **v27** makes crafting and

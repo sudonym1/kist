@@ -1,5 +1,12 @@
 ﻿# Network journal implementation details
 
+The active follow-up is
+[Local spending and asynchronous journal reconciliation](../PLAN-LOCAL-FIRST-JOURNAL.md).
+Its local execution, accounting, acknowledgment, and retention requirements
+supersede conflicting rules in this document. Destination durability is not
+required. The details below remain the historical specification of the current
+implementation until the follow-up milestones are implemented.
+
 Companion to [the review plan](../PLAN-NETWORK-JOURNAL.md). The design uses one application journal for both Kist replication and item awards. It does not use a separate delivery protocol. Character saving is independent of journal acknowledgment.
 
 Implementation evidence and remaining integration gates are recorded in the
