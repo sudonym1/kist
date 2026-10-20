@@ -1,0 +1,4 @@
+2026-10-20T04:14:38.2169524Z M7 CUTOVER AUTHORITY SQLite/journal <isolated-test-root>\saves\ThorsKist\kist_2186005207.sqlite; legacy SHA256=4CDA2C3DC49F96DACC6FF0F8FF4D2663653F8D0CA92FB78595E3F7BCED32F5F1; initial head=16; stacks=587
+2026-10-20T04:14:39.0785547Z M7 CUTOVER DEPOSIT journal sequence=18; exact new stack=1e8a3602-6f63-4b09-a061-b45e2dc28a86; quantity=3
+2026-10-20T04:14:39.6608223Z M7 CUTOVER WITHDRAW journal sequence=19; native character received exact quantity=3
+2026-10-20T04:14:40.5449599Z M7 CUTOVER PASS ordinary gameplay API -> journal -> SQLite -> reopen; dat unchanged; native checks=13
