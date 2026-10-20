@@ -41,21 +41,22 @@ namespace ThorsKist.Sync
         private readonly DateTimeOffset originUtc;
         private readonly TimeSpan originElapsed;
         private readonly int maximumDepth;
+        private readonly Func<ItemRecord, int> stackLimit;
         private readonly object sync = new object();
         private Task tail = Task.CompletedTask;
         private JournalMachineState installed;
         private readonly Dictionary<string, (ItemCommand command, Task<SessionReply> task)> admitted = new Dictionary<string, (ItemCommand, Task<SessionReply>)>();
         private bool disposed;
         private DateTimeOffset Now => originUtc + (clock.Elapsed - originElapsed);
-        private ReplicationServer(JournalWriter writer, JournalMachineState state, IReplicationClock clock, int maximumDepth)
-        { this.writer = writer; installed = state; this.clock = clock; this.maximumDepth = maximumDepth; originUtc = clock.UtcNow; originElapsed = clock.Elapsed; }
-        public static async Task<ReplicationServer> OpenAsync(IJournalStorage storage, VaultState initial, IReplicationClock clock, int maximumDepth)
+        private ReplicationServer(JournalWriter writer, JournalMachineState state, IReplicationClock clock, int maximumDepth, Func<ItemRecord, int>? stackLimit)
+        { this.writer = writer; installed = state; this.clock = clock; this.maximumDepth = maximumDepth; this.stackLimit = stackLimit ?? (_ => int.MaxValue); originUtc = clock.UtcNow; originElapsed = clock.Elapsed; }
+        public static async Task<ReplicationServer> OpenAsync(IJournalStorage storage, VaultState initial, IReplicationClock clock, int maximumDepth, Func<ItemRecord, int>? stackLimit = null)
         {
             if (maximumDepth <= 0) throw new ArgumentOutOfRangeException(nameof(maximumDepth));
             var writer = await JournalWriter.OpenAsync(storage, initial).ConfigureAwait(false);
             try
             {
-                var server = new ReplicationServer(writer, await writer.ReadAsync().ConfigureAwait(false), clock, maximumDepth);
+                var server = new ReplicationServer(writer, await writer.ReadAsync().ConfigureAwait(false), clock, maximumDepth, stackLimit);
                 // Invalidate and settle all previous sessions before access/checkpointing.
                 await server.Change(state =>
                 {
@@ -96,6 +97,7 @@ namespace ThorsKist.Sync
             return next;
         }
         public Task<JournalMachineState> ReadAsync() => Enqueue(() => writer.ReadAsync());
+        public Task<JournalMachineState> ResizeAsync(int capacity) => Enqueue(() => Change(s => JournalMachine.Resize(s, capacity)));
         private static List<ReplicationSession> Copies(JournalMachineState s) => s.Replication.Sessions.Select(x => x.Copy()).ToList();
         private static ReplicationSession? Find(IEnumerable<ReplicationSession> sessions, SessionAddress address) => sessions.FirstOrDefault(s => JournalChecksum.SameAddress(s.Address, address));
         private static JournalMachineState Finish(JournalMachineState s, IEnumerable<ReplicationSession> sessions, IEnumerable<EffectSettlement> settlements, DateTimeOffset? next = null)
@@ -157,7 +159,7 @@ namespace ThorsKist.Sync
                             bool retry = s.Current.Identity.Contains(command.Address) && s.Results.Any(r => r.Command.Address.Player == command.Address.Player && r.Command.RequestId == command.RequestId);
                             var session = Find(s.Replication.Sessions, command.Address);
                             if (!retry && (session == null || session.Phase != SessionPhase.Active)) { status = SessionStatus.InvalidSession; return s; }
-                            transition = JournalMachine.Execute(s, command); return transition.State;
+                            transition = JournalMachine.Execute(s, command, command.Kind == ItemCommandKind.Deposit ? stackLimit(command.Item) : int.MaxValue); return transition.State;
                         }).ConfigureAwait(false);
                         return new SessionReply(status, command: transition);
                     }

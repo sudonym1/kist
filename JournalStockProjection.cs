@@ -35,6 +35,7 @@ namespace ThorsKist
         internal IEnumerable<Row> Rows => rows.Values;
         internal bool Ready => loading == null && deferred.Count == 0;
         internal int Count => rows.Count;
+        internal int Capacity { get; private set; }
         internal Guid Identify(ItemDrop.ItemData item) => item != null && identities.TryGetValue(item, out var id) ? id : Guid.Empty;
         internal bool Find(Guid id, out StackRecord stack)
         {
@@ -44,7 +45,8 @@ namespace ThorsKist
         internal void Changed(VaultState state, JournalEntry entry)
         {
             RequireOwner();
-            if (entry == null)
+            Capacity = state.Capacity;
+            if (entry == null || entry.Kind == JournalEntryKind.Resize)
             {
                 loading?.Dispose(); rows.Clear(); identities.Clear(); counts.Clear(); deferred.Clear(); dirty = true;
                 loading = state.Stacks.GetEnumerator(); return;

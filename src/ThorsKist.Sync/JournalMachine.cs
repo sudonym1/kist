@@ -101,7 +101,7 @@ namespace ThorsKist.Sync
                             throw new InvalidDataException("Invalid compensation reference");
                     }
                 }
-                else if (entry.Kind == JournalEntryKind.NoOp)
+                else if (entry.Kind == JournalEntryKind.NoOp || entry.Kind == JournalEntryKind.Resize)
                 {
                     if (entry.Actor != null || entry.RequestId != Guid.Empty || records.Any(r => r.Entry.Sequence == entry.Sequence) || !operations.Add(entry.OperationId))
                         throw new InvalidDataException("Invalid no-op identity");
@@ -119,7 +119,7 @@ namespace ThorsKist.Sync
         private static void RestoreResult(CommandResult result) => CommandResult.Restore(result.Command, result.Status, result.Entry);
         public static bool SameEntry(JournalEntry a, JournalEntry b) => a.Identity.Matches(b.Identity) && a.Sequence == b.Sequence
             && a.Schema == b.Schema && a.OperationId == b.OperationId && a.RequestId == b.RequestId && a.Kind == b.Kind
-            && a.Checksum == b.Checksum && a.DeletedStack == b.DeletedStack
+            && a.Checksum == b.Checksum && a.DeletedStack == b.DeletedStack && a.NewCapacity == b.NewCapacity
             && (a.Actor == null ? b.Actor == null : b.Actor != null && JournalChecksum.SameAddress(a.Actor, b.Actor))
             && (a.ChangedStack == null ? b.ChangedStack == null : b.ChangedStack != null && a.ChangedStack.Id == b.ChangedStack.Id
                 && a.ChangedStack.Slot == b.ChangedStack.Slot && JournalChecksum.SameItem(a.ChangedStack.Item, b.ChangedStack.Item))
@@ -140,7 +140,7 @@ namespace ThorsKist.Sync
     {
         // Invoke in single-writer order, with authenticated/authorized commands.
         // M4 owns session validation and admission before this transition.
-        public static CommandTransition Execute(JournalMachineState state, ItemCommand command)
+        public static CommandTransition Execute(JournalMachineState state, ItemCommand command, int maximumStackSize = int.MaxValue)
         {
             if (!state.Current.Identity.Contains(command.Address)) return new CommandTransition(state, CommandStatus.WrongVault, null);
             // Request IDs are scoped to the authenticated player within this vault/epoch,
@@ -155,7 +155,10 @@ namespace ThorsKist.Sync
             var stacks = state.Current.Stacks.ToDictionary(s => s.Id);
             stacks.TryGetValue(command.StackId, out var existing);
             var status = CommandStatus.Accepted; StackRecord? changed = null; Guid? deleted = null;
-            if (existing != null && !JournalChecksum.SameItem(existing.Item, command.Item, false)) status = CommandStatus.StackConflict;
+            if (command.Kind == ItemCommandKind.Deposit && (maximumStackSize <= 0
+                || command.Item.Quantity > maximumStackSize - (long)(existing?.Item.Quantity ?? 0)))
+                status = CommandStatus.CapacityExceeded;
+            else if (existing != null && !JournalChecksum.SameItem(existing.Item, command.Item, false)) status = CommandStatus.StackConflict;
             else if (command.Kind == ItemCommandKind.Withdraw)
             {
                 if (existing == null || existing.Item.Quantity < command.Item.Quantity) status = CommandStatus.InsufficientStock;
@@ -191,6 +194,19 @@ namespace ThorsKist.Sync
         }
         private static StackRecord WithQuantity(StackRecord stack, int quantity) => new StackRecord(stack.Id, stack.Slot,
             new ItemRecord(stack.Item.Prefab, quantity, stack.Item.FormatVersion, stack.Item.CopyPayload()));
+
+        public static JournalMachineState Resize(JournalMachineState state, int capacity)
+        {
+            if (capacity < 0) throw new ArgumentOutOfRangeException(nameof(capacity));
+            if (state.Current.Capacity == capacity) return state;
+            if (state.Replication.Sessions.Any(s => s.Phase != SessionPhase.Closed))
+                throw new InvalidOperationException("Resize requires all sessions to be closed");
+            var current = JournalReplay.Resize(state.Current, capacity);
+            var entry = new JournalEntry(current.Identity, checked(state.Head + 1), Guid.NewGuid(), Guid.Empty,
+                JournalEntryKind.Resize, null, null, null, null, JournalChecksum.Compute(current), newCapacity: capacity);
+            return new JournalMachineState(state.Checkpoint, current, entry.Sequence, state.Journal.Concat(new[] { entry }),
+                state.Results, state.UsedStackIds, state.Replication);
+        }
 
         // Scheduling and recipients belong to M4; this is only the no-op transition.
         public static JournalMachineState AppendNoOp(JournalMachineState state)

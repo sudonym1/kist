@@ -167,6 +167,7 @@ namespace ThorsKist.Sync
             w.Write(e.DeletedStack.HasValue); if (e.DeletedStack.HasValue) Id(w, e.DeletedStack.Value);
             w.Write(e.Effect != null);
             if (e.Effect != null) { var f = e.Effect; Id(w, f.EffectId); Id(w, f.OperationId); Id(w, f.RequestId); Address(w, f.Recipient); w.Write((byte)f.Kind); Item(w, f.Item); }
+            if (e.Kind == JournalEntryKind.Resize) w.Write(e.NewCapacity!.Value);
             Text(w, e.Checksum, 64);
         }
         private static JournalEntry Entry(BinaryReader r)
@@ -174,7 +175,8 @@ namespace ThorsKist.Sync
             var v = Identity(r); int schema = r.ReadInt32(); long sequence = r.ReadInt64(); var operation = Id(r); var request = Id(r); var kind = (JournalEntryKind)r.ReadByte();
             var actor = Flag(r) ? Address(r) : null; var stack = Flag(r) ? Stack(r) : null; Guid? deleted = Flag(r) ? Id(r) : (Guid?)null;
             var effect = Flag(r) ? new CharacterEffect(Id(r), Id(r), Id(r), Address(r), (CharacterEffectKind)r.ReadByte(), Item(r)) : null;
-            return new JournalEntry(v, sequence, operation, request, kind, actor, stack, deleted, effect, Text(r, 64), schema);
+            int? capacity = kind == JournalEntryKind.Resize ? r.ReadInt32() : (int?)null;
+            return new JournalEntry(v, sequence, operation, request, kind, actor, stack, deleted, effect, Text(r, 64), schema, capacity);
         }
         private static bool Flag(BinaryReader r) { byte b = r.ReadByte(); if (b > 1) throw new InvalidDataException("Invalid boolean"); return b == 1; }
         private static void Count(BinaryWriter w, int n, int maximum) { if (n < 0 || n > maximum) throw new InvalidDataException("Invalid count"); w.Write(n); }

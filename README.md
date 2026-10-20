@@ -136,7 +136,7 @@ else is yours alone. Every radius is measured from the Kist itself.
 | Range | `craftRadius` | `100` | Metres crafting stations may draw within. |
 | Range | `anchorRadius` | `100` | How close every online member must be to re-anchor. **Server-side.** |
 | Crafting | `craftFromKist` | `true` | Turn crafting from the Kist off entirely. |
-| Vault | `kistRows` | `64` | Rows of 8 slots. 64 rows = 512 stacks. **Server-side.** |
+| Vault | `kistRows` | `64` | Rows of 8 slots. 64 rows = 512 stacks. Applies to existing vaults when the world reopens; shrinking preserves excess stacks as overflow. **Server-side.** |
 | Feedback | `depositSound` / `depositVfx` | `true` | Sound and effect on deposit. |
 | Feedback | `depositSfxPrefab` | `sfx_lootspawn` | Any sound prefab in ZNetScene. |
 | Feedback | `depositVfxPrefab` | `vfx_Potion_eitr_minor` | Eitr is blue; `_health_` red, `_stamina_` yellow. |
@@ -175,6 +175,10 @@ sync — a vault kept there would be one update away from gone. Older builds use
 `kist_<worldUID>.dat`; the SQLite build imports that file automatically on first
 startup. After migration, SQLite owns the vault and the `.dat` file is no longer
 updated or used as a fallback.
+
+This build upgrades existing SQLite databases to schema 6 to support durable
+vault resizing. Older builds cannot open the upgraded database; reverting to
+one requires a backup made before the upgrade.
 
 It sits outside the world save, so rolling the world back doesn't roll the Kist
 back with it, and Valheim's backups don't cover it. **Back up

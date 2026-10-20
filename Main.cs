@@ -122,7 +122,7 @@ namespace ThorsKist
                 "Also covers feeding smelters, kilns, fireplaces, cooking stations and fermenters.");
 
             KistRows = Config.Bind("Vault", "kistRows", 64,
-                new ConfigDescription("Rows of 8 slots in the vault. 64 rows = 512 stacks. Server-side setting.",
+                new ConfigDescription("Rows of 8 slots in the vault. 64 rows = 512 stacks. Applies to existing vaults when the world reopens; shrinking preserves excess stacks as overflow. Server-side setting.",
                     new AcceptableValueRange<int>(4, 256)));
 
             DepositSound = Config.Bind("Feedback", "depositSound", true, "Play a sound when you store an item.");

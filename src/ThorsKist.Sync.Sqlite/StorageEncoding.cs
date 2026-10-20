@@ -64,6 +64,7 @@ namespace ThorsKist.Sync.Sqlite
                 var f = e.Effect; Id(w, f.EffectId); Id(w, f.OperationId); Id(w, f.RequestId);
                 Address(w, f.Recipient); w.Write((int)f.Kind); Item(w, f.Item);
             }
+            if (e.Kind == JournalEntryKind.Resize) w.Write(e.NewCapacity!.Value);
             Text(w, e.Checksum);
         }
         internal static JournalEntry Entry(BinaryReader r)
@@ -72,7 +73,8 @@ namespace ThorsKist.Sync.Sqlite
             var actor = r.ReadBoolean() ? Address(r) : null; var changed = r.ReadBoolean() ? Stack(r) : null;
             Guid? deleted = r.ReadBoolean() ? Id(r) : (Guid?)null;
             var effect = r.ReadBoolean() ? new CharacterEffect(Id(r), Id(r), Id(r), Address(r), (CharacterEffectKind)r.ReadInt32(), Item(r)) : null;
-            return new JournalEntry(v, seq, op, request, kind, actor, changed, deleted, effect, Text(r), schema);
+            int? capacity = kind == JournalEntryKind.Resize ? r.ReadInt32() : (int?)null;
+            return new JournalEntry(v, seq, op, request, kind, actor, changed, deleted, effect, Text(r), schema, capacity);
         }
         internal static void Result(BinaryWriter w, CommandResult result)
         {

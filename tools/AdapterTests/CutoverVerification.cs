@@ -101,7 +101,8 @@ namespace ThorsKist
             else CutoverLog("M7 JOURNAL TRACE uses current SQLite baseline after manual gameplay; exact restoration checked after scratch transfer and reopen");
             var before = JournalChecksum.Encode(initial.Current);
             var inventory = new Inventory("cutover-verification-character", null, 8, 4);
-            var wood = Wood(3); Check(inventory.AddItem(wood), "Native disposable character inventory seeded");
+            var wood = Wood(3); wood.m_customData["cutover-fixture"] = Guid.NewGuid().ToString("N");
+            Check(inventory.AddItem(wood), "Native disposable character inventory seeded");
             cutoverRange = Main.UnlimitedRange.Value; cutoverSaveOnSet = Main.Instance.Config.SaveOnConfigSet;
             cutoverConfigCaptured = true; Main.Instance.Config.SaveOnConfigSet = false;
             Main.UnlimitedRange.Value = true;
@@ -220,7 +221,8 @@ namespace ThorsKist
         // leaves an explicit failure and exits without touching original saves.
         private IEnumerator RunCutoverVerification()
         {
-            var stack = new Stack<IEnumerator>(); stack.Push(CutoverVerification());
+            var stack = new Stack<IEnumerator>();
+            stack.Push(Environment.GetCommandLineArgs().Contains("-thorskist-review-fixes") ? ReviewFixes() : CutoverVerification());
             while (stack.Count != 0)
             {
                 object current = null;

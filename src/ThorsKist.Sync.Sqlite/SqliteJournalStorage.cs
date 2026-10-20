@@ -151,13 +151,13 @@ namespace ThorsKist.Sync.Sqlite
             {
                 q.CommandText = "PRAGMA user_version;";
                 long found = Convert.ToInt64(q.ExecuteScalar());
-                if (found == 5) return;
-                if (found < 0 || found > 5) throw new InvalidDataException("Unsupported database schema");
+                if (found == 6) return;
+                if (found < 0 || found > 6) throw new InvalidDataException("Unsupported database schema");
             }
             using (var tx = db.BeginTransaction(deferred: false))
             {
                 long version = Convert.ToInt64(Scalar(db, tx, "PRAGMA user_version;"));
-                if (version == 5) { tx.Commit(); return; }
+                if (version == 6) { tx.Commit(); return; }
                 if (version == 1)
                 {
                     Execute(db, tx, "CREATE TABLE replication (vault_id INTEGER PRIMARY KEY REFERENCES vaults(id), body BLOB NOT NULL, checksum TEXT NOT NULL);");
@@ -194,13 +194,26 @@ namespace ThorsKist.Sync.Sqlite
                             protocol.Sessions.Select(s => s.Phase == SessionPhase.Closed ? s.CompactClosed() : s), protocol.Settlements);
                         WriteProtocol(db, tx, id, protocol);
                     }
-                    Execute(db, tx, "PRAGMA user_version=5;"); tx.Commit(); return;
+                    version = 5;
+                }
+                if (version == 5)
+                {
+                    bool hasCheckpointCapacity = false;
+                    using (var q = Query(db, tx, "PRAGMA table_info(vaults);"))
+                    using (var r = q.ExecuteReader()) while (r.Read())
+                        if (r.GetString(1) == "checkpoint_capacity") hasCheckpointCapacity = true;
+                    if (!hasCheckpointCapacity)
+                    {
+                        Execute(db, tx, "ALTER TABLE vaults ADD COLUMN checkpoint_capacity INTEGER NOT NULL DEFAULT 0 CHECK(checkpoint_capacity>=0);");
+                        Execute(db, tx, "UPDATE vaults SET checkpoint_capacity=capacity;");
+                    }
+                    Execute(db, tx, "PRAGMA user_version=6;"); tx.Commit(); return;
                 }
                 if (version != 0 || Convert.ToInt64(Scalar(db, tx, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")) != 0)
                     throw new InvalidDataException("Unsupported database schema; refusing automatic replacement");
                 Execute(db, tx, @"
 CREATE TABLE vaults (id INTEGER PRIMARY KEY, world TEXT NOT NULL, vault TEXT NOT NULL, epoch TEXT NOT NULL,
- capacity INTEGER NOT NULL CHECK(capacity>=0), head INTEGER NOT NULL CHECK(head>=0), checkpoint_seq INTEGER NOT NULL CHECK(checkpoint_seq>=0 AND checkpoint_seq<=head),
+ capacity INTEGER NOT NULL CHECK(capacity>=0), checkpoint_capacity INTEGER NOT NULL CHECK(checkpoint_capacity>=0), head INTEGER NOT NULL CHECK(head>=0), checkpoint_seq INTEGER NOT NULL CHECK(checkpoint_seq>=0 AND checkpoint_seq<=head),
  checkpoint_checksum TEXT NOT NULL, current_checksum TEXT NOT NULL, checksum_schema INTEGER NOT NULL, history_checksum TEXT NOT NULL, UNIQUE(world,vault));
 CREATE TABLE current_stacks (vault_id INTEGER NOT NULL REFERENCES vaults(id), stack_id TEXT NOT NULL, body BLOB NOT NULL, PRIMARY KEY(vault_id,stack_id));
 CREATE TABLE checkpoint_stacks (vault_id INTEGER NOT NULL REFERENCES vaults(id), stack_id TEXT NOT NULL, body BLOB NOT NULL, PRIMARY KEY(vault_id,stack_id));
@@ -213,7 +226,7 @@ CREATE TABLE migration (id INTEGER PRIMARY KEY CHECK(id=1), source_hash TEXT NOT
 CREATE TABLE replication (vault_id INTEGER PRIMARY KEY REFERENCES vaults(id), body BLOB NOT NULL, checksum TEXT NOT NULL);
 CREATE TABLE world_catalog (id INTEGER PRIMARY KEY CHECK(id=1), world TEXT NOT NULL);
 CREATE TABLE retired_vaults (vault_id INTEGER PRIMARY KEY REFERENCES vaults(id));
-PRAGMA user_version=5;");
+PRAGMA user_version=6;");
                 CreateProtocolRows(db, tx);
                 tx.Commit();
             }
@@ -268,7 +281,7 @@ PRAGMA user_version=5;");
             }
             foreach (var settlement in old.Replication.Settlements)
                 if (!next.Replication.Settlements.Any(x => x.Operation == settlement.Operation && x.Kind == settlement.Kind && x.Compensation == settlement.Compensation)) throw new InvalidOperationException("Settlement regression");
-            if (next.Checkpoint.Sequence < old.Checkpoint.Sequence || next.Current.Capacity != old.Current.Capacity
+            if (next.Checkpoint.Sequence < old.Checkpoint.Sequence
                 || old.UsedStackIds.Except(next.UsedStackIds).Any()) throw new InvalidOperationException("Commit regresses durable history");
             foreach (var result in old.Results)
             {
@@ -290,18 +303,18 @@ PRAGMA user_version=5;");
         }
         internal static JournalMachineState? Read(SqliteConnection db, SqliteTransaction tx, VaultIdentity identity)
         {
-            long id, head, checkpoint; int capacity, schema; string checkpointHash, currentHash, historyHash;
-            using (var q = Query(db, tx, "SELECT id,epoch,capacity,head,checkpoint_seq,checkpoint_checksum,current_checksum,checksum_schema,history_checksum FROM vaults WHERE world=$w AND vault=$v;", ("$w", identity.World), ("$v", identity.Vault)))
+            long id, head, checkpoint; int capacity, checkpointCapacity, schema; string checkpointHash, currentHash, historyHash;
+            using (var q = Query(db, tx, "SELECT id,epoch,capacity,head,checkpoint_seq,checkpoint_checksum,current_checksum,checksum_schema,history_checksum,checkpoint_capacity FROM vaults WHERE world=$w AND vault=$v;", ("$w", identity.World), ("$v", identity.Vault)))
             using (var r = q.ExecuteReader())
             {
                 if (!r.Read()) return null;
                 id = r.GetInt64(0);
                 if (r.GetString(1) != identity.Epoch.ToString("N")) throw new InvalidDataException("Vault epoch mismatch");
                 capacity = r.GetInt32(2); head = r.GetInt64(3); checkpoint = r.GetInt64(4);
-                checkpointHash = r.GetString(5); currentHash = r.GetString(6); schema = r.GetInt32(7); historyHash = r.GetString(8);
+                checkpointHash = r.GetString(5); currentHash = r.GetString(6); schema = r.GetInt32(7); historyHash = r.GetString(8); checkpointCapacity = r.GetInt32(9);
             }
             var current = new VaultState(identity, capacity, Stacks(db, tx, "current_stacks", id));
-            var snapshot = new JournalSnapshot(checkpoint, new VaultState(identity, capacity, Stacks(db, tx, "checkpoint_stacks", id)), checkpointHash, schema);
+            var snapshot = new JournalSnapshot(checkpoint, new VaultState(identity, checkpointCapacity, Stacks(db, tx, "checkpoint_stacks", id)), checkpointHash, schema);
             if (currentHash != JournalChecksum.Compute(current)) throw new InvalidDataException("Materialized current checksum mismatch");
             var entries = new List<JournalEntry>(); var results = new List<CommandResult>(); var used = new List<Guid>();
             using (var q = Query(db, tx, "SELECT seq,body FROM journal WHERE vault_id=$id ORDER BY seq;", ("$id", id)))
@@ -342,11 +355,11 @@ PRAGMA user_version=5;");
         internal static long InsertNewVault(SqliteConnection db, SqliteTransaction tx, JournalMachineState state, Action<StorageBoundary>? boundary)
         {
             var v = state.Current.Identity;
-            Execute(db, tx, @"INSERT INTO vaults(world,vault,epoch,capacity,head,checkpoint_seq,checkpoint_checksum,current_checksum,checksum_schema,history_checksum)
- VALUES($w,$v,$e,$c,$h,$s,$ch,$hash,$schema,$history);",
+            Execute(db, tx, @"INSERT INTO vaults(world,vault,epoch,capacity,head,checkpoint_seq,checkpoint_checksum,current_checksum,checksum_schema,history_checksum,checkpoint_capacity)
+ VALUES($w,$v,$e,$c,$h,$s,$ch,$hash,$schema,$history,$cc);",
                 ("$w", v.World), ("$v", v.Vault), ("$e", v.Epoch.ToString("N")), ("$c", state.Current.Capacity), ("$h", state.Head),
                 ("$s", state.Checkpoint.Sequence), ("$ch", state.Checkpoint.Checksum), ("$hash", JournalChecksum.Compute(state.Current)), ("$schema", state.Checkpoint.Schema),
-                ("$history", HistoryChecksum(state.Results, state.UsedStackIds)));
+                ("$history", HistoryChecksum(state.Results, state.UsedStackIds)), ("$cc", state.Checkpoint.State.Capacity));
             long id = Convert.ToInt64(Scalar(db, tx, "SELECT id FROM vaults WHERE world=$w AND vault=$v;", ("$w", v.World), ("$v", v.Vault)));
             using (JournalDiagnostics.Measure("sqlite.current_stacks.write", count: state.Current.Stacks.Count))
                 foreach (var s in state.Current.Stacks) InsertStack(db, tx, "current_stacks", id, s);

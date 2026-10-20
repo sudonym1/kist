@@ -45,6 +45,7 @@ namespace ThorsKist
                 return;
             }
             Stock.Changed(state, entry);
+            ContinueDeposit(entry);
             if (entry != null && immediatePayments.Remove(entry.RequestId) && entry.Kind == JournalEntryKind.Rejected)
                 Main.Log.LogWarning("Kist payment rejected after optimistic action; request=" + entry.RequestId);
             if (entry != null && (entry.Kind == JournalEntryKind.Deposit || entry.Kind == JournalEntryKind.Withdraw || entry.Kind == JournalEntryKind.Rejected))
@@ -65,27 +66,7 @@ namespace ThorsKist
         internal bool Deposit(Inventory from, ItemDrop.ItemData item, int quantity)
         {
             if (!AccessEnabled || !ReferenceEquals(from, inventory) || item == null || quantity <= 0 || quantity > item.m_stack) return false;
-            var request = Guid.NewGuid();
-            using var diagnosticContext = JournalDiagnostics.Correlate(request, 0, "deposit");
-            using var submit = JournalDiagnostics.Measure("unity.deposit.submit", JournalTimingKind.Work, JournalTimingThread.Main, quantity);
-            JournalDiagnostics.Mark("client.deposit.submitted", request, 0, quantity);
-            Guid local;
-            using (JournalDiagnostics.Measure("unity.deposit.identify", expected: JournalTimingThread.Main)) local = character.Identify(item);
-            using (JournalDiagnostics.Measure("unity.deposit.reserve", expected: JournalTimingThread.Main))
-                if (!character.TryReserve(request, local, quantity)) return false;
-            ItemRecord record;
-            try { using (JournalDiagnostics.Measure("unity.deposit.capture", expected: JournalTimingThread.Main)) record = JournalItemCodec.Capture(item, quantity); }
-            catch { character.ReleaseRejectedReservation(request); return false; }
-            // Request rejection/failure is not authority to touch the character.
-            // Committed rejection entries release reservations; uncertain sends
-            // exclude this session and let the server settle accepted effects.
-            try
-            {
-                var command = new ItemCommand(Client.Address, request, Guid.NewGuid(), ItemCommandKind.Deposit, record);
-                Observe(Task.Run(() => Client.ExecuteAsync(command)));
-            }
-            catch (Exception error) { Failure = error; Dispose(); return false; }
-            return true;
+            return SubmitDeposit(new DepositOperation { Source = item, Remaining = quantity });
         }
         internal bool Delete(Guid stackId)
         {

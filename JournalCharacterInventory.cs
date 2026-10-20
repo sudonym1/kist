@@ -85,7 +85,7 @@ namespace ThorsKist
                 if (effect.Kind == CharacterEffectKind.RemoveReserved)
                 {
                     if (!pending.TryGetValue(effect.RequestId, out var reserved)) return InventoryResult.MissingReservation;
-                    if (!JournalChecksum.SameItem(reserved, effect.Item)) return InventoryResult.InventoryChanged;
+                    if (!JournalItemCodec.Matches(reserved, effect.Item)) return InventoryResult.InventoryChanged;
                     using (JournalDiagnostics.Measure("unity.inventory.remove_reserved", expected: JournalTimingThread.Main))
                         result = reservations.ApplyVerifiedRemoval(effect.RequestId, effect.EffectId, effect.Item.Quantity);
                     if (result == InventoryResult.Applied || result == InventoryResult.AlreadyApplied) pending.Remove(effect.RequestId);
@@ -130,7 +130,7 @@ namespace ThorsKist
                 foreach (var target in inventory.GetAllItems())
                 {
                     if (remaining == 0) break;
-                    if (target.m_dropPrefab == null || target.m_shared == null || target.m_dropPrefab.name != record.Prefab
+                    if (target.m_dropPrefab == null || target.m_shared == null
                         || target.m_stack <= 0 || target.m_stack >= target.m_shared.m_maxStackSize || JournalReservationGuard.Blocks(target)) continue;
                     // Vanilla only matches name/quality/world level. Journal
                     // delivery must also preserve durability, variant, crafter,
@@ -138,8 +138,9 @@ namespace ThorsKist
                     ItemRecord candidate;
                     try { candidate = JournalItemCodec.Capture(target, 1); }
                     catch { continue; }
-                    if (!JournalChecksum.SameItem(candidate, record, false)) continue;
-                    int amount = Math.Min(remaining, target.m_shared.m_maxStackSize - target.m_stack);
+                    int room = JournalItemCodec.MergeRoom(candidate, record, target.m_shared.m_maxStackSize, target.m_stack);
+                    if (room == 0) continue;
+                    int amount = Math.Min(remaining, room);
                     merges.Add((target, target.m_stack, amount)); remaining -= amount;
                 }
                 if (remaining > 0)
@@ -164,10 +165,10 @@ namespace ThorsKist
             {
                 foreach (var merge in merges)
                     if (!inventory.GetAllItems().Any(i => ReferenceEquals(i, merge.Item)) || merge.Item.m_stack != merge.Before + merge.Amount
-                        || !JournalChecksum.SameItem(JournalItemCodec.Capture(merge.Item, merge.Item.m_stack), record, false))
+                        || !JournalItemCodec.Matches(JournalItemCodec.Capture(merge.Item, merge.Item.m_stack), record, false))
                         return InventoryResult.Failed;
                 if (remaining > 0 && (!inventory.GetAllItems().Any(i => ReferenceEquals(i, incoming)) || incoming.m_stack != remaining
-                    || !JournalChecksum.SameItem(JournalItemCodec.Capture(incoming, remaining), record, false))) return InventoryResult.Failed;
+                    || !JournalItemCodec.Matches(JournalItemCodec.Capture(incoming, remaining), record, false))) return InventoryResult.Failed;
             }
             return InventoryResult.Applied;
         }
