@@ -1,0 +1,9 @@
+2026-10-20T05:19:13.9593869Z M7 CUTOVER AUTHORITY SQLite/journal C:\Users\seamu\ThorsKist\.tools\m7\hammer-probe\saves\ThorsKist\kist_2186005207.sqlite; legacy SHA256=4CDA2C3DC49F96DACC6FF0F8FF4D2663653F8D0CA92FB78595E3F7BCED32F5F1; initial head=87; stacks=587
+2026-10-20T05:19:13.9613923Z M7 JOURNAL TRACE uses current SQLite baseline after manual gameplay; exact restoration checked after scratch transfer and reopen
+2026-10-20T05:19:14.2595141Z M7 CUTOVER LOGIN ACTIVE displayed=587; sequence=88
+2026-10-20T05:19:14.3607552Z M7 CUTOVER DEPOSIT journal sequence=89; exact new stack=429d9a60-36be-465d-a9d6-3cda604d427b; quantity=3
+2026-10-20T05:19:14.4766918Z M7 CUTOVER WITHDRAW journal sequence=90; native character received exact quantity=3
+2026-10-20T05:19:14.6270213Z M7 HAMMER PAYMENT PASS local=3 Kist=3; no inventory delivery; full pack; immediate repeated payments; native checks=22
+2026-10-20T05:19:15.0945544Z M7 CUTOVER PASS ordinary gameplay API -> journal -> SQLite -> reopen; dat unchanged; native checks=26
+2026-10-20T05:19:15.1166832Z M7 JOURNAL TIMING SAVED C:\Users\seamu\ThorsKist\.tools\m7\hammer-probe\journal-trace-verification; events=836 dropped=0 thread_violations=0
+2026-10-20T05:19:15.1282236Z M7 JOURNAL TRACE PASS checks=31

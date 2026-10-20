@@ -10,7 +10,7 @@ namespace ThorsKist
     // Installed by a selected journal world owner, never by RPC registration.
     // Every gameplay method stays on the owning game thread; only verified
     // entries can remove reserved items or add withdrawn items.
-    internal sealed class JournalGameplaySession : IDisposable
+    internal sealed partial class JournalGameplaySession : IDisposable
     {
         internal static JournalGameplaySession Current;
         private readonly Inventory inventory;
@@ -25,7 +25,7 @@ namespace ThorsKist
         private volatile bool procuring;
         private readonly ConcurrentQueue<Action> continuations = new ConcurrentQueue<Action>();
         internal bool Procuring => procuring;
-        internal int Count(string name, int quality = -1) => Stock.MaterialCount(name, quality);
+        internal int Count(string name, int quality = -1) => Math.Max(0, Stock.MaterialCount(name, quality) - PendingBuildCount(name, quality));
         internal ItemDrop.ItemData Peek(string name, int quality = -1) => Stock.Rows.FirstOrDefault(r => r.Item != null && r.Item.m_shared.m_name == name && (quality < 0 || r.Item.m_quality == quality))?.Item;
         // Vanilla runs only after every requested single-stack withdrawal has
         // been verified and delivered. A partial refusal leaves delivered items
@@ -39,7 +39,7 @@ namespace ThorsKist
                 int remaining = need.Quantity;
                 foreach (var row in Stock.Rows.Where(r => r.Item != null && r.Item.m_shared.m_name == need.Name && (need.Quality < 0 || r.Item.m_quality == need.Quality)))
                 {
-                    int take = Math.Min(remaining, row.Stack.Item.Quantity); if (take <= 0) break;
+                    int take = Math.Min(remaining, row.Stack.Item.Quantity - PendingBuildStack(row.Stack.Id)); if (take <= 0) break;
                     var item = row.Stack.Item;
                     commands.Add(new ItemCommand(Client.Address, Guid.NewGuid(), row.Stack.Id, ItemCommandKind.Withdraw,
                         new ItemRecord(item.Prefab, take, item.FormatVersion, item.CopyPayload()), purpose));
@@ -93,6 +93,8 @@ namespace ThorsKist
                 return;
             }
             Stock.Changed(state, entry);
+            if (entry != null && buildPayments.Remove(entry.RequestId) && entry.Kind == JournalEntryKind.Rejected)
+                Main.Log.LogWarning("Kist hammer payment rejected after optimistic placement; request=" + entry.RequestId);
             if (entry != null && (entry.Kind == JournalEntryKind.Deposit || entry.Kind == JournalEntryKind.Withdraw || entry.Kind == JournalEntryKind.Rejected))
                 Main.Log.LogInfo("KIST JOURNAL applied sequence=" + entry.Sequence + " kind=" + entry.Kind + " stack=" + (entry.ChangedStack?.Id.ToString() ?? entry.DeletedStack?.ToString() ?? "none") + "; authority=SQLite/journal");
         }
@@ -136,7 +138,7 @@ namespace ThorsKist
         }
         internal bool Take(Guid stackId, int quantity)
         {
-            if (!AccessEnabled || Procuring || !Stock.Find(stackId, out var stack) || quantity <= 0 || quantity > stack.Item.Quantity) return false;
+            if (!AccessEnabled || Procuring || !Stock.Find(stackId, out var stack) || quantity <= 0 || quantity > stack.Item.Quantity - PendingBuildStack(stackId)) return false;
             var item = stack.Item;
             try
             {

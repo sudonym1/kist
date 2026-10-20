@@ -151,7 +151,10 @@ namespace ThorsKist
         private static bool Build(Player __instance, Piece piece, ref bool __result)
         {
             if (__instance != Player.m_localPlayer) return true;
-            bool ready = JournalMaterials.Requirements(piece.m_resources, 0, 1, false, () => KistClient.Message("Kist materials ready. Place the piece when ready."));
+            // Keep vanilla's single-click placement. Its successful placement
+            // is followed by ConsumeResources, where the missing Kist share is
+            // queued without waiting for journal delivery.
+            bool ready = !JournalReservationGuard.Busy(__instance.GetInventory());
             if (!ready) __result = false;
             return ready;
         }

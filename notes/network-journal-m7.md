@@ -5,6 +5,69 @@ left after [M6: Transport foundations](network-journal-m6.md). The scope was mov
 here at the user's request on 2026-10-19; no unfinished integration gate was
 claimed to have passed. Game validation and release are now **M8**.
 
+## Immediate hammer placement, v16 (2026-10-20 UTC)
+
+The user explicitly requests immediate one-click hammer building and accepts
+exceptional double spending. This supersedes the earlier two-click placement
+policy for hammer construction only. Crafting and station procurement retain
+their existing wait-for-delivery behavior.
+
+Vanilla `Player.UpdatePlacement` calls `TryPlacePiece`, then consumes resources
+only on success. The former build prefix no longer starts procurement or asks
+for another click. A successful-placement postfix records a one-use marker for
+that player, exact requirements array, session and frame. The corresponding
+`ConsumeResources` prefix queues journal withdrawals for only the missing local
+share; vanilla immediately consumes the local share and completes the original
+placement. No delayed placement replay, second click, placeholder inventory
+items, synchronous network wait or database access is involved.
+
+The client temporarily holds each submitted amount against its cached stock.
+Counts, explicit takes and other procurement exclude those amounts until the
+verified journal entry updates stock and releases the hold. Multiple builds may
+have payments in flight, bounded to 48 commands. The character adapter records
+the exact expected canonical item and quantity for each already-spent request:
+its verified withdrawal settles payment without adding usable materials to the
+pack. Duplicate effect IDs remain suppressed. Rejections release expectations
+and holds and are logged; unmatched ordinary withdrawals still add real items.
+
+**Authorized tradeoff:** world placement and journal payment are not atomic.
+The placed piece remains if a concurrent server refusal, disconnect, crash or
+compensation prevents/returns its Kist payment. Cached holds reduce ordinary
+rapid-click races but do not provide distributed stock reservations. The server
+still enforces nonnegative authoritative stock and its existing settlement rules;
+this change adds no client database, persistent client protocol state, legacy
+fallback or dual writes. Strict inventory-only conservation is not a promise
+for these optimistic world-building outcomes. Failed ordinary placements never
+start a payment, and free-build vanilla paths do not consume resources.
+
+Validation: Release build has zero warnings/errors, **126 Harmony targets** and
+124 runtime references resolve, category/version/whitespace checks pass. The
+explicit `-thorskist-build-verify` mode extends the separate-copy cutover probe.
+It passed **31 native checks**, including failed-placement no charge, actual
+patched vanilla consumption of three local wood plus two missing Kist wood,
+immediate return before delivery, one-use marker, repeated in-flight payment,
+held-stock overdraw refusal, canonical mismatch refusal, duplicate effect
+suppression, payment with a full pack, exact three-Wood total Kist deduction for
+two payments, logout and SQLite reopen. The copied vault intentionally retains
+those three spent wood; user saves remain byte-for-byte unchanged. These tests
+exercise payment and patched consumption, not an actual loaded-world geometry
+placement; user hammer QA remains needed.
+
+[Native evidence](performance/m7-hammer-payments-20261020) contains 836 trace
+events, no drops or thread violations. Cold `unity.hammer.submit` peaks at
+1.985 ms across three calls (including a refusal); the first-use 1 ms budget
+remains open. No claim of a warmed hammer performance gate is made yet. Sync
+and SQLite libraries were unchanged by this adapter-only patch; their existing
+175,321-assertion/45-crash verification remains the library baseline.
+
+Both Windows Setup/Update payloads and the isolated installation are **v16**,
+all 29 hashes and archived scripts verified. ZIP:
+`.tools/m7/ThorsKist-M7-Windows-Journal-v16.zip`, SHA256
+`f19ad7e0aa3538ca7b06a7ae07e7347aafba8c5cc17fae05590face2f80ecbda`.
+Manual QA: place pieces with costs entirely in the Kist and with mixed local/
+Kist materials; one click should place each piece and pay once. An invalid red
+placement should pay nothing. Preserve F4 captures for hammer budget analysis.
+
 ## Loaded-world v15 performance capture (2026-10-20 UTC)
 
 User capture `20261020-050706-eec92a` confirms the steady-state transfer

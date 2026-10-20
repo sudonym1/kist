@@ -64,6 +64,8 @@ namespace ThorsKist
         private IEnumerator CutoverVerification()
         {
             bool traceEnabled = Environment.GetCommandLineArgs().Contains("-thorskist-journal-trace-verify");
+            bool buildEnabled = Environment.GetCommandLineArgs().Contains("-thorskist-build-verify");
+            if (buildEnabled) HammerPaymentEffects();
             if (traceEnabled)
             {
                 var prepare = Task.Run(() => JournalDiagnostics.PrepareCapture());
@@ -129,6 +131,47 @@ namespace ThorsKist
             var afterWithdrawal = withdrawal.GetAwaiter().GetResult();
             Check(JournalChecksum.Encode(afterWithdrawal.Current).SequenceEqual(before), "Ordinary withdrawal restores exact original vault state");
             CutoverLog("M7 CUTOVER WITHDRAW journal sequence=" + afterWithdrawal.Head + "; native character received exact quantity=3");
+            if (buildEnabled)
+            {
+                string name = wood.m_shared.m_name;
+                int available = cutoverSession.Count(name); long sequence = cutoverSession.Client.Sequence;
+                var player = (Player)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Player));
+                HarmonyLib.AccessTools.Field(typeof(Humanoid), "m_inventory").SetValue(player, inventory);
+                var piece = (Piece)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Piece));
+                piece.m_resources = new[] { new Piece.Requirement { m_resItem = ObjectDB.instance.GetItemPrefab("Wood").GetComponent<ItemDrop>(), m_amount = 5 } };
+                var oldPlayer = Player.m_localPlayer;
+                try
+                {
+                    Player.m_localPlayer = player;
+                    JournalBuilding.Placed(player, piece, false);
+                    Check(cutoverSession.PendingBuildPayments == 0 && inventory.CountItems(name) == 3, "Failed placement does not procure or charge materials");
+                    JournalBuilding.Placed(player, piece, true);
+                    player.ConsumeResources(piece.m_resources, 0);
+                    Check(inventory.CountItems(name) == 0 && cutoverSession.PendingBuildPayments == 1,
+                        "Patched vanilla post-placement consumption immediately pays three local wood and queues only two missing wood");
+                    Check(cutoverSession.Client.Sequence == sequence && !cutoverSession.Procuring && cutoverSession.Count(name) == available - 2,
+                        "Hammer payment returns before network delivery, without a procurement delay, and holds cached stock");
+                    JournalBuilding.Consume(player, piece.m_resources, 0, -1, 1);
+                    Check(cutoverSession.PendingBuildPayments == 1, "Placement payment marker is consumed exactly once");
+                }
+                finally { Player.m_localPlayer = oldPlayer; }
+                Check(cutoverSession.PayBuild(new[] { (name, -1, 1) }) && cutoverSession.Count(name) == available - 3,
+                    "A second immediate build can queue while the first payment remains in flight");
+                Check(!cutoverSession.PayBuild(new[] { (name, -1, available) }), "Pending builds cannot repeatedly spend the same cached stock");
+                for (int y = 0; y < inventory.GetHeight(); y++) for (int x = 0; x < inventory.GetWidth(); x++)
+                { var filler = Wood(1); filler.m_gridPos = new Vector2i(x, y); inventory.GetAllItems().Add(filler); }
+                int heldWood = inventory.CountItems(name);
+                yield return CutoverDrive(() => cutoverSession.PendingBuildPayments == 0 && cutoverSession.Client.Sequence > sequence);
+                Check(inventory.CountItems(name) == heldWood && cutoverSession.Count(name) == available - 3,
+                    "Verified hammer withdrawals settle with a full pack, without creating inventory resources or double-subtracting holds");
+                var paidRead = cutoverWorld.ReadAsync(vault.Identity); while (!paidRead.IsCompleted) yield return null;
+                var paid = paidRead.GetAwaiter().GetResult();
+                Check(paid.Current.Stacks.Where(s => s.Item.Prefab == "Wood").Sum(s => s.Item.Quantity)
+                    == afterWithdrawal.Current.Stacks.Where(s => s.Item.Prefab == "Wood").Sum(s => s.Item.Quantity) - 3,
+                    "SQLite pays exactly the missing material shares of two immediate hammer builds");
+                before = JournalChecksum.Encode(paid.Current);
+                CutoverLog("M7 HAMMER PAYMENT PASS local=3 Kist=3; no inventory delivery; full pack; immediate repeated payments; native checks=" + checks);
+            }
             var logout = cutoverSession.Logout();
             yield return CutoverDrive(() => logout.IsCompleted && cutoverSession.Client.ProcessingStopped);
             Check(logout.GetAwaiter().GetResult().Status == SessionStatus.Ok, "Gameplay logout acknowledged");

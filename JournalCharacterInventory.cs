@@ -14,6 +14,7 @@ namespace ThorsKist
         private readonly DepositReservations<ItemDrop.ItemData> reservations;
         private readonly Dictionary<Guid, ItemDrop.ItemData> local = new Dictionary<Guid, ItemDrop.ItemData>();
         private readonly Dictionary<Guid, ItemRecord> pending = new Dictionary<Guid, ItemRecord>();
+        private readonly Dictionary<Guid, ItemRecord> buildPayments = new Dictionary<Guid, ItemRecord>();
         private readonly Dictionary<Guid, CharacterEffect> applied = new Dictionary<Guid, CharacterEffect>();
         private readonly HashSet<Guid> attempted = new HashSet<Guid>();
         private readonly Action<bool, bool> changed;
@@ -63,6 +64,7 @@ namespace ThorsKist
         }
         public bool ReleaseRejectedReservation(Guid requestId)
         {
+            buildPayments.Remove(requestId);
             pending.Remove(requestId);
             return reservations.ReleaseRejected(requestId);
         }
@@ -87,6 +89,15 @@ namespace ThorsKist
                     using (JournalDiagnostics.Measure("unity.inventory.remove_reserved", expected: JournalTimingThread.Main))
                         result = reservations.ApplyVerifiedRemoval(effect.RequestId, effect.EffectId, effect.Item.Quantity);
                     if (result == InventoryResult.Applied || result == InventoryResult.AlreadyApplied) pending.Remove(effect.RequestId);
+                }
+                else if (buildPayments.TryGetValue(effect.RequestId, out var spent))
+                {
+                    // Vanilla has already placed the piece and paid its local
+                    // share. This verified withdrawal pays the missing share;
+                    // it must never materialize spendable items in the pack.
+                    if (!JournalChecksum.SameItem(spent, effect.Item)) return InventoryResult.InventoryChanged;
+                    buildPayments.Remove(effect.RequestId);
+                    result = InventoryResult.Applied;
                 }
                 else
                 {
@@ -128,7 +139,12 @@ namespace ThorsKist
                 && a.Recipient.Session == b.Recipient.Session && JournalChecksum.SameItem(a.Item, b.Item);
         public void ExcludeSession()
         {
-            reservations.ExcludeSession(); pending.Clear(); local.Clear();
+            reservations.ExcludeSession(); pending.Clear(); buildPayments.Clear(); local.Clear();
+        }
+        internal void ExpectBuildPayment(Guid request, ItemRecord item)
+        {
+            if (!IsValid || buildPayments.Count >= 48) throw new InvalidOperationException("Too many pending hammer payments");
+            buildPayments.Add(request, item);
         }
         internal void ValidateNextReservation()
         {

@@ -2,6 +2,16 @@
 
 ## M7 integrated Windows candidate (2026-10-20 UTC)
 
+At the user's explicit request, **v16** makes hammer placement immediate and
+optimistic: successful vanilla placement queues only missing Kist materials,
+which settle without adding inventory items. A second click is no longer needed.
+Pending costs reduce cached spendable stock. Exceptional world/payment races
+retain the piece, per the user's accepted tradeoff. Crafting/stations keep their
+existing procurement behavior. Both installers and the isolated install are
+updated; the separate-copy native probe passes 31 checks. Loaded-world hammer
+QA and cold main-thread budget remain open.
+[Hammer behavior and validation](notes/network-journal-m7.md#immediate-hammer-placement-v16-2026-10-20-utc).
+
 The user's v15 loaded-world capture completes 45 resin transfers with no queue
 overflow or cooldown. Traced main-thread work peaks at 0.421 ms; command reply
 mean is 22.1 ms, while click-to-item mean remains 74.2 ms due to delivery polling.
