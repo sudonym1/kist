@@ -149,19 +149,64 @@ Every prefab name above is real — all 43,346 the game ships are in
 
 ## Where your loot actually lives
 
-One file per world, in the server's save directory:
+One SQLite database per world, in the server's save directory:
 
 ```
-<savedir>/ThorsKist/kist_<worldUID>.dat
+<savedir>/ThorsKist/kist_<worldUID>.sqlite
 ```
 
 Deliberately **not** `BepInEx/config`, which server managers wipe on every mod
-sync — a vault kept there would be one update away from gone. Older builds are
-migrated automatically.
+sync — a vault kept there would be one update away from gone. Older builds used
+`kist_<worldUID>.dat`; the SQLite build imports that file automatically on first
+startup. After migration, SQLite owns the vault and the `.dat` file is no longer
+updated or used as a fallback.
 
 It sits outside the world save, so rolling the world back doesn't roll the Kist
 back with it, and Valheim's backups don't cover it. **Back up
 `<savedir>/ThorsKist/` alongside your worlds.**
+
+### Before upgrading from a `.dat` save
+
+1. **Stop the dedicated server, or quit the hosted world**, before installing
+   or launching the SQLite build. Do this on the machine that hosts the world.
+2. Find `<savedir>/ThorsKist/kist_<worldUID>.dat`. `<savedir>` is the host's
+   Valheim save directory (or the directory chosen with `-savedir`), not your
+   Gale profile or `BepInEx/config`. If you're unsure which world UID is yours,
+   back up the whole `ThorsKist` folder.
+3. **Copy, rather than move, the file or folder to a separate, dated backup
+   location**, outside the active save directory. Keep the original filename
+   inside the backup. Back up the world and player saves at the same time, and
+   keep a copy of the old mod release for rollback.
+4. Check that the copied `.dat` file has the same size as the original and can
+   be read. Keep this backup until you've confirmed the migrated hirds and
+   item counts in game.
+
+The importer also preserves the original `.dat` and creates a verified
+`kist_<worldUID>.dat.journal-backup-<hash>` copy beside it before importing.
+Keep your separate backup too.
+
+### If migration fails
+
+Stop the host again and copy the entire current `ThorsKist` folder and the
+host's `BepInEx/LogOutput.log` somewhere safe before attempting recovery.
+Preserve any `.sqlite`, `.sqlite-wal` and `.sqlite-shm` files together.
+**Restoring the `.dat` alone does not reset an initialized SQLite database.**
+
+To retry the import from your pre-upgrade backup, with the host stopped, move
+that world's `kist_<worldUID>.sqlite` and any matching `-wal` and `-shm` files
+out of the active `ThorsKist` folder into your recovery copy. Restore the
+backed-up `.dat` under its original name, fix the cause reported in the log,
+then start the SQLite build again.
+
+To roll back instead, reinstall the old mod release on the host and every
+client and restore the backed-up `.dat` while the host is stopped. If anyone
+has played since upgrading, restore the matching world and player backups too:
+the old `.dat` does not contain later SQLite transactions, and mixing save
+times can lose or duplicate items. Keep the SQLite recovery copy for diagnosis.
+
+For ongoing SQLite backups, stop the host and copy the **whole `ThorsKist`
+folder** alongside your world and player saves, including any SQLite sidecar
+files still present.
 
 ---
 
