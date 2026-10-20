@@ -1,0 +1,3 @@
+[Info   :ThorsKist Adapter Tests] M7 WITHDRAWAL STACKING PASS 18 native checks
+[Info   :ThorsKist Adapter Tests] M7 HAMMER PAYMENT PASS local=3 Kist=3; no inventory delivery; full pack; immediate repeated payments; native checks=40
+[Info   :ThorsKist Adapter Tests] M7 JOURNAL TRACE PASS checks=49

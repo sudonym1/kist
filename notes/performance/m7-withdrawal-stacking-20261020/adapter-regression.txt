@@ -1,0 +1,14 @@
+[Info   :ThorsKist Adapter Tests] M7 LOCAL CONTROL PASS 9 native assertions (listen-host request/reply cursor and retry)
+[Info   :ThorsKist Adapter Tests] M5 ITEM ADAPTER PASS 58 assertions (real Unity/Valheim inventory)
+[Info   :ThorsKist Adapter Tests] M7 RESERVATION INTERCEPTION PASS 63 assertions (real patched inventory and interaction entry points)
+[Info   :ThorsKist Adapter Tests] M7 STOCK PROJECTION PASS 10 assertions (bounded restoration, stable UUIDs, unknown overflow, incremental deltas)
+[Info   :ThorsKist Adapter Tests] M5 LEGACY DECODER PASS 140 cumulative assertions (unknown prefab preserved)
+[Info   :ThorsKist Adapter Tests] M5 DISPATCH PASS 143 cumulative assertions
+[Info   :ThorsKist Adapter Tests] M7 WORKER MIGRATION DECODER PASS canonical items and unknowns decoded outside Unity thread
+[Info   :ThorsKist Adapter Tests] M5 TCP RPC PASS 256 ordered 1 KiB messages over real ZRpc/ZSocket2 loopback
+[Info   :ThorsKist Adapter Tests] M6 JOURNAL TCP PASS 4 exact commands and 3 snapshot chunks through bounded worker and real ZRpc/ZSocket2
+[Info   :ThorsKist Adapter Tests] M7 CONTROL WIRE MONO PASS 2 correlated compact replies through real ZRpc/ZSocket2
+[Info   :ThorsKist Adapter Tests] M7 CATALOG MONO PASS real decoder/import/backup/reopen C:\Users\seamu\ThorsKist\.tools\m7\stacking-final-probe\BepInEx\m5-runtime-28491d77592e4061a4050722d5621cf2.db.catalog.db
+[Info   :ThorsKist Adapter Tests] M5 SQLITE MONO PASS login/commit/ack/session activation C:\Users\seamu\ThorsKist\.tools\m7\stacking-final-probe\BepInEx\m5-runtime-28491d77592e4061a4050722d5621cf2.db
+[Info   :ThorsKist Adapter Tests] M5 JOURNAL INVENTORY PASS 158 cumulative assertions (deposit/take/duplicate/no-capacity/compensation)
+[Info   :ThorsKist Adapter Tests] M7 SESSION TCP MONO PASS 16 assertions: real ZRpc login/deposit/take/ack/retry/logout/rejoin with SQLite and bounded game-thread effects

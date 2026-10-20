@@ -2,6 +2,14 @@
 
 ## M7 integrated Windows candidate (2026-10-20 UTC)
 
+The user confirms one-click hammer building looks good. **v19** restores
+withdrawal stacking lost at journal cutover, using full canonical metadata
+matching and whole-delivery capacity checks. Reserved stacks are protected;
+incompatible metadata stays separate. Both Windows installers and the isolated
+install are updated after the user closed the game. The separate-copy native
+probe passes 49 checks, including 18 stacking checks. Loaded-world stacking QA
+remains open. [Stacking rationale and evidence](notes/network-journal-m7.md#withdrawal-stacking-v19-2026-10-20-utc).
+
 At the user's explicit request, **v16** makes hammer placement immediate and
 optimistic: successful vanilla placement queues only missing Kist materials,
 which settle without adding inventory items. A second click is no longer needed.

@@ -5,6 +5,65 @@ left after [M6: Transport foundations](network-journal-m6.md). The scope was mov
 here at the user's request on 2026-10-19; no unfinished integration gate was
 claimed to have passed. Game validation and release are now **M8**.
 
+## Withdrawal stacking, v19 (2026-10-20 UTC)
+
+The user confirmed the v16 immediate hammer behavior looks good, then reported
+that ordinary withdrawals should stack. This is a **journal-cutover behavior
+change**, not an old Kist limitation: the preserved legacy `KistClient.GiveBack`
+at `be429dd` called vanilla `Inventory.AddItem`, which merged compatible stacks.
+The M5 journal character adapter deliberately used an empty slot because vanilla
+merges only by name/quality/world level and can discard other canonical metadata.
+That missing metadata-safe merge became visible when M7 activated the adapter.
+
+`JournalCharacterInventory.AddStacked` now plans a complete delivery before
+mutating inventory. It fills compatible partial stacks up to their limits and
+uses a new slot only for the remainder. A full grid is accepted when existing
+stacks have enough room. Insufficient total room returns NoCapacity without any
+quantity change or callback. Matching requires identical canonical item metadata
+apart from quantity/location/equipment: durability, variant, crafter, custom data,
+quality, world level, picked-up and cheat flags are preserved. Different metadata
+keeps stacks separate. Pending deposit reservations are excluded from merging.
+Hammer payments still settle as already spent and do not enter this addition path.
+
+All mutations emit one Changed callback. Every touched object, expected quantity
+and canonical payload is verified after callbacks before acknowledgment. A
+callback that changes the delivery returns failure, and the existing attempted/
+applied effect-ID protection prevents repeating uncertain or completed addition.
+No SQLite, wire or server state-machine changes are involved.
+
+Validation: **18 new native stacking checks** cover full-grid merging, duplicate
+effects, multiple partial stacks plus remainder, all-or-nothing capacity refusal,
+eight metadata differences, protected reservations and subsequent removal, and
+callback corruption without repeat. Combined with hammer, ordinary gameplay API,
+logout/reopen and thread/export checks, the separate-copy native probe passes
+**49 checks**, with 832 trace events, no drops or thread violations. This tests
+real Unity/Valheim inventory methods. The user must still confirm ordinary
+loaded-world withdrawal UX. Release has zero warnings/errors; 126 Harmony targets,
+124 runtime references, category/version/whitespace checks pass. Sync/SQLite
+libraries retain their unchanged 175,321-assertion/45-crash baseline.
+[Native evidence](performance/m7-withdrawal-stacking-20261020) is retained.
+
+The user saved and closed the test game before deployment. The latest vault and
+character were archived in `.tools/m7/checkpoints/journal-before-stacking-v19.zip`
+and remain byte-identical after update. The native tests used an independent
+copied vault. Both Windows installers and isolated installation contain matching
+**v19**, all 29 payload hashes and archived Setup/Update scripts verified. ZIP:
+`.tools/m7/ThorsKist-M7-Windows-Journal-v19.zip`, SHA256
+`ac198df6624cff7b53fe20f83a19db53a4dfdd2304536450f09af2a6575254ca`.
+The production DLL is byte-identical to the 49-check v17 probe. The subsequent
+full adapter run exposed two old fixture assumptions that an occupied grid was
+automatically full. Fixtures now expect compatible stacking and explicitly fill
+every stack to its limit for the genuine no-capacity/compensation case. No
+production changes were needed for those fixture corrections.
+The final full native adapter suite passes: 158 cumulative inventory/provider/
+decoder/dispatch assertions, 63 reservation-interception checks, stock projection,
+256-message TCP ordering, journal/control TCP probes and the 16-check persistent
+session TCP probe. These counts overlap where logs say cumulative and must not
+be added. The successful transcript is preserved as `adapter-regression.txt`.
+Manual QA: withdraw ordinary wood/resin into an existing partial stack, including
+with a full grid; excess should use a new slot when available. Distinct custom
+metadata and reserved deposit stacks should remain separate.
+
 ## Immediate hammer placement, v16 (2026-10-20 UTC)
 
 The user explicitly requests immediate one-click hammer building and accepts

@@ -65,6 +65,7 @@ namespace ThorsKist
         {
             bool traceEnabled = Environment.GetCommandLineArgs().Contains("-thorskist-journal-trace-verify");
             bool buildEnabled = Environment.GetCommandLineArgs().Contains("-thorskist-build-verify");
+            if (Environment.GetCommandLineArgs().Contains("-thorskist-stacking-verify")) WithdrawalStacking();
             if (buildEnabled) HammerPaymentEffects();
             if (traceEnabled)
             {

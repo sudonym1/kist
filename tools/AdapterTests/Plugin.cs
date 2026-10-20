@@ -264,14 +264,19 @@ namespace ThorsKist
             var add = Effect(record, Guid.NewGuid(), CharacterEffectKind.Add);
             Check(receiver.Apply(add) == InventoryResult.Applied && target.GetAllItems().Single().m_stack == 3, "Exact addition");
             Check(receiver.Apply(add) == InventoryResult.AlreadyApplied && target.GetAllItems().Single().m_stack == 3, "No repeated addition");
+            Check(receiver.Apply(Effect(record, Guid.NewGuid(), CharacterEffectKind.Add)) == InventoryResult.Applied
+                && target.GetAllItems().Single().m_stack == 6, "Occupied slot accepts withdrawal into compatible partial stack");
+            target.GetAllItems().Single().m_stack = target.GetAllItems().Single().m_shared.m_maxStackSize - 1;
+            int almostFull = target.GetAllItems().Single().m_stack;
             Check(receiver.Apply(Effect(record, Guid.NewGuid(), CharacterEffectKind.Add)) == InventoryResult.NoCapacity
-                && target.GetAllItems().Single().m_stack == 3, "Full inventory refuses without partial merge/drop");
+                && target.GetAllItems().Single().m_stack == almostFull, "Insufficient total capacity refuses without partial merge/drop");
             var conflicting = new CharacterEffect(add.EffectId, add.OperationId, add.RequestId, add.Recipient, add.Kind,
                 new ItemRecord(record.Prefab, 2, record.FormatVersion, record.CopyPayload()));
             Check(receiver.Apply(conflicting) == InventoryResult.Failed, "Effect identity cannot change quantity");
-            Check(KistStock.Count(target, restored.m_shared.m_name, -1) == 3, "Cached count");
+            target.GetAllItems().Single().m_stack = 6;
+            Check(KistStock.Count(target, restored.m_shared.m_name, -1) == 6, "Cached count");
             target.RemoveItem(target.GetAllItems()[0], 1);
-            Check(KistStock.Count(target, restored.m_shared.m_name, -1) == 2, "Inventory notification invalidates cached count");
+            Check(KistStock.Count(target, restored.m_shared.m_name, -1) == 5, "Inventory notification invalidates cached count");
             var bad = record.CopyPayload().Concat(new byte[] { 0 }).ToArray();
             try { JournalItemCodec.Restore(new ItemRecord(record.Prefab, 3, record.FormatVersion, bad)); throw new Exception("Trailing bytes accepted"); }
             catch (InvalidDataException) { checks++; }
@@ -342,8 +347,11 @@ namespace ThorsKist
                     await client.ProcessBatchAsync(login.Session.Address, delivery.Entries);
                     Check(inventory.GetAllItems().Sum(i => i.m_stack) == 9 && client.AccessEnabled, "Verified take adds exact quantity before acknowledgment");
                     long acknowledged = client.Sequence;
+                    // Occupied slots alone no longer mean no capacity: fill
+                    // compatible stacks as well before testing compensation.
+                    foreach (var held in inventory.GetAllItems()) held.m_stack = held.m_shared.m_maxStackSize;
                     for (int y = 0; y < 2; y++) for (int x = 0; x < 2; x++)
-                        if (inventory.GetItemAt(x, y) == null) { var filler = Wood(1); filler.m_gridPos = new Vector2i(x, y); inventory.GetAllItems().Add(filler); }
+                        if (inventory.GetItemAt(x, y) == null) { var filler = Wood(50); filler.m_gridPos = new Vector2i(x, y); inventory.GetAllItems().Add(filler); }
                     await server.ExecuteAsync(new ItemCommand(login.Session.Address, Guid.NewGuid(), stackId, ItemCommandKind.Withdraw,
                         new ItemRecord(item.Prefab, 1, item.FormatVersion, item.CopyPayload())));
                     delivery = await server.QueueDeliveryAsync(login.Session.Address, client.Sequence, 4);

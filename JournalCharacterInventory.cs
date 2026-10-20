@@ -103,19 +103,7 @@ namespace ThorsKist
                 {
                     ItemDrop.ItemData item;
                     using (JournalDiagnostics.Measure("unity.inventory.restore", expected: JournalTimingThread.Main)) item = JournalItemCodec.Restore(effect.Item);
-                    // Vanilla AddItem merges by name/quality/world level and can
-                    // destroy variant, crafter and custom data. Install the exact
-                    // stack in an empty slot, preserving every canonical field.
-                    Vector2i slot;
-                    using (JournalDiagnostics.Measure("unity.inventory.find_slot", expected: JournalTimingThread.Main)) slot = EmptySlot();
-                    if (slot.x < 0) return InventoryResult.NoCapacity;
-                    item.m_gridPos = slot;
-                    using (JournalDiagnostics.Measure("unity.inventory.add", expected: JournalTimingThread.Main)) inventory.GetAllItems().Add(item);
-                    using (JournalDiagnostics.Measure("unity.inventory.changed_callbacks", expected: JournalTimingThread.Main)) changed(false, false);
-                    using (JournalDiagnostics.Measure("unity.inventory.verify_added", expected: JournalTimingThread.Main))
-                        result = inventory.GetAllItems().Any(i => ReferenceEquals(i, item))
-                        && JournalChecksum.SameItem(JournalItemCodec.Capture(item, item.m_stack), effect.Item)
-                        ? InventoryResult.Applied : InventoryResult.Failed;
+                    result = AddStacked(item, effect.Item);
                 }
                 // Changed callbacks can replace the inventory or trigger death
                 // while the effect is executing. Recheck before authorizing ack.
@@ -131,6 +119,57 @@ namespace ThorsKist
                 for (int x = 0; x < inventory.GetWidth(); x++)
                     if (inventory.GetItemAt(x, y) == null) return new Vector2i(x, y);
             return new Vector2i(-1, -1);
+        }
+        private InventoryResult AddStacked(ItemDrop.ItemData incoming, ItemRecord record)
+        {
+            var merges = new List<(ItemDrop.ItemData Item, int Before, int Amount)>();
+            int remaining = incoming.m_stack;
+            Vector2i slot = new Vector2i(-1, -1);
+            using (JournalDiagnostics.Measure("unity.inventory.stack_plan", expected: JournalTimingThread.Main))
+            {
+                foreach (var target in inventory.GetAllItems())
+                {
+                    if (remaining == 0) break;
+                    if (target.m_dropPrefab == null || target.m_shared == null || target.m_dropPrefab.name != record.Prefab
+                        || target.m_stack <= 0 || target.m_stack >= target.m_shared.m_maxStackSize || JournalReservationGuard.Blocks(target)) continue;
+                    // Vanilla only matches name/quality/world level. Journal
+                    // delivery must also preserve durability, variant, crafter,
+                    // custom data and every other canonical persisted field.
+                    ItemRecord candidate;
+                    try { candidate = JournalItemCodec.Capture(target, 1); }
+                    catch { continue; }
+                    if (!JournalChecksum.SameItem(candidate, record, false)) continue;
+                    int amount = Math.Min(remaining, target.m_shared.m_maxStackSize - target.m_stack);
+                    merges.Add((target, target.m_stack, amount)); remaining -= amount;
+                }
+                if (remaining > 0)
+                {
+                    slot = EmptySlot();
+                    if (slot.x < 0) return InventoryResult.NoCapacity;
+                }
+            }
+            // Capacity is established for the entire effect before mutating any
+            // stack. Failure cannot fill part of a stack and return the rest.
+            using (JournalDiagnostics.Measure("unity.inventory.add", expected: JournalTimingThread.Main))
+            {
+                foreach (var merge in merges) merge.Item.m_stack = merge.Before + merge.Amount;
+                if (remaining > 0)
+                {
+                    incoming.m_stack = remaining; incoming.m_gridPos = slot;
+                    inventory.GetAllItems().Add(incoming);
+                }
+            }
+            using (JournalDiagnostics.Measure("unity.inventory.changed_callbacks", expected: JournalTimingThread.Main)) changed(false, false);
+            using (JournalDiagnostics.Measure("unity.inventory.verify_added", expected: JournalTimingThread.Main))
+            {
+                foreach (var merge in merges)
+                    if (!inventory.GetAllItems().Any(i => ReferenceEquals(i, merge.Item)) || merge.Item.m_stack != merge.Before + merge.Amount
+                        || !JournalChecksum.SameItem(JournalItemCodec.Capture(merge.Item, merge.Item.m_stack), record, false))
+                        return InventoryResult.Failed;
+                if (remaining > 0 && (!inventory.GetAllItems().Any(i => ReferenceEquals(i, incoming)) || incoming.m_stack != remaining
+                    || !JournalChecksum.SameItem(JournalItemCodec.Capture(incoming, remaining), record, false))) return InventoryResult.Failed;
+            }
+            return InventoryResult.Applied;
         }
         private static bool SameEffect(CharacterEffect a, CharacterEffect b)
             => a.OperationId == b.OperationId && a.RequestId == b.RequestId && a.Kind == b.Kind
