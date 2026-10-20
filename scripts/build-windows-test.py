@@ -59,6 +59,7 @@ def main():
         'BepInEx/timings/<capture>/journal-events.csv links requests and sequence numbers across queues, SQLite, effects and acknowledgments.\n'
         'journal-stages.csv and journal-summary.txt report thread violations and synchronous main-thread work above 1 ms. Kist drawing is outside this journal trace.\n'
         'Use ordinary F3 Kist actions for journal gameplay. Wait for TIMING SAVED before exiting.\n'
+        'Normal manual sessions run no scratch database fixtures. Standalone adapter probes require -thorskist-adapter-probes.\n'
         'Await the validation handoff before manual testing. Diagnostic fixture keys are not gameplay evidence.\n'
         'Logs: BepInEx/LogOutput.log and Player.log. Production min hird size remains 2; isolated tests use 1.\n', encoding='utf-8')
     archive = args.output.with_suffix('.zip')

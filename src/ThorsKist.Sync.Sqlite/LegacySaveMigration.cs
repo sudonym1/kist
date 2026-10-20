@@ -71,7 +71,7 @@ namespace ThorsKist.Sync.Sqlite
                     foreach (var import in imports)
                     {
                         var state = JournalMachineState.Create(import.State); SqliteJournalStorage.Validate(state);
-                        long id = SqliteJournalStorage.Write(db, tx, state, boundary);
+                        long id = SqliteJournalStorage.InsertNewVault(db, tx, state, boundary);
                         SqliteJournalStorage.Execute(db, tx, "INSERT INTO legacy_metadata VALUES($id,$body);", ("$id", id), ("$body", import.CopyMetadata()));
                     }
                     SqliteJournalStorage.Execute(db, tx, "INSERT INTO migration VALUES(1,$hash,$path,$source);", ("$hash", hash), ("$path", backup), ("$source", source));

@@ -22,6 +22,8 @@ namespace ThorsKist.Sync.Sqlite
         private readonly Action<StorageBoundary>? boundary;
         private readonly SemaphoreSlim gate = new SemaphoreSlim(1, 1);
         private bool disposed;
+        private JournalMachineState? recoveredState;
+        private CommitStamp? recoveredStamp;
         public SqliteJournalStorage(string path, VaultIdentity identity, Action<StorageBoundary>? boundary = null)
         {
             this.path = Path.GetFullPath(path); this.identity = identity ?? throw new ArgumentNullException(nameof(identity));
@@ -30,7 +32,12 @@ namespace ThorsKist.Sync.Sqlite
         public Task<JournalMachineState?> ReadStateAsync(CancellationToken cancellationToken) => Work(db =>
         {
             using (var tx = db.BeginTransaction(deferred: true))
-            { var state = Read(db, tx, identity); tx.Commit(); return state; }
+            {
+                JournalMachineState? state;
+                using (JournalDiagnostics.Measure("sqlite.full_recovery")) state = Read(db, tx, identity);
+                var stamp = ReadCommitStamp(db, tx);
+                tx.Commit(); recoveredState = state; recoveredStamp = stamp; return state;
+            }
         }, cancellationToken);
 
         public Task<byte[]?> ReadLegacyMetadataAsync(CancellationToken token = default) => Work(db =>
@@ -66,24 +73,42 @@ namespace ThorsKist.Sync.Sqlite
 
         public Task CommitAsync(StorageCommit commit, CancellationToken cancellationToken) => Work(db =>
         {
+            try
+            {
             if (!identity.Matches(commit.State.Current.Identity)) throw new InvalidOperationException("Commit belongs to another vault/epoch");
-            using (JournalDiagnostics.Measure("sqlite.candidate.validate", count: commit.State.Current.Stacks.Count)) Validate(commit.State);
+            bool live = commit.PreviousState != null;
+            if (live && (!ReferenceEquals(commit.PreviousState, recoveredState) || recoveredStamp == null))
+                throw new InvalidOperationException("Writer baseline unavailable; reopen and recover before committing");
+            if (!live) using (JournalDiagnostics.Measure("sqlite.candidate.validate", count: commit.State.Current.Stacks.Count)) Validate(commit.State);
             Microsoft.Data.Sqlite.SqliteTransaction transaction;
             using (JournalDiagnostics.Measure("sqlite.transaction.begin")) transaction = db.BeginTransaction(deferred: false);
             using (var tx = transaction)
             {
                 JournalMachineState? previous;
-                using (JournalDiagnostics.Measure("sqlite.previous.read_verify")) previous = Read(db, tx, identity);
+                if (live)
+                {
+                    using (JournalDiagnostics.Measure("sqlite.revision.check"))
+                        if (!recoveredStamp!.Same(ReadCommitStamp(db, tx))) throw new InvalidOperationException("Stale durable writer baseline");
+                    previous = recoveredState;
+                }
+                else using (JournalDiagnostics.Measure("sqlite.previous.read_verify")) previous = Read(db, tx, identity);
                 if (previous != null && commit.ExpectedReplicationRevision.HasValue && previous.Replication.Revision != commit.ExpectedReplicationRevision.Value) throw new InvalidOperationException("Stale replication revision");
                 if ((previous?.Head ?? 0) != commit.ExpectedHead) throw new InvalidOperationException("Stale storage head");
-                if (previous != null) { using (JournalDiagnostics.Measure("sqlite.successor.validate")) ValidateSuccessor(previous, commit.State); }
+                if (previous != null) { if (!live) using (JournalDiagnostics.Measure("sqlite.successor.validate")) ValidateSuccessor(previous, commit.State); }
                 else if (commit.ExpectedHead != 0) throw new InvalidOperationException("Uninitialized vault");
-                using (JournalDiagnostics.Measure("sqlite.rows.write", count: commit.State.Current.Stacks.Count)) Write(db, tx, commit.State, boundary);
+                if (previous == null)
+                { using (JournalDiagnostics.Measure("sqlite.bootstrap.write", count: commit.State.Current.Stacks.Count)) InsertNewVault(db, tx, commit.State, boundary); }
+                else
+                { using (JournalDiagnostics.Measure("sqlite.rows.write")) WriteDelta(db, tx, previous, commit.State); }
+                var stamp = ReadCommitStamp(db, tx);
                 boundary?.Invoke(StorageBoundary.BeforeCommit);
                 using (JournalDiagnostics.Measure("sqlite.transaction.commit_flush")) tx.Commit();
                 boundary?.Invoke(StorageBoundary.AfterCommit);
+                recoveredState = commit.State; recoveredStamp = stamp;
             }
             return true;
+            }
+            catch { recoveredState = null; recoveredStamp = null; throw; }
         }, cancellationToken);
 
         private Task<T> Work<T>(Func<SqliteConnection, T> action, CancellationToken token)
@@ -312,20 +337,17 @@ PRAGMA user_version=5;");
             }
             return stacks;
         }
-        internal static long Write(SqliteConnection db, SqliteTransaction tx, JournalMachineState state, Action<StorageBoundary>? boundary)
+        // Creation only: UNIQUE(world,vault) rejects every existing identity.
+        // This cannot reset or replace an existing vault, including retirement.
+        internal static long InsertNewVault(SqliteConnection db, SqliteTransaction tx, JournalMachineState state, Action<StorageBoundary>? boundary)
         {
             var v = state.Current.Identity;
             Execute(db, tx, @"INSERT INTO vaults(world,vault,epoch,capacity,head,checkpoint_seq,checkpoint_checksum,current_checksum,checksum_schema,history_checksum)
- VALUES($w,$v,$e,$c,$h,$s,$ch,$hash,$schema,$history) ON CONFLICT(world,vault) DO UPDATE SET
- epoch=excluded.epoch,capacity=excluded.capacity,head=excluded.head,checkpoint_seq=excluded.checkpoint_seq,
- checkpoint_checksum=excluded.checkpoint_checksum,current_checksum=excluded.current_checksum,checksum_schema=excluded.checksum_schema,history_checksum=excluded.history_checksum;",
+ VALUES($w,$v,$e,$c,$h,$s,$ch,$hash,$schema,$history);",
                 ("$w", v.World), ("$v", v.Vault), ("$e", v.Epoch.ToString("N")), ("$c", state.Current.Capacity), ("$h", state.Head),
                 ("$s", state.Checkpoint.Sequence), ("$ch", state.Checkpoint.Checksum), ("$hash", JournalChecksum.Compute(state.Current)), ("$schema", state.Checkpoint.Schema),
                 ("$history", HistoryChecksum(state.Results, state.UsedStackIds)));
             long id = Convert.ToInt64(Scalar(db, tx, "SELECT id FROM vaults WHERE world=$w AND vault=$v;", ("$w", v.World), ("$v", v.Vault)));
-            using (JournalDiagnostics.Measure("sqlite.rows.delete_all"))
-                foreach (string table in new[] { "current_stacks", "checkpoint_stacks", "journal", "request_results", "used_stack_ids" })
-                    Execute(db, tx, "DELETE FROM " + table + " WHERE vault_id=$id;", ("$id", id));
             using (JournalDiagnostics.Measure("sqlite.current_stacks.write", count: state.Current.Stacks.Count))
                 foreach (var s in state.Current.Stacks) InsertStack(db, tx, "current_stacks", id, s);
             boundary?.Invoke(StorageBoundary.AfterCurrentWrite);

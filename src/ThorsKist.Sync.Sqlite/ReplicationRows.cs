@@ -44,12 +44,35 @@ CREATE TABLE replication_settlements (vault_id INTEGER NOT NULL REFERENCES vault
             var settlements = state.Settlements.OrderBy(s => s.Operation.ToString("N"), StringComparer.Ordinal).Select(s =>
                 (Key: s.Operation.ToString("N"), Body: StorageEncoding.Encode(new ReplicationState(0, DateTimeOffset.MinValue,
                     Array.Empty<ReplicationSession>(), new[] { s }), StorageEncoding.Replication))).ToArray();
-            Execute(db, tx, "DELETE FROM replication_sessions WHERE vault_id=$id;", ("$id", id));
-            Execute(db, tx, "DELETE FROM replication_settlements WHERE vault_id=$id;", ("$id", id));
             foreach (var row in sessions) Execute(db, tx, "INSERT INTO replication_sessions VALUES($id,$key,$body);", ("$id", id), ("$key", row.Key), ("$body", row.Body));
             foreach (var row in settlements) Execute(db, tx, "INSERT INTO replication_settlements VALUES($id,$key,$body);", ("$id", id), ("$key", row.Key), ("$body", row.Body));
             Execute(db, tx, "INSERT INTO replication VALUES($id,$body,$hash) ON CONFLICT(vault_id) DO UPDATE SET body=excluded.body,checksum=excluded.checksum;",
                 ("$id", id), ("$body", root), ("$hash", ProtocolHash(root, sessions.Select(s => s.Body), settlements.Select(s => s.Body))));
+        }
+        private static Dictionary<string, byte[]> SessionRows(ReplicationState state) => state.Sessions.ToDictionary(
+            s => s.Address.Session.ToString("N"), s => StorageEncoding.Encode(new ReplicationState(0, DateTimeOffset.MinValue,
+                new[] { s }, Array.Empty<EffectSettlement>()), StorageEncoding.Replication), StringComparer.Ordinal);
+        private static Dictionary<string, byte[]> SettlementRows(ReplicationState state) => state.Settlements.ToDictionary(
+            s => s.Operation.ToString("N"), s => StorageEncoding.Encode(new ReplicationState(0, DateTimeOffset.MinValue,
+                Array.Empty<ReplicationSession>(), new[] { s }), StorageEncoding.Replication), StringComparer.Ordinal);
+        private static void WriteProtocolDelta(SqliteConnection db, SqliteTransaction tx, long id, ReplicationState previous, ReplicationState next)
+        {
+            if (ReferenceEquals(previous, next)) return;
+            var sessions = SessionRows(next); var settlements = SettlementRows(next);
+            void ChangedRows(string table, Dictionary<string, byte[]> before, Dictionary<string, byte[]> after)
+            {
+                foreach (var row in after)
+                    if (!before.TryGetValue(row.Key, out var old) || !old.SequenceEqual(row.Value))
+                        Execute(db, tx, "INSERT INTO " + table + " VALUES($id,$key,$body) ON CONFLICT DO UPDATE SET body=excluded.body;",
+                            ("$id", id), ("$key", row.Key), ("$body", row.Value));
+            }
+            ChangedRows("replication_sessions", SessionRows(previous), sessions);
+            ChangedRows("replication_settlements", SettlementRows(previous), settlements);
+            var root = StorageEncoding.Encode(new ReplicationState(next.Revision, next.NextHeartbeat,
+                Array.Empty<ReplicationSession>(), Array.Empty<EffectSettlement>()), StorageEncoding.Replication);
+            Execute(db, tx, "UPDATE replication SET body=$body,checksum=$hash WHERE vault_id=$id;", ("$id", id), ("$body", root),
+                ("$hash", ProtocolHash(root, sessions.OrderBy(r => r.Key, StringComparer.Ordinal).Select(r => r.Value),
+                    settlements.OrderBy(r => r.Key, StringComparer.Ordinal).Select(r => r.Value))));
         }
         private static ReplicationState ReadProtocol(SqliteConnection db, SqliteTransaction tx, long id)
         {

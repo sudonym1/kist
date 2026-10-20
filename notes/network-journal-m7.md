@@ -5,6 +5,82 @@ left after [M6: Transport foundations](network-journal-m6.md). The scope was mov
 here at the user's request on 2026-10-19; no unfinished integration gate was
 claimed to have passed. Game validation and release are now **M8**.
 
+## Incremental storage and database ownership audit (2026-10-20 UTC)
+
+The v15 candidate removes full-vault recovery/validation/replacement from live
+commits. `JournalWriter` supplies an immutable previous state through an internal
+`StorageCommit` constructor; external snapshot submissions cannot claim this
+lineage. Storage requires the exact recovered state, checks a constant-size
+persisted stamp (epoch, head, checkpoint, capacity, checksums and protocol root)
+inside the write transaction, then applies deltas. A stale or uncertain baseline
+fails closed and requires reopen/recovery; it never installs against a guessed
+state. Successful durable commit still precedes writer installation and reply.
+
+Current stacks are upserted/deleted only for appended journal mutations. Results,
+entries and used IDs append; acknowledgment/delivery changes do not rehash
+unchanged identity history. Checkpoints apply only stack changes since the old
+cutoff and prune the acknowledged journal prefix. Protocol persistence compares
+serialized session/settlement rows and updates only changed rows. Existing
+checksum formats and database schema 5 remain compatible. Canonical stock
+checksums in the state machine/wire protocol and hashes over newly extended
+history remain; this patch removes repeated database recovery and full row
+replacement, not the protocol's checksum guarantees.
+
+The old replace-capable snapshot helper is removed. `InsertNewVault` performs
+plain INSERT into a UNIQUE identity and cannot overwrite an existing or retired
+vault. There are no bulk DELETE/reinsert, database-file delete/replace, or VACUUM
+paths in production storage. Remaining DELETE statements name one exact stack
+key or a bounded checkpoint journal prefix. Initial creation and the guarded
+once-only empty-database legacy import insert their initial rows; supported old
+schema upgrades transform protocol rows transactionally, not the whole database.
+SQLite's own WAL commits/checkpoints naturally write modified database pages;
+they are not application-level whole-database rewrites.
+
+Database access audit:
+
+| Path | Ownership and behavior |
+| --- | --- |
+| `JournalWorldOwner.EnsureStarted` | Sole production database-runtime entry; returns before constructing paths or scheduling IO unless `ZNet.instance.IsServer()` is true. |
+| `JournalWorldRuntime` / catalog / vault storage | Server-owned open, recovery, transactional deltas, hird metadata, creation/retirement and shutdown. Shutdown finishes the old server runtime asynchronously. |
+| `JournalGameplaySession` / `JournalClientConnection` | Encoded journal protocol and in-memory replica; no SQLite open/read/write calls. The Sync client assembly has no SQLite dependency. |
+| Listen host | Both roles share a process. Only the server runtime owns the database; its local client still uses the encoded protocol. |
+| Adapter test plugin | Previously ran disposable scratch-DB probes automatically in the menu. Normal manual sessions now skip all adapter fixtures. Standalone probes require `-thorskist-adapter-probes`; cutover probes already require their explicit verification switch. No client gameplay path reads the authoritative database. |
+
+The client conclusion is a production call-site/dependency audit, not a newly
+completed authenticated remote-client session. That multiplayer QA gate remains
+open. Full recovery reads remain server operations at startup/reopen and catalog
+validation; there is no client-side persistent protocol store or legacy fallback.
+
+New SQLite audit triggers verify **13 assertions** against 2,000 stacks:
+partial withdrawal updates exactly one current row, full withdrawal deletes one
+row, heartbeat touches no stack/checkpoint/history rows, checkpoint updates only
+the changed stack and prunes its prefix, pruned retries write nothing, ack updates
+only its session while leaving the other peer untouched, stale writers fail, and
+full reopen verifies all retained identities and results. A transfer/checkpoint
+trace has no full-recovery/candidate/successor-validation calls. The full harness
+passes **175,321 assertions**, including all **45 forced crash cases**. Release
+builds have zero warnings/errors; all 124 Harmony targets/runtime references,
+category/version/whitespace checks pass.
+
+The native probe on an independent copy of the same 587-stack baseline passed
+**19 checks**, recording **651 events**, no drops or thread violations. Its two
+command SQLite operations took **12.0190 ms and 9.8711 ms**; 15 incremental row
+writes averaged **3.0186 ms**, durable flush **3.3469 ms**. Six ack round trips
+averaged **23.9583 ms**, max **33.2863 ms**. No candidate/full-previous/successor
+validation ran during these live commits. Startup and restart retain full
+recovery validation. This cold headless probe is not the user's loaded-world
+burst: cold main-thread inventory still exceeded 1 ms, and the existing 100 ms
+delivery poll still limits click-to-item latency. Neither gate is claimed passed.
+[Native trace and analysis](performance/m7-incremental-storage-20261020) are retained.
+
+Both Windows installers and the installed isolated payload are **v15**, all 29
+file hashes and both archived Setup/Update scripts verified. Bundle:
+`.tools/m7/ThorsKist-M7-Windows-Journal-v15.zip`, SHA256
+`d95aad7509a5512ddf0fc535a4112ace6a743ceeb13172721cfdd432b29a4ed9`.
+The user's post-cooldown SQLite and saved character remain byte-for-byte equal
+to the preserved snapshot (281 vault + 450 character resin = 731). Native tests
+used a separate copied vault and did not modify that QA state.
+
 ## Cooldown capture and bounded delivery fix (2026-10-20 UTC)
 
 The user's v13 capture `20261020-044927-dade9f` lasts **46.5156 seconds**:

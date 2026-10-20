@@ -46,7 +46,7 @@ namespace ThorsKist.Sync
         private async Task Install(JournalMachineState next, CancellationToken token)
         {
             using var elapsed = JournalDiagnostics.Measure("writer.commit.elapsed", JournalTimingKind.Elapsed, JournalTimingThread.Any, next.Current.Stacks.Count);
-            try { await storage.CommitAsync(new StorageCommit(state.Head, next, state.Replication.Revision), token).ConfigureAwait(false); state = next; }
+            try { await storage.CommitAsync(new StorageCommit(state, next), token).ConfigureAwait(false); state = next; }
             catch { faulted = true; throw; }
         }
         private Task<T> Run<T>(Func<Task<T>> action, CancellationToken token)

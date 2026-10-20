@@ -80,6 +80,10 @@ namespace ThorsKist
             }
             if (Environment.GetCommandLineArgs().Contains("-thorskist-cutover-verify"))
             { StartCoroutine(RunCutoverVerification()); return; }
+            // Normal manual host/client play must not run SQLite fixtures in
+            // the menu. Standalone adapter probes require an explicit switch.
+            if (!Environment.GetCommandLineArgs().Contains("-thorskist-adapter-probes"))
+            { Logger.LogInfo("M7 manual gameplay: adapter/database fixtures disabled; F4 profiling active"); return; }
             try
             {
                 LocalControl(); Items(); ReservationInterception(); Projection(); Legacy(); Dispatch();

@@ -135,7 +135,7 @@ namespace ThorsKist.Sync.Sqlite
                     RequireWorld(db, tx);
                     if (Convert.ToInt64(SqliteJournalStorage.Scalar(db, tx, "SELECT count(*) FROM vaults WHERE world=$w AND vault=$v;",
                         ("$w", initial.Identity.World), ("$v", initial.Identity.Vault))) != 0) throw new InvalidOperationException("Vault identity already exists, including retired history");
-                    long id = SqliteJournalStorage.Write(db, tx, JournalMachineState.Create(initial), null);
+                    long id = SqliteJournalStorage.InsertNewVault(db, tx, JournalMachineState.Create(initial), null);
                     SqliteJournalStorage.Execute(db, tx, "INSERT INTO legacy_metadata VALUES($id,$body);", ("$id", id), ("$body", immutable));
                     tx.Commit();
                 }

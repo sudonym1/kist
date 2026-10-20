@@ -2,6 +2,15 @@
 
 ## M7 integrated Windows candidate (2026-10-20 UTC)
 
+**v15** replaces full-vault live commits with transactional row deltas and a
+constant-size durable revision check. The replace-capable snapshot helper is
+removed; new-vault creation cannot overwrite existing identities. Production
+SQLite access is server-only; clients use the journal protocol. Automatic scratch
+database fixtures are disabled in normal manual sessions. The 2,000-stack SQL
+row-audit tests, 175,321 harness assertions/45 crash cases and separate-copy native
+restart probe pass. Both Windows installers and isolated installation are updated.
+See [the database ownership audit and measurements](notes/network-journal-m7.md#incremental-storage-and-database-ownership-audit-2026-10-20-utc).
+
 The partial v13 resin capture identified a delivery backlog that filled the
 client application queue and triggered cooldown. Conservation is verified:
 281 resin in SQLite + 450 on the saved character = 731. The **v14** candidate

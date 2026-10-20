@@ -1,0 +1,294 @@
+{
+  "stages": {
+    "client.ack.round_trip": {
+      "calls": 6,
+      "mean_ms": 23.958250000000003,
+      "max_ms": 33.2863
+    },
+    "client.application_queue.wait": {
+      "calls": 4,
+      "mean_ms": 0.13605,
+      "max_ms": 0.4952
+    },
+    "client.command.elapsed": {
+      "calls": 2,
+      "mean_ms": 35.7543,
+      "max_ms": 42.4853
+    },
+    "client.deposit.submitted": {
+      "calls": 1,
+      "mean_ms": 0.0,
+      "max_ms": 0.0
+    },
+    "client.entry.verify": {
+      "calls": 6,
+      "mean_ms": 2.6649166666666666,
+      "max_ms": 9.3999
+    },
+    "client.reply.received": {
+      "calls": 10,
+      "mean_ms": 0.00013000000000000002,
+      "max_ms": 0.0002
+    },
+    "client.request.round_trip": {
+      "calls": 10,
+      "mean_ms": 28.723239999999997,
+      "max_ms": 42.4208
+    },
+    "client.withdraw.submitted": {
+      "calls": 1,
+      "mean_ms": 0.0001,
+      "max_ms": 0.0001
+    },
+    "server.command.validate_wire": {
+      "calls": 2,
+      "mean_ms": 0.021150000000000002,
+      "max_ms": 0.0223
+    },
+    "server.connection_gate.wait": {
+      "calls": 10,
+      "mean_ms": 0.00092,
+      "max_ms": 0.0038
+    },
+    "server.delivery.elapsed": {
+      "calls": 5,
+      "mean_ms": 6.6963799999999996,
+      "max_ms": 12.4508
+    },
+    "server.delivery.encode": {
+      "calls": 3,
+      "mean_ms": 0.012666666666666666,
+      "max_ms": 0.0146
+    },
+    "server.delivery.select_encode": {
+      "calls": 3,
+      "mean_ms": 0.08876666666666666,
+      "max_ms": 0.2324
+    },
+    "server.delivery_gate.wait": {
+      "calls": 5,
+      "mean_ms": 3.5903799999999997,
+      "max_ms": 17.9471
+    },
+    "server.operation.elapsed": {
+      "calls": 35,
+      "mean_ms": 4.34772,
+      "max_ms": 23.1161
+    },
+    "server.reply.encode": {
+      "calls": 10,
+      "mean_ms": 0.12097,
+      "max_ms": 0.9901
+    },
+    "server.reply.ready": {
+      "calls": 10,
+      "mean_ms": 0.0002,
+      "max_ms": 0.0014
+    },
+    "server.request.decode": {
+      "calls": 10,
+      "mean_ms": 0.13433,
+      "max_ms": 0.6092
+    },
+    "server.request.elapsed": {
+      "calls": 10,
+      "mean_ms": 12.56829,
+      "max_ms": 27.2248
+    },
+    "server.serial_queue.wait": {
+      "calls": 35,
+      "mean_ms": 0.04624285714285714,
+      "max_ms": 0.7249
+    },
+    "sqlite.connection.close": {
+      "calls": 25,
+      "mean_ms": 1.689496,
+      "max_ms": 8.693
+    },
+    "sqlite.connection.open_configure": {
+      "calls": 39,
+      "mean_ms": 2.6029076923076926,
+      "max_ms": 48.9465
+    },
+    "sqlite.current_stacks.delta": {
+      "calls": 15,
+      "mean_ms": 0.019093333333333334,
+      "max_ms": 0.1709
+    },
+    "sqlite.full_recovery": {
+      "calls": 6,
+      "mean_ms": 40.012350000000005,
+      "max_ms": 72.2779
+    },
+    "sqlite.gate.wait": {
+      "calls": 25,
+      "mean_ms": 0.010287999999999999,
+      "max_ms": 0.2427
+    },
+    "sqlite.journal.append": {
+      "calls": 15,
+      "mean_ms": 0.02418,
+      "max_ms": 0.1814
+    },
+    "sqlite.operation.work": {
+      "calls": 25,
+      "mean_ms": 22.358172,
+      "max_ms": 75.5523
+    },
+    "sqlite.protocol.delta": {
+      "calls": 15,
+      "mean_ms": 2.2405266666666668,
+      "max_ms": 5.0738
+    },
+    "sqlite.results.append": {
+      "calls": 15,
+      "mean_ms": 0.013973333333333334,
+      "max_ms": 0.0675
+    },
+    "sqlite.revision.check": {
+      "calls": 15,
+      "mean_ms": 0.08238,
+      "max_ms": 0.1299
+    },
+    "sqlite.rows.write": {
+      "calls": 15,
+      "mean_ms": 3.0185999999999997,
+      "max_ms": 7.6871
+    },
+    "sqlite.schedule.wait": {
+      "calls": 25,
+      "mean_ms": 0.099064,
+      "max_ms": 0.9
+    },
+    "sqlite.schema.check": {
+      "calls": 25,
+      "mean_ms": 0.016772,
+      "max_ms": 0.0267
+    },
+    "sqlite.transaction.begin": {
+      "calls": 15,
+      "mean_ms": 0.02290666666666667,
+      "max_ms": 0.0422
+    },
+    "sqlite.transaction.commit_flush": {
+      "calls": 15,
+      "mean_ms": 3.34688,
+      "max_ms": 5.4661
+    },
+    "sqlite.used_ids.append": {
+      "calls": 15,
+      "mean_ms": 0.09281333333333333,
+      "max_ms": 0.574
+    },
+    "transport.outgoing_queue.wait": {
+      "calls": 24,
+      "mean_ms": 8.511808333333333,
+      "max_ms": 18.5666
+    },
+    "unity.deposit.capture": {
+      "calls": 1,
+      "mean_ms": 0.0149,
+      "max_ms": 0.0149
+    },
+    "unity.deposit.identify": {
+      "calls": 1,
+      "mean_ms": 1.1628,
+      "max_ms": 1.1628
+    },
+    "unity.deposit.reserve": {
+      "calls": 1,
+      "mean_ms": 3.3535,
+      "max_ms": 3.3535
+    },
+    "unity.deposit.submit": {
+      "calls": 1,
+      "mean_ms": 4.6259,
+      "max_ms": 4.6259
+    },
+    "unity.effect.work": {
+      "calls": 7,
+      "mean_ms": 0.5630428571428572,
+      "max_ms": 2.8856
+    },
+    "unity.effect_dispatch.wait": {
+      "calls": 7,
+      "mean_ms": 10.161085714285715,
+      "max_ms": 15.2078
+    },
+    "unity.inventory.add": {
+      "calls": 1,
+      "mean_ms": 0.001,
+      "max_ms": 0.001
+    },
+    "unity.inventory.changed_callbacks": {
+      "calls": 1,
+      "mean_ms": 0.0017,
+      "max_ms": 0.0017
+    },
+    "unity.inventory.find_slot": {
+      "calls": 1,
+      "mean_ms": 0.1737,
+      "max_ms": 0.1737
+    },
+    "unity.inventory.remove_reserved": {
+      "calls": 1,
+      "mean_ms": 1.7311,
+      "max_ms": 1.7311
+    },
+    "unity.inventory.restore": {
+      "calls": 1,
+      "mean_ms": 0.0332,
+      "max_ms": 0.0332
+    },
+    "unity.inventory.verify_added": {
+      "calls": 1,
+      "mean_ms": 0.0593,
+      "max_ms": 0.0593
+    },
+    "unity.inventory_effect.work": {
+      "calls": 2,
+      "mean_ms": 1.36055,
+      "max_ms": 2.4427
+    },
+    "unity.reservation.capture": {
+      "calls": 1,
+      "mean_ms": 0.0321,
+      "max_ms": 0.0321
+    },
+    "unity.reservation.snapshot": {
+      "calls": 1,
+      "mean_ms": 2.033,
+      "max_ms": 2.033
+    },
+    "unity.withdraw.submit": {
+      "calls": 1,
+      "mean_ms": 0.0309,
+      "max_ms": 0.0309
+    },
+    "writer.commit.elapsed": {
+      "calls": 15,
+      "mean_ms": 10.570766666666666,
+      "max_ms": 18.8864
+    },
+    "writer.gate.wait": {
+      "calls": 39,
+      "mean_ms": 0.000641025641025641,
+      "max_ms": 0.0034
+    },
+    "writer.schedule.wait": {
+      "calls": 39,
+      "mean_ms": 0.045202564102564104,
+      "max_ms": 0.8138
+    },
+    "writer.transition.compute": {
+      "calls": 22,
+      "mean_ms": 0.7564545454545454,
+      "max_ms": 4.8631
+    }
+  },
+  "command_sqlite_ms": [
+    12.019,
+    9.8711
+  ],
+  "live_full_validation_calls": 0
+}

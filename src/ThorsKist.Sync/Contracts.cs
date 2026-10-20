@@ -95,6 +95,11 @@ namespace ThorsKist.Sync
         public long ExpectedHead { get; }
         public long? ExpectedReplicationRevision { get; }
         public JournalMachineState State { get; }
+        // Only JournalWriter can attest a transition from its recovered,
+        // immutable baseline. Public snapshot submissions remain untrusted.
+        public JournalMachineState? PreviousState { get; }
+        internal StorageCommit(JournalMachineState previous, JournalMachineState state)
+            : this(previous.Head, state, previous.Replication.Revision) { PreviousState = previous; }
         public StorageCommit(long expectedHead, JournalMachineState state, long? expectedReplicationRevision = null)
         {
             if (expectedHead < 0) throw new ArgumentOutOfRangeException(nameof(expectedHead));

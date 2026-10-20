@@ -24,6 +24,7 @@ static class Program
     }
     static async Task Run(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--incremental-only") { await IncrementalStorageTests.Run(); return; }
         if (args.Length > 0 && args[0] == "--diagnostics-only") { await DiagnosticsTests.Run(); return; }
         if (args.Length > 0 && args[0] == "--timing-only") { TimingTests.Run(); return; }
         if (args.Length > 0 && args[0] == "--m4-child") { await SessionTests.Child(args); return; }
@@ -57,6 +58,7 @@ static class Program
         Reservations();
         checks += TimingTests.Run();
         checks += await DiagnosticsTests.Run();
+        checks += await IncrementalStorageTests.Run();
         checks += StateMachineTests.Run();
         checks += await StorageTests.Run();
         checks += await SessionTests.Run();
