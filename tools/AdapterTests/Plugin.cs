@@ -73,11 +73,16 @@ namespace ThorsKist
             if (Player.m_localPlayer != null && Input.GetKeyDown(KeyCode.F9)) { KistUI.Close(); KistClient.RequestState(); }
             if (ran || ObjectDB.instance == null || ObjectDB.instance.GetItemPrefab("Wood") == null) return;
             ran = true;
+            if (Environment.GetCommandLineArgs().Contains("-thorskist-control-verify"))
+            {
+                try { LocalControl(); } catch (Exception error) { Logger.LogError("M7 LOCAL CONTROL FAIL " + error); }
+                Application.Quit(); return;
+            }
             if (Environment.GetCommandLineArgs().Contains("-thorskist-cutover-verify"))
             { StartCoroutine(RunCutoverVerification()); return; }
             try
             {
-                Items(); ReservationInterception(); Projection(); Legacy(); Dispatch();
+                LocalControl(); Items(); ReservationInterception(); Projection(); Legacy(); Dispatch();
                 tcp = new TcpProbe(message => Logger.LogInfo(message)); journalTcp = new JournalTcpProbe(message => Logger.LogInfo(message));
                 journalSessionTcp = new JournalSessionTcpProbe(Wood(10), Path.Combine(Paths.BepInExRootPath, "m7-session-" + Guid.NewGuid().ToString("N") + ".db"), message => Logger.LogInfo(message));
                 _ = Storage();

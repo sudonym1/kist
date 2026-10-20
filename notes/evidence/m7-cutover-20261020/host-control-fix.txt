@@ -1,0 +1,8 @@
+Loaded M7TEST host: KIST AUTHORITY READY SQLite/journal; 1 hirds
+Observed failure: EndOfStreamException decoding local Hello before character/hird lookup
+Cause: sender ZPackage cursor at end; local delivery lacked RPC deserialization boundary
+Fix: copy bytes into an independent package for each local request/reply
+M7 LOCAL CONTROL PASS 9 native assertions (listen-host request/reply cursor and retry)
+SQLite after user save/exit and regression: head=20, stacks=587; legacy dat hash unchanged
+Corrected hird UI/character gameplay: pending user restart
+Windows v9 bundle SHA256: 494a00782e5169119dc77d2a51acb8f0444e94b3c1ff2dfd34b3101af73294dd

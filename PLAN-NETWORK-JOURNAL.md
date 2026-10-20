@@ -21,13 +21,15 @@ API evidence with a disposable inventory, not a loaded-character/remote-peer pas
 real-character actions/lifecycle, actual crafting/station outcomes, authenticated
 two-PC behavior and F4 comparison still need observed evidence. The user drives
 gameplay in separate full installations; never load original worlds/characters or
-modify the normal Steam installation. Start the next handoff by confirming
-`KIST AUTHORITY READY SQLite/journal` in the ordinary host world.
+modify the normal Steam installation. The first loaded host confirmed
+`KIST AUTHORITY READY SQLite/journal; 1 hirds`. A local control-package cursor bug
+blocked hird presentation; v9 fixes it with nine native regression assertions.
+Next verify that the corrected host presents its existing hird before item QA.
 
 Both Windows installer modes (Setup and Update) use one checksummed Windows
 payload with SQLite dependencies and the F4 profiler. The local isolated copy is
 updated; the second PC's user must apply the matching updater there. See
-[M7 evidence and handoff](notes/network-journal-m7.md) for the final v8 bundle,
+[M7 evidence and handoff](notes/network-journal-m7.md) for the final v9 bundle,
 checks and remaining gates. No release is published.
 
 Preserved **legacy baseline**: idle mean 0.012 ms/frame; opening 486.586 ms;

@@ -73,9 +73,9 @@ version and package checks pass. Sandboxed game startup could not initialize
 Steam; hidden probes were rerun with Steam IPC access. Only agent-launched test
 processes were stopped.
 
-Final bundle: `.tools/m7/ThorsKist-M7-Windows-Journal-v8.zip`, containing matching
+Final bundle: `.tools/m7/ThorsKist-M7-Windows-Journal-v9.zip`, containing matching
 **Setup.cmd and Update.cmd** with managed/native Windows SQLite dependencies,
-F4 profiling and process-only cloud isolation. Bundle SHA256: `ebc3cd3e9278142b9641595d5916f7610198a7a465a332bb23fb7acc3c412bca`.
+F4 profiling and process-only cloud isolation. Bundle SHA256: `494a00782e5169119dc77d2a51acb8f0444e94b3c1ff2dfd34b3101af73294dd`.
 It supersedes v4 and intermediate
 cutover candidates. The local isolated installation is updated with that payload;
 the second PC must apply Update before connecting and has not been remotely
@@ -90,6 +90,29 @@ lifecycle/ingress; and F4 comparison. The user drives these checks in separate
 installs. **M7 completion and M8 readiness are not claimed.** Historical sections
 below describe prior stages; references to an absent owner or keeping legacy
 active are superseded by this cutover candidate.
+
+### First loaded-host startup: local control cursor correction
+
+The user loaded M7TEST in the separate game. Production startup logged
+`KIST AUTHORITY READY SQLite/journal; 1 hirds`; this is now real-world startup
+evidence. The UI showed no configured Kist because local `ZPackage` delivery
+passed the writer's end cursor to the server reader, generating `EndOfStreamException`
+before Hello could identify the character. Network delivery resets the reader,
+so the earlier journal/API and TCP probes did not cover this control boundary.
+
+`JournalControlRpc.DeliverLocal` now creates a fresh byte-backed package for each
+local request/reply without changing the sender cursor. Native regression covers
+complete Hello and hird State/epoch decoding, repeated delivery, and independent
+sender/receiver cursors: **9 assertions pass**. Release mod/adapter builds have
+zero warnings/errors; Harmony/accessibility checks remain 124/124. The user saved
+and exited before local binaries were updated. v9 Setup/Update payloads match the
+local installation. The regression process exited automatically without loading
+a world. SQLite remains at head 20 with 587 stacks and the legacy hash unchanged.
+
+Evidence: `.tools/m7/host-v8-control-failure.log`,
+`.tools/m7/manual-install/local-control-v9.log`,
+`.tools/m7/local-control-build.log` and `local-control-patches.log`.
+Hird UI and actual character actions on the corrected loaded host remain pending.
 
 ## User-attended validation scope (2026-10-19)
 

@@ -1,4 +1,4 @@
-using UnityEngine;
+using System;
 
 namespace ThorsKist
 {
@@ -26,10 +26,16 @@ namespace ThorsKist
         }
         private static bool Current(ZNet world, ZNetPeer peer, ZRpc rpc)
             => peer.IsReady() && peer.m_socket.IsConnected() && ReferenceEquals(peer.m_rpc, rpc) && world.GetPeers().Contains(peer);
+        internal static void DeliverLocal(ZPackage package, Action<ZPackage> receive)
+        {
+            // Written packages have their cursor at the end. Match RPC
+            // deserialization without moving or sharing the sender's cursor.
+            receive(new ZPackage(package.GetArray()));
+        }
         internal static void SendRequest(ZPackage package)
         {
             var world = ZNet.instance; if (world == null) return;
-            if (world.IsServer()) KistServer.OnMessage(ZNet.GetUID(), package);
+            if (world.IsServer()) DeliverLocal(package, copy => KistServer.OnMessage(ZNet.GetUID(), copy));
             else
             {
                 var peer = world.GetServerPeer();
@@ -39,7 +45,7 @@ namespace ThorsKist
         internal static void SendReply(long uid, ZPackage package)
         {
             var world = ZNet.instance; if (world == null || !world.IsServer()) return;
-            if (uid == ZNet.GetUID()) KistClient.OnMessage(uid, package);
+            if (uid == ZNet.GetUID()) DeliverLocal(package, copy => KistClient.OnMessage(uid, copy));
             else
             {
                 var peer = world.GetPeer(uid);
