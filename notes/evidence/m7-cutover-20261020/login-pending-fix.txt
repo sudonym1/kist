@@ -1,0 +1,8 @@
+Native current-vault regression with world-owner terminal-state checks:
+2026-10-20T04:24:58.6268285Z M7 CUTOVER AUTHORITY SQLite/journal <isolated-test-root>\saves\ThorsKist\kist_2186005207.sqlite; legacy SHA256=4CDA2C3DC49F96DACC6FF0F8FF4D2663653F8D0CA92FB78595E3F7BCED32F5F1; initial head=20; stacks=587
+2026-10-20T04:24:59.4325327Z M7 CUTOVER LOGIN ACTIVE displayed=587; sequence=21
+2026-10-20T04:24:59.9234249Z M7 CUTOVER DEPOSIT journal sequence=22; exact new stack=843e9ac1-99dc-40ab-b731-57545134284e; quantity=3
+2026-10-20T04:25:00.5243132Z M7 CUTOVER WITHDRAW journal sequence=23; native character received exact quantity=3
+2026-10-20T04:25:01.6924505Z M7 CUTOVER PASS ordinary gameplay API -> journal -> SQLite -> reopen; dat unchanged; native checks=15
+Windows v10 bundle SHA256: 43e0e0567d409e538e7ffbff1588bd8a877599169101e03f91ee60663e347524
+Loaded-character display confirmation: pending user restart

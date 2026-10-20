@@ -73,9 +73,9 @@ version and package checks pass. Sandboxed game startup could not initialize
 Steam; hidden probes were rerun with Steam IPC access. Only agent-launched test
 processes were stopped.
 
-Final bundle: `.tools/m7/ThorsKist-M7-Windows-Journal-v9.zip`, containing matching
+Final bundle: `.tools/m7/ThorsKist-M7-Windows-Journal-v10.zip`, containing matching
 **Setup.cmd and Update.cmd** with managed/native Windows SQLite dependencies,
-F4 profiling and process-only cloud isolation. Bundle SHA256: `494a00782e5169119dc77d2a51acb8f0444e94b3c1ff2dfd34b3101af73294dd`.
+F4 profiling and process-only cloud isolation. Bundle SHA256: `43e0e0567d409e538e7ffbff1588bd8a877599169101e03f91ee60663e347524`.
 It supersedes v4 and intermediate
 cutover candidates. The local isolated installation is updated with that payload;
 the second PC must apply Update before connecting and has not been remotely
@@ -113,6 +113,36 @@ Evidence: `.tools/m7/host-v8-control-failure.log`,
 `.tools/m7/manual-install/local-control-v9.log`,
 `.tools/m7/local-control-build.log` and `local-control-patches.log`.
 Hird UI and actual character actions on the corrected loaded host remain pending.
+
+### Second loaded-host startup: preserve pending journal login
+
+The user confirmed that the hird appeared on v9 but the Kist view was empty,
+then saved and exited. SQLite still contained **587 stacks**, the same current
+checksum and head **20**: no item-session login committed during that host run.
+`JournalWorldOwner` was treating the client's initial stopped replica as a
+terminal session and could close it before the asynchronous login was sent.
+
+`JournalClientConnection` now distinguishes `LoginPending` from `ProcessingEnded`.
+The owner keeps pending login alive, while actual closure or a stopped initialized
+replica still triggers cleanup. Native session startup has a bounded 31-second
+client timeout and retains the original failure message. Host session startup/
+closure also logs explicitly. Bridge tests withhold server delivery and assert
+that pending login remains alive, becomes active after verification, and becomes
+terminal only at closure: **24 bridge assertions pass**.
+
+The native current-vault regression now applies the same `ProcessingEnded` owner
+check while driving login, and asserts every SQLite stock row reaches the display:
+**LOGIN ACTIVE displayed=587; sequence=21**. Deposit at 22, withdrawal at 23,
+logout and reopen pass: **15 cutover assertions**, original stock restored and
+legacy hash unchanged. These are native inventory/API checks; corrected loaded
+host display still needs user confirmation. The complete harness passes
+**175,295 total assertions**; Release builds have zero warnings/errors and
+Harmony/accessibility remain **124/124**.
+
+v10 Setup/Update payloads are rebuilt and installed in the local separate copy.
+Evidence: `.tools/m7/host-v9-empty-view.log`, `login-pending-build.log`,
+`login-pending-harness.log`, `login-pending-patches.log`, and
+`.tools/m7/manual-install/login-pending-v10.log`. No original saves were loaded.
 
 ## User-attended validation scope (2026-10-19)
 

@@ -34,8 +34,14 @@ static class ClientBridgeTests
         var p = await Pair.Open();
         try
         {
+            Check(p.Client.LoginPending && p.Client.ProcessingStopped && !p.Client.ProcessingEnded,
+                "Fresh client has pending login, not an ended session despite stopped replica");
             var loginId = Guid.NewGuid(); var login = p.Client.LoginAsync(p.Vault, loginId);
+            await Task.Delay(25);
+            Check(p.Client.LoginPending && !p.Client.ProcessingEnded && !p.Client.AccessEnabled,
+                "Owner keeps login alive while server delivery is deliberately withheld");
             await Drive(p, () => login.IsCompleted && p.Client.AccessEnabled);
+            Check(!p.Client.LoginPending && !p.Client.ProcessingEnded, "Verified login transitions from pending to running");
             Check((await login).Status == SessionStatus.Ok && p.Client.Sequence == 1 && p.Inventory.Quantity == 10,
                 "Wire login activates after barrier without a control/application deadlock");
             var a = p.Client.Address!; var stack = Guid.NewGuid(); var request = Guid.NewGuid();
@@ -65,6 +71,7 @@ static class ClientBridgeTests
             var logoutId = Guid.NewGuid(); var logout = p.Client.LogoutAsync(logoutId);
             Check(!p.Client.AccessEnabled, "Logout disables new mutations immediately");
             await Drive(p, () => logout.IsCompleted && p.Client.ProcessingStopped && p.Binding.Session == null);
+            Check(p.Client.ProcessingEnded && !p.Client.LoginPending, "Closed login is terminal for the world owner");
             Check((await logout).Phase == SessionPhase.LoggingOut, "Logout marker precedes final close acknowledgment");
             var logoutRetry = p.Client.LogoutAsync(logoutId); await Drive(p, () => logoutRetry.IsCompleted);
             Check((await logoutRetry).Phase == SessionPhase.Closed, "Wire logout completion retry reuses closed UUID");

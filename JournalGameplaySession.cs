@@ -14,6 +14,8 @@ namespace ThorsKist
     {
         internal static JournalGameplaySession Current;
         private readonly Inventory inventory;
+        private readonly IReplicationClock clock;
+        private readonly TimeSpan loginStarted;
         private readonly JournalCharacterInventory character;
         private readonly JournalGameThread dispatch = new JournalGameThread(16);
         internal readonly JournalStockProjection Stock = new JournalStockProjection();
@@ -69,12 +71,13 @@ namespace ThorsKist
         }
         private bool disposed;
         private bool loggingOut;
+        internal bool LoggingOut => loggingOut;
         internal Exception Failure { get; private set; }
         internal bool AccessEnabled => !disposed && !loggingOut && Failure == null && character.IsValid && Stock.Ready && Client.AccessEnabled;
         internal JournalGameplaySession(Inventory inventory, JournalSendQueue outgoing, IReplicationClock clock,
             JournalTransferBudget budget, Func<Inventory> currentInventory = null)
         {
-            this.inventory = inventory;
+            this.inventory = inventory; this.clock = clock; loginStarted = clock.Elapsed;
             character = new JournalCharacterInventory(inventory, currentInventory);
             Client = new JournalClientConnection(character, dispatch.DispatchAsync, outgoing, clock, budget, Changed);
             character.Invalidated += Dispose;
@@ -98,11 +101,13 @@ namespace ThorsKist
         internal void Tick()
         {
             if (disposed) return;
+            if (Client.LoginPending && clock.Elapsed - loginStarted >= TimeSpan.FromSeconds(31))
+                Failure = new TimeoutException("Journal login did not complete within 31 seconds");
             dispatch.Drain(4);
             if (continuations.TryDequeue(out var continuation) && AccessEnabled) continuation();
             if (Stock.Drain() && ReferenceEquals(Current, this)) KistClient.OnStateChanged?.Invoke();
             if (Failure != null || Client.Failure != null || Client.RequiresSuspension || !character.IsValid)
-            { Failure = Client.Failure ?? new InvalidOperationException("Character inventory invalidated"); Dispose(); }
+            { Failure = Failure ?? Client.Failure ?? new InvalidOperationException("Character inventory invalidated"); Dispose(); }
         }
         internal bool Deposit(Inventory from, ItemDrop.ItemData item, int quantity)
         {

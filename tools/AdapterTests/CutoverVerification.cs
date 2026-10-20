@@ -43,6 +43,7 @@ namespace ThorsKist
             {
                 if (timeout.Elapsed > TimeSpan.FromSeconds(25)) throw new TimeoutException("Native gameplay cutover stalled");
                 if (cutoverWorld.Failure != null) throw new Exception("Storage authority failed", cutoverWorld.Failure);
+                if (!cutoverSession.LoggingOut && cutoverSession.Client.ProcessingEnded) throw new InvalidOperationException("World owner would close this journal session before completion");
                 if (cutoverSession.Failure != null || cutoverSession.Client.Failure != null) throw new Exception("Gameplay session failed", cutoverSession.Failure ?? cutoverSession.Client.Failure);
                 if (cutoverIngress.IsFaulted) throw cutoverIngress.Exception.GetBaseException();
                 if (cutoverDelivery.IsFaulted) throw cutoverDelivery.Exception.GetBaseException();
@@ -95,8 +96,12 @@ namespace ThorsKist
             cutoverBinding = new JournalPeerBinding(cutoverPeer);
             cutoverSession = new JournalGameplaySession(inventory, cutoverRequests, clock, new JournalTransferBudget(), () => inventory);
             JournalGameplaySession.Current = cutoverSession;
+            Check(cutoverSession.Client.LoginPending && !cutoverSession.Client.ProcessingEnded, "World owner retains newly created session while login is pending");
             cutoverSession.Login(vault.Identity);
             yield return CutoverDrive(() => cutoverSession.AccessEnabled);
+            Check(!cutoverSession.Client.LoginPending && !cutoverSession.Client.ProcessingEnded && cutoverSession.Stock.Count == initial.Current.Stacks.Count,
+                "World owner reaches active login with every SQLite stock row displayed");
+            CutoverLog("M7 CUTOVER LOGIN ACTIVE displayed=" + cutoverSession.Stock.Count + "; sequence=" + cutoverSession.Client.Sequence);
             long login = cutoverSession.Client.Sequence;
             Check(KistClient.Deposit(inventory, wood, 3), "Ordinary KistClient.Deposit accepted by live gameplay adapter");
             Check(inventory.ContainsItem(wood), "Deposit remains present until verified journal effect");

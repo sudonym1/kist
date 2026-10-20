@@ -84,8 +84,9 @@ namespace ThorsKist
             var session = JournalGameplaySession.Current;
             if (clientVault == null || KistClient.Hird == null || clientVault.Vault != KistClient.Hird.Id)
             { CloseLocal(); return; }
-            if (!JournalLogout.Pending && session != null && (session.Failure != null || session.Client.ProcessingStopped))
+            if (!JournalLogout.Pending && session != null && (session.Failure != null || session.Client.ProcessingEnded))
             {
+                Main.Log.LogWarning("KIST SESSION ended: " + (session.Failure ?? session.Client.Failure)?.Message);
                 KistClient.Message("Kist session closed. Rejoining after cooldown."); CloseLocal(); retryAt = Time.realtimeSinceStartup + 31f;
             }
             if (!JournalLogout.Pending && JournalGameplaySession.Current == null && Time.realtimeSinceStartup >= retryAt)
@@ -106,6 +107,7 @@ namespace ThorsKist
                 session = new JournalGameplaySession(player.GetInventory(), outgoing, clock, new JournalTransferBudget(),
                     () => Player.m_localPlayer != null && ReferenceEquals(player, Player.m_localPlayer) && !player.IsDead() ? player.GetInventory() : null);
                 JournalGameplaySession.Current = session;
+                Main.Log.LogInfo("KIST SESSION starting journal login; world=" + clientVault.World + " vault=" + clientVault.Vault);
                 session.Login(clientVault);
             }
             if (ZNet.instance.IsServer() && localRequests != null && JournalGameplaySession.Current != null)

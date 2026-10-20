@@ -28,12 +28,17 @@ namespace ThorsKist.Sync
         private int pendingFrames, pendingBytes;
         private bool loginQueued;
         private volatile bool stopped;
+        private volatile bool processingStarted;
         private Exception? failure;
         public Exception? Failure { get { lock (sync) return failure; } }
         public bool AccessEnabled => !stopped && replication.AccessEnabled;
         public long Sequence => replication.Sequence;
         public VaultState? Current => replica.Current;
         public bool ProcessingStopped => stopped || replication.Stopped;
+        // Replication starts stopped while login is in flight. Owners must not
+        // interpret that initial state as a terminal session/disconnect.
+        public bool LoginPending => !stopped && !processingStarted;
+        public bool ProcessingEnded => stopped || (processingStarted && replication.Stopped);
         public bool RequiresSuspension => replica.NeedsSuspension;
         public SessionAddress? Address { get { lock (sync) return address; } }
 
@@ -123,6 +128,7 @@ namespace ThorsKist.Sync
                             Queue(async () =>
                             {
                                 if (!await replication.BeginAsync(login).ConfigureAwait(false) || stopped) { replication.StopProcessing(); return; }
+                                processingStarted = true;
                                 for (int i = 0; i < login.Entries.Count && !stopped && !replication.Stopped; i += JournalWire.MaximumEntries)
                                     await replication.ProcessBatchAsync(login.Session.Address, login.Entries.Skip(i).Take(JournalWire.MaximumEntries).ToArray()).ConfigureAwait(false);
                             }, 0, true);
