@@ -5,6 +5,72 @@ left after [M6: Transport foundations](network-journal-m6.md). The scope was mov
 here at the user's request on 2026-10-19; no unfinished integration gate was
 claimed to have passed. Game validation and release are now **M8**.
 
+## Cooldown capture and bounded delivery fix (2026-10-20 UTC)
+
+The user's v13 capture `20261020-044927-dade9f` lasts **46.5156 seconds**:
+6,891 complete journal events, zero drops, zero thread violations, 36 unfinished
+spans at stop. Withdrawal ended with **Client application queue full**, triggering
+session suspension/cooldown. The 16-frame limit was real application backpressure,
+not a storage error or evidence of item loss. Thirty-two withdraw submissions
+produced 28 persisted results in this run: 14 accepted (681 resin) and 14 stock
+rejections. Nine accepted effects delivered 450 resin; the five unprocessed
+withdrawals returned 231 resin through journaled compensation. Another 50 was
+never withdrawn. Read-only SQLite/character audit confirms **281 vault + 450
+saved character = 731 resin**, valid character SHA512 and SQLite integrity `ok`.
+The final head/checkpoint is 124, with 578 stacks. Both saves were archived before
+any further work and remain byte-identical after verification.
+
+Measured synchronous transfer work on Unity peaked at **4.1002 ms**, including
+inventory application **3.9581 ms** and item restoration **3.2346 ms** for the
+first resin effect (sequence 90). These are nested, not additive. Frame 5011 also
+recorded one collection of each GC generation, with 38.4319 ms frame wall time;
+the trace cannot separate GC pauses from restoration CPU time. All later traced
+transfer work scopes were below 1 ms. Withdrawal submissions peaked at 0.2143 ms;
+worker verification peaked at 2.2660 ms. Drawing remains excluded from this
+investigation; whole-game frame/UI spikes are not attributed to transfers.
+
+The actual backlog is on workers. Acknowledgments averaged **1,506.154 ms**, max
+**3,046.9034 ms**; client application queue wait reached **10,309.9508 ms** and
+listen-host request queue wait **3,152.437 ms**. The capture contains 184 SQLite
+operations, averaging 149.921 ms. Full previous-state read/verification averaged
+55.542 ms, row writes 33.706 ms, durable flush 5.675 ms. **99 timer commits** alone
+spent 14,152.8 ms in SQLite work. The client waits for each durable acknowledgment
+while the server previously kept delivering new frames, eventually filling its
+bounded queue. [Capture and conservation evidence](performance/m7-journal-cooldown-20261020)
+is preserved independently of the earlier baseline.
+
+The fix allows **one bounded unacknowledged batch per peer**. New entries stay
+in the authoritative journal until the prior batch is fully acknowledged;
+transport enqueue success no longer implies application consumption. Chunked
+snapshot/item transfer and existing fixed acknowledgment deadlines remain intact.
+Timer polls now return the installed state unchanged when no barrier, deadline or
+heartbeat is due. Repeated checkpoints with the same protected cutoff also skip
+storage. This removes needless full-state writes without weakening durability or
+changing SQLite's sole-authority status. Full rewrites for actual transitions
+remain a measured performance issue; the 1 ms main-thread target is still open.
+
+Regression checks prove 100 idle polls and repeated unchanged checkpoints do not
+commit, a transport-drained but unacknowledged peer emits no further deliveries
+across 32 pumps, another peer progresses independently, and delayed acknowledgment
+resumes ordered delivery while fixed expiry still excludes a stalled peer.
+The prior storage-failure test expected a write from an idle poll and timed out,
+raising an unhandled .NET exception dialog during development. It now injects
+failure at an actual login deadline transition. The harness entry point also
+logs exceptions and exits with failure instead of leaving an unhandled exception.
+
+Validation: **175,308 assertions**, all 45 crash cases, clean Release build,
+124 Harmony targets/runtime references, category/version/whitespace checks.
+The packaged native probe passed **19 checks** against a separate copied vault:
+814 events, no drops/thread violations, 16 commits with **zero timer commits**,
+ordinary deposit/withdraw/logout/reopen with exact state restoration. This is
+not a repeat of the user's loaded-world burst. Native fix evidence is in the
+`fix-native` subdirectory. Both Windows Setup/Update installers and the isolated
+installation now contain matching **v14**, all 29 file hashes verified. ZIP:
+`.tools/m7/ThorsKist-M7-Windows-Journal-v14.zip`, SHA256
+`2d15791c7f2816514922f920dcb47cebe48ff8f3e989b7e83294762fff4bb871`.
+For the next loaded-world capture, deposit the 450 carried resin first, then
+withdraw/deposit all resin. M7 remains open for this regression and other QA gates.
+
 ## Transfer instrumentation (2026-10-20 UTC)
 
 F4 now captures a bounded journal trace alongside the existing frame profiler.

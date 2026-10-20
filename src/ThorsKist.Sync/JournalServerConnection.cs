@@ -185,6 +185,11 @@ namespace ThorsKist.Sync
                     if (outgoing.TryEnqueue(pending)) { sentThrough = pendingThrough; pending = null; }
                     return;
                 }
+                // One bounded batch in flight per peer. The client processes
+                // each entry through a verified Unity effect and durable ack;
+                // socket acceptance is not application consumption. Leave new
+                // entries in the journal until this batch is acknowledged.
+                if (sentThrough > session.Acknowledged) return;
                 // Select a byte-bounded prefix before registering its delivery
                 // deadlines. QueueDelivery runs again in writer order and may
                 // observe exclusion/checkpointing in between these operations.

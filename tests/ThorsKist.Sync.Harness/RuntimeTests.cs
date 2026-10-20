@@ -95,7 +95,9 @@ static class RuntimeTests
         using var queue = new JournalSendQueue();
         await runtime.ReceiveAsync(peer, binding, queue, new JournalFrame(JournalMessage.Login, Guid.NewGuid(), JournalWire.EncodeLogin(v)));
         storage.Fail = true;
-        await clock.WaitForWaiters(2); clock.Advance(TimeSpan.FromMilliseconds(100));
+        // Expire the login barrier to require a real durable transition.
+        // An idle 100 ms poll deliberately performs no storage write.
+        await clock.WaitForWaiters(2); clock.Advance(TimeSpan.FromSeconds(30));
         await Until(() => runtime.Failure != null);
         try { await runtime.ReceiveAsync(peer, binding, queue, new JournalFrame(JournalMessage.Login, Guid.NewGuid(), JournalWire.EncodeLogin(v))); throw new Exception("Faulted authority admitted login"); }
         catch (InvalidOperationException) { checks++; }

@@ -271,6 +271,13 @@ namespace ThorsKist.Sync
             using var context = JournalDiagnostics.Correlate(Guid.Empty, 0, "tick");
             return Enqueue(() => Change(s =>
         {
+            // Polling is not a persisted transition. Only an actual deadline
+            // or heartbeat can change protocol state here.
+            var now = Now;
+            if (!s.Replication.Sessions.Any(x => x.Phase != SessionPhase.Closed &&
+                    ((x.Phase != SessionPhase.Active && now >= x.BarrierDue) || x.Deadlines.Any(d => now >= d.Due)))
+                && !(now >= s.Replication.NextHeartbeat && s.Replication.Sessions.Any(x => x.Phase == SessionPhase.Active)))
+                return s;
             var sessions = Copies(s); var settlements = s.Replication.Settlements.ToList();
             foreach (var session in sessions.Where(x => x.Phase != SessionPhase.Closed))
                 if ((session.Phase != SessionPhase.Active && Now >= session.BarrierDue) || session.Deadlines.Any(d => Now >= d.Due))
@@ -290,7 +297,7 @@ namespace ThorsKist.Sync
             // Protect even unexpected/unowned pending effects rather than prune them.
             cutoff = Math.Min(cutoff, s.Results.Where(r => r.Entry.Effect != null && !s.Replication.Settlements.Any(x => x.Operation == r.Entry.OperationId))
                 .Select(r => r.Entry.Sequence - 1).DefaultIfEmpty(s.Head).Min());
-            return JournalMachine.Checkpoint(s, cutoff);
+            return cutoff == s.Checkpoint.Sequence ? s : JournalMachine.Checkpoint(s, cutoff);
         }));
         }
         public void Dispose()

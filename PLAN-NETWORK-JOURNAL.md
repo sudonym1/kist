@@ -2,6 +2,14 @@
 
 ## M7 integrated Windows candidate (2026-10-20 UTC)
 
+The partial v13 resin capture identified a delivery backlog that filled the
+client application queue and triggered cooldown. Conservation is verified:
+281 resin in SQLite + 450 on the saved character = 731. The **v14** candidate
+uses one unacknowledged batch per peer and skips unchanged timer/checkpoint
+writes. Both Windows installers and the isolated installation are updated;
+175,308 harness assertions and the separate-copy native probe pass. Loaded-world
+burst confirmation remains open. See [the cooldown analysis](notes/network-journal-m7.md#cooldown-capture-and-bounded-delivery-fix-2026-10-20-utc).
+
 Transfer instrumentation is installed in the matching **v13 Windows Setup/Update
 bundle** and isolated game. F4 exports bounded request/sequence-correlated queue,
 SQLite, verification, main-thread inventory and acknowledgment timings alongside

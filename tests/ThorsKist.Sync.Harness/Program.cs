@@ -15,6 +15,15 @@ static class Program
     static void Check(bool condition, string message) { if (!condition) throw new Exception(message); checks++; }
     static async Task Main(string[] args)
     {
+        try { await Run(args); }
+        catch (Exception error)
+        {
+            Console.Error.WriteLine(error);
+            Environment.ExitCode = 1;
+        }
+    }
+    static async Task Run(string[] args)
+    {
         if (args.Length > 0 && args[0] == "--diagnostics-only") { await DiagnosticsTests.Run(); return; }
         if (args.Length > 0 && args[0] == "--timing-only") { TimingTests.Run(); return; }
         if (args.Length > 0 && args[0] == "--m4-child") { await SessionTests.Child(args); return; }

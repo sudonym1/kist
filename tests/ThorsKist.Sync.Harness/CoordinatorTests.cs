@@ -99,7 +99,7 @@ static class CoordinatorTests
         clock.Advance(TimeSpan.FromSeconds(10)); await server.TickAsync();
         await slow.PumpAsync(); // heartbeat fills the one-frame queue
         clock.Advance(TimeSpan.FromSeconds(10)); await server.TickAsync();
-        await slow.PumpAsync(); // second heartbeat remains pending
+        await slow.PumpAsync(); // second heartbeat stays in the journal until the first is acknowledged
         var before = await server.ReadAsync();
         var oldest = before.Replication.Sessions.Single(s => s.Address.Session == observerLogin.Session!.Address.Session).Deadlines.Min(d => d.Due);
         await c.PumpAsync(); var fastEntries = JournalWire.DecodeEntries(Next(queue).CopyBody());
@@ -108,10 +108,15 @@ static class CoordinatorTests
         clock.Advance(TimeSpan.FromSeconds(9)); await slow.PumpAsync();
         Check((await server.ReadAsync()).Replication.Sessions.Single(s => s.Address.Session == observerLogin.Session!.Address.Session).Deadlines.Min(d => d.Due) == oldest,
             "Retry does not extend oldest deadline");
-        var first = Next(slowQueue); await slow.PumpAsync(); var second = Next(slowQueue);
+        var first = Next(slowQueue);
+        for (int i = 0; i < 32; i++) await slow.PumpAsync();
+        Check(slowQueue.Dequeue() == null, "Slow application cannot accumulate deliveries even after transport drains");
+        long firstThrough = JournalWire.DecodeEntries(first.CopyBody()).Entries.Last().Sequence;
+        await slow.ReceiveAsync(Control(JournalMessage.Acknowledge, observerLogin.Session!.Address, firstThrough)); Reply(slowQueue);
+        await slow.PumpAsync(); var second = Next(slowQueue);
         Check(JournalWire.DecodeEntries(first.CopyBody()).Entries.Last().Sequence < JournalWire.DecodeEntries(second.CopyBody()).Entries.First().Sequence,
             "Queue backpressure preserves delivery sequence");
-        clock.Advance(TimeSpan.FromSeconds(11)); await server.TickAsync();
+        clock.Advance(TimeSpan.FromSeconds(30)); await server.TickAsync();
         Check((await server.ReadAsync()).Replication.Sessions.Single(s => s.Address.Session == observerLogin.Session!.Address.Session).Phase == SessionPhase.Closed,
             "Stalled observer excluded after fixed deadline");
         await slow.CloseAsync(); await slow.CloseAsync();

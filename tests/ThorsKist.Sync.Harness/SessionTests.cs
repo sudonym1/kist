@@ -30,6 +30,7 @@ static class SessionTests
     sealed class Memory : IJournalStorage
     {
         public JournalMachineState? State;
+        public int Commits;
         public TaskCompletionSource<bool>? Block, Entered;
         public Task<JournalMachineState?> ReadStateAsync(CancellationToken t) => Task.FromResult(State);
         public async Task CommitAsync(StorageCommit c, CancellationToken t)
@@ -38,6 +39,7 @@ static class SessionTests
             c.State.Replication.Validate(c.State);
             JournalMachineState.Recover(c.State.Checkpoint, c.State.Current, c.State.Head, c.State.Journal, c.State.Results, c.State.UsedStackIds, c.State.Replication);
             State = c.State;
+            Commits++;
         }
         public void Dispose() { }
     }
@@ -149,8 +151,14 @@ static class SessionTests
     }
     static async Task Deadlines()
     {
-        var clock = new Clock(); using var server = await ReplicationServer.OpenAsync(new Memory(), Initial(), clock, 10);
+        var clock = new Clock(); var storage = new Memory(); using var server = await ReplicationServer.OpenAsync(storage, Initial(), clock, 10);
         var a = (await Active(server)).Session!.Address;
+        int commits = storage.Commits;
+        for (int i = 0; i < 100; i++) await server.TickAsync();
+        Check(storage.Commits == commits, "Idle timer polling does not commit or rewrite durable state");
+        await server.CheckpointAsync(); commits = storage.Commits;
+        for (int i = 0; i < 10; i++) await server.CheckpointAsync();
+        Check(storage.Commits == commits, "Unchanged checkpoint does not rewrite durable state");
         clock.Advance(9999); Check((await server.TickAsync()).Head == 1, "no early heartbeat");
         clock.Advance(1); Check((await server.TickAsync()).Head == 2, "heartbeat at 10s");
         await server.QueueDeliveryAsync(a, 1, 1);
