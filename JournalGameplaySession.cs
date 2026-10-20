@@ -87,9 +87,16 @@ namespace ThorsKist
             catch (Exception error) { Failure = error; Dispose(); return false; }
             return true;
         }
-        internal bool Take(Guid stackId, int quantity)
+        internal bool Delete(Guid stackId)
+        {
+            if (!Stock.Find(stackId, out var stack)) return false;
+            return Take(stackId, stack.Item.Quantity, discard: true);
+        }
+
+        internal bool Take(Guid stackId, int quantity, bool discard = false)
         {
             if (!AccessEnabled || !Stock.Find(stackId, out var stack) || quantity <= 0 || quantity > stack.Item.Quantity - PendingPaymentStack(stackId)) return false;
+            if (discard && immediatePayments.Count >= 48) return false;
             var item = stack.Item;
             try
             {
@@ -99,6 +106,16 @@ namespace ThorsKist
                 JournalDiagnostics.Mark("client.withdraw.submitted", request, 0, quantity);
                 var command = new ItemCommand(Client.Address, request, stackId, ItemCommandKind.Withdraw,
                     new ItemRecord(item.Prefab, quantity, item.FormatVersion, item.CopyPayload()));
+                // Use ordinary withdrawal admission, replication and settlement.
+                // As with crafting payments, consume the verified delivery without
+                // materializing it in the character inventory.
+                if (discard)
+                {
+                    var display = Stock.Rows.FirstOrDefault(row => row.Stack.Id == stackId)?.Item;
+                    immediatePayments.Add(request, new ImmediatePayment { Command = command,
+                        Name = display?.m_shared.m_name ?? item.Prefab, Quality = display?.m_quality ?? -1 });
+                    character.ExpectImmediatePayment(request, command.Item);
+                }
                 Observe(Task.Run(() => Client.ExecuteAsync(command)));
             }
             catch (Exception error) { Failure = error; Dispose(); return false; }

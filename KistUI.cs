@@ -81,6 +81,7 @@ namespace ThorsKist
             public GameObject Root;
             public Image Icon;
             public TMP_Text Name, Count, Tag;
+            public Button Delete;
             public Button[] Take;
         }
         private static readonly List<ItemRowView> _itemRows = new List<ItemRowView>();
@@ -512,7 +513,7 @@ namespace ThorsKist
             icon.raycastTarget = false;
             // The pivot is (0, 0.5), so this offset is the icon's LEFT edge and
             // its right edge lands IconSize further on.
-            float iconLeft = 4f + IconSize * 0.5f;
+            float iconLeft = BtnEdge + BtnW + FontRow * 0.5f;
             Place(iconGo.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(iconLeft, 0f),
                   new Vector2(IconSize, IconSize));
 
@@ -547,12 +548,13 @@ namespace ThorsKist
             int stack = item.m_stack;
 
             float bh = RowH - 2f;
+            Button delete = AddDeleteButton(row, KistClient.DeleteAction(item), canTake);
             // Right edges, measured from the row's right edge outwards.
             Button all = AddTakeButton(row, "All", -BtnEdge, bh, canTake, KistClient.TakeAction(item, stack));
             Button ten = AddTakeButton(row, "10", -(BtnEdge + BtnW + BtnGap), bh, canTake && stack > 1,
                           KistClient.TakeAction(item, stack < 10 ? stack : 10));
             Button one = AddTakeButton(row, "1", -(BtnEdge + (BtnW + BtnGap) * 2f), bh, canTake, KistClient.TakeAction(item, 1));
-            _itemRows.Add(new ItemRowView { Root = row, Icon = icon, Name = name, Count = count, Tag = tagText, Take = new[] { all, ten, one } });
+            _itemRows.Add(new ItemRowView { Root = row, Icon = icon, Name = name, Count = count, Tag = tagText, Delete = delete, Take = new[] { all, ten, one } });
         }
 
         private static void BindItemRow(ItemRowView view, ItemDrop.ItemData item, string label, string tag, int index, bool canTake)
@@ -565,6 +567,11 @@ namespace ThorsKist
             view.Count.text = "x" + item.m_stack;
             view.Tag.text = tag ?? "";
             view.Tag.gameObject.SetActive(!string.IsNullOrEmpty(tag));
+            view.Delete.onClick.RemoveAllListeners();
+            var delete = KistClient.DeleteAction(item);
+            view.Delete.onClick.AddListener(() => delete());
+            view.Delete.interactable = canTake;
+            Tint(view.Delete, canTake ? BtnBg : new Color(0.16f, 0.15f, 0.13f, 1f));
             Vector2i slot = item.m_gridPos; string itemName = item.m_shared.m_name;
             int[] amounts = { item.m_stack, Mathf.Min(10, item.m_stack), 1 };
             for (int i = 0; i < view.Take.Length; i++)
@@ -576,6 +583,14 @@ namespace ThorsKist
                 button.interactable = canTake && (i != 1 || item.m_stack > 1);
                 Tint(button, button.interactable ? BtnBg : new Color(0.16f, 0.15f, 0.13f, 1f));
             }
+        }
+
+        private static Button AddDeleteButton(GameObject row, System.Action delete, bool enabled)
+        {
+            Button button = AddTakeButton(row, "del", 0f, RowH - 2f, enabled, delete);
+            Place(button.transform as RectTransform, new Vector2(0f, 0.5f), new Vector2(BtnEdge, 0f),
+                  new Vector2(BtnW, RowH - 2f), new Vector2(0f, 0.5f));
+            return button;
         }
 
         private static Button AddTakeButton(GameObject row, string label, float x, float h, bool enabled,
@@ -613,7 +628,15 @@ namespace ThorsKist
             {
                 string label = row.Stack.Item.Prefab;
                 if (filter.Length != 0 && label.ToLowerInvariant().IndexOf(filter) < 0) continue;
-                AddNotice(_content, label + " x" + row.Stack.Item.Quantity + " (item mod unavailable; retained" + (row.Stack.Slot < 0 ? ", overflow" : "") + ")");
+                GameObject unavailable = NewPanel("unavailable item", _content, shown % 2 == 0 ? RowBg : RowAlt);
+                _rows.Add(unavailable);
+                LayoutElement layout = unavailable.AddComponent<LayoutElement>();
+                layout.minHeight = layout.preferredHeight = RowH;
+                AddDeleteButton(unavailable, KistClient.DeleteAction(row.Stack.Id), KistClient.CanTake);
+                TMP_Text text = NewText(unavailable.transform, label + " x" + row.Stack.Item.Quantity
+                    + " (item mod unavailable; retained" + (row.Stack.Slot < 0 ? ", overflow" : "") + ")",
+                    FontRow, Dim, TextAlignmentOptions.Left);
+                Stretch(text.rectTransform, BtnEdge + BtnW + FontRow * 0.5f, BtnEdge, 0f, 0f);
                 shown++;
             }
             if (_countLabel != null) _countLabel.text = shown + " of " + session.Stock.Count + " stacks";
