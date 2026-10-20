@@ -41,26 +41,42 @@ namespace ThorsKist.Sync.Sqlite
         private readonly Func<byte[], IReadOnlyCollection<long>> decodeMembers;
         private readonly JournalTransferBudget transfers = new JournalTransferBudget();
         private readonly int maximumDepth;
+        private readonly Func<ItemRecord, int>? stackLimit;
         private Task? stopping;
         private Exception? failure;
         public Exception? Failure { get { lock (sync) return failure ?? writers.Values.Where(t => t.Status == TaskStatus.RanToCompletion).Select(t => t.Result.Failure).FirstOrDefault(e => e != null); } }
         public IReadOnlyList<JournalWorldVault> Vaults { get { lock (sync) return Array.AsReadOnly(vaults.Values.ToArray()); } }
         private JournalWorldRuntime(string path, JournalWorldCatalog catalog, IEnumerable<JournalWorldVault> vaults,
-            IReplicationClock clock, int maximumDepth, Func<byte[], IReadOnlyCollection<long>> decodeMembers)
+            IReplicationClock clock, int maximumDepth, Func<byte[], IReadOnlyCollection<long>> decodeMembers, Func<ItemRecord, int>? stackLimit)
         {
             this.path = path; this.catalog = catalog; this.vaults = vaults.ToDictionary(v => v.Identity.Vault, StringComparer.Ordinal);
-            this.clock = clock; this.maximumDepth = maximumDepth; this.decodeMembers = decodeMembers;
+            this.clock = clock; this.maximumDepth = maximumDepth; this.decodeMembers = decodeMembers; this.stackLimit = stackLimit;
         }
         public static async Task<JournalWorldRuntime> OpenAsync(string databasePath, string world, string? legacyPath,
             Func<byte[], IReadOnlyList<LegacyVaultImport>> decodeLegacy, Func<byte[], IReadOnlyCollection<long>> decodeMembers,
-            IReplicationClock clock, int maximumDepth)
+            IReplicationClock clock, int maximumDepth, int? capacity = null, Func<ItemRecord, int>? stackLimit = null)
         {
             if (maximumDepth <= 0 || clock == null || decodeMembers == null) throw new ArgumentException("World runtime configuration required");
+            if (capacity < 0) throw new ArgumentOutOfRangeException(nameof(capacity));
             var path = Path.GetFullPath(databasePath);
             var catalog = await JournalWorldCatalog.OpenAsync(path, world, legacyPath, decodeLegacy).ConfigureAwait(false);
             var rows = await catalog.ReadAsync().ConfigureAwait(false);
-            var vaults = rows.Select(row => new JournalWorldVault(row.Identity, row.State.Current.Capacity, row.CopyMetadata(), decodeMembers(row.CopyMetadata()))).ToArray();
-            return new JournalWorldRuntime(path, catalog, vaults, clock, maximumDepth, decodeMembers);
+            var vaults = new List<JournalWorldVault>();
+            foreach (var row in rows)
+            {
+                int configured = capacity ?? row.State.Current.Capacity;
+                if (configured != row.State.Current.Capacity || row.State.Journal.Any(e => e.Kind == JournalEntryKind.Resize))
+                {
+                    // Startup has not admitted any peers. Recover and settle old
+                    // sessions before resizing, then checkpoint before login.
+                    using var server = await ReplicationServer.OpenAsync(new SqliteJournalStorage(path, row.Identity),
+                        row.State.Current, clock, maximumDepth, stackLimit).ConfigureAwait(false);
+                    await server.ResizeAsync(configured).ConfigureAwait(false);
+                    await server.CheckpointAsync().ConfigureAwait(false);
+                }
+                vaults.Add(new JournalWorldVault(row.Identity, configured, row.CopyMetadata(), decodeMembers(row.CopyMetadata())));
+            }
+            return new JournalWorldRuntime(path, catalog, vaults, clock, maximumDepth, decodeMembers, stackLimit);
         }
         private void RequireRunning()
         {
@@ -80,7 +96,7 @@ namespace ThorsKist.Sync.Sqlite
                         try
                         {
                             return await JournalVaultRuntime.OpenAsync(new SqliteJournalStorage(path, identity),
-                                new VaultState(identity, vault.Capacity, Array.Empty<StackRecord>()), clock, maximumDepth, transfers).ConfigureAwait(false);
+                                new VaultState(identity, vault.Capacity, Array.Empty<StackRecord>()), clock, maximumDepth, transfers, stackLimit: stackLimit).ConfigureAwait(false);
                         }
                         catch (Exception error) { lock (sync) failure = error; throw; }
                     });

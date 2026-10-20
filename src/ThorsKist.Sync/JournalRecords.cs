@@ -109,7 +109,7 @@ namespace ThorsKist.Sync
             Checksum = checksum ?? throw new ArgumentNullException(nameof(checksum)); Schema = schema;
         }
     }
-    public enum JournalEntryKind { Deposit, Withdraw, Rejected, NoOp, Login, Logout, Compensation }
+    public enum JournalEntryKind { Deposit, Withdraw, Rejected, NoOp, Login, Logout, Compensation, Resize }
     public enum CommandStatus { Accepted, InsufficientStock, CapacityExceeded, StackConflict, RequestConflict, WrongVault }
 
     public sealed class JournalEntry
@@ -125,17 +125,20 @@ namespace ThorsKist.Sync
         public StackRecord? ChangedStack { get; }
         public CharacterEffect? Effect { get; }
         public string Checksum { get; }
+        public int? NewCapacity { get; }
         public JournalEntry(VaultIdentity identity, long sequence, Guid operationId, Guid requestId,
             JournalEntryKind kind, SessionAddress? actor, StackRecord? changedStack, Guid? deletedStack,
-            CharacterEffect? effect, string checksum, int schema = JournalChecksum.Schema)
+            CharacterEffect? effect, string checksum, int schema = JournalChecksum.Schema, int? newCapacity = null)
         {
             if (sequence <= 0 || operationId == Guid.Empty || !Enum.IsDefined(typeof(JournalEntryKind), kind))
                 throw new ArgumentException("Invalid journal identity/kind");
             if (changedStack != null && deletedStack != null) throw new ArgumentException("Only one stack change per entry");
+            if ((kind == JournalEntryKind.Resize) != newCapacity.HasValue || newCapacity < 0)
+                throw new ArgumentException("Capacity is required only for resize entries");
             Identity = identity ?? throw new ArgumentNullException(nameof(identity)); Sequence = sequence;
             OperationId = operationId; RequestId = requestId; Kind = kind; Actor = actor;
             ChangedStack = changedStack; DeletedStack = deletedStack; Effect = effect;
-            Checksum = checksum ?? throw new ArgumentNullException(nameof(checksum)); Schema = schema;
+            Checksum = checksum ?? throw new ArgumentNullException(nameof(checksum)); Schema = schema; NewCapacity = newCapacity;
         }
     }
 
@@ -153,6 +156,19 @@ namespace ThorsKist.Sync
 
     public static class JournalReplay
     {
+        internal static VaultState Resize(VaultState state, int capacity)
+        {
+            var occupied = new HashSet<int>(state.Stacks.Where(s => s.Slot >= 0 && s.Slot < capacity).Select(s => s.Slot));
+            int free = 0;
+            var stacks = state.Stacks.OrderBy(s => s.Id.ToString("N"), StringComparer.Ordinal).Select(s =>
+            {
+                if (s.Slot >= 0 && s.Slot < capacity) return s;
+                while (free < capacity && occupied.Contains(free)) free++;
+                int slot = free < capacity ? free++ : -1;
+                return new StackRecord(s.Id, slot, s.Item);
+            }).ToArray();
+            return new VaultState(state.Identity, capacity, stacks);
+        }
         public static bool Verify(JournalSnapshot snapshot) => snapshot.Schema == JournalChecksum.Schema
             && snapshot.Checksum == JournalChecksum.Compute(snapshot.State);
         public static VerifiedJournalUpdate Prepare(VaultState state, long sequence, JournalEntry entry)
@@ -162,6 +178,12 @@ namespace ThorsKist.Sync
             if (!state.Identity.Matches(entry.Identity) || entry.Schema != JournalChecksum.Schema || previousSequence == long.MaxValue || entry.Sequence != previousSequence + 1)
                 throw new InvalidDataException("Journal address, schema or sequence mismatch");
             ValidateDelta(state, entry);
+            if (entry.Kind == JournalEntryKind.Resize)
+            {
+                var resized = Resize(state, entry.NewCapacity!.Value);
+                if (JournalChecksum.Compute(resized) != entry.Checksum) throw new InvalidDataException("Resize checksum mismatch");
+                return resized;
+            }
             var records = state.Stacks.ToDictionary(s => s.Id);
             if (entry.DeletedStack.HasValue && !records.Remove(entry.DeletedStack.Value))
                 throw new InvalidDataException("Deleting missing stack");
@@ -174,6 +196,13 @@ namespace ThorsKist.Sync
         }
         private static void ValidateDelta(VaultState state, JournalEntry entry)
         {
+            if (entry.Kind == JournalEntryKind.Resize)
+            {
+                if (entry.Actor != null || entry.RequestId != Guid.Empty || entry.Effect != null
+                    || entry.ChangedStack != null || entry.DeletedStack.HasValue)
+                    throw new InvalidDataException("Invalid resize entry");
+                return;
+            }
             if (entry.Kind == JournalEntryKind.Compensation)
             {
                 if (entry.Effect != null || entry.DeletedStack.HasValue || entry.ChangedStack == null

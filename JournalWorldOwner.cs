@@ -40,7 +40,16 @@ namespace ThorsKist
             string uid = world.GetWorldUID().ToString(System.Globalization.CultureInfo.InvariantCulture);
             if (uid == "0") return;
             var names = new Dictionary<int, string>();
-            foreach (var prefab in ObjectDB.instance.m_items) if (prefab != null) names[prefab.name.GetStableHashCode()] = prefab.name;
+            var stackLimits = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var prefab in ObjectDB.instance.m_items) if (prefab != null)
+            {
+                int hash = prefab.name.GetStableHashCode();
+                names[hash] = prefab.name;
+                var drop = prefab.GetComponent<ItemDrop>();
+                if (drop?.m_itemData?.m_shared == null) continue;
+                stackLimits[prefab.name] = drop.m_itemData.m_shared.m_maxStackSize;
+                stackLimits["hash:" + hash.ToString(System.Globalization.CultureInfo.InvariantCulture)] = drop.m_itemData.m_shared.m_maxStackSize;
+            }
             int version = ItemWire.InventoryVersion, capacity = 8 * Main.KistRows.Value;
             string root = Path.Combine(Utils.GetSaveDataPath(FileHelpers.FileSource.Local), "ThorsKist");
             string legacy = Path.Combine(root, "kist_" + uid + ".dat");
@@ -51,7 +60,8 @@ namespace ThorsKist
                 return await JournalWorldRuntime.OpenAsync(database, uid, legacy,
                     bytes => JournalLegacyDecoder.DecodeCaptured(bytes, uid, capacity, version, names)
                         .Select(v => new LegacyVaultImport(v.State, v.CopyHeader())).ToArray(),
-                    bytes => Hird.ReadHeader(new ZPackage(bytes)).Members.Select(m => m.PlayerId).ToArray(), clock, 64);
+                    bytes => Hird.ReadHeader(new ZPackage(bytes)).Members.Select(m => m.PlayerId).ToArray(), clock, 64, capacity,
+                    item => stackLimits.TryGetValue(item.Prefab, out int limit) ? limit : 0);
             });
             Main.Log.LogInfo("KIST AUTHORITY starting SQLite/journal at " + database + "; legacy writes disabled; failures close access");
         }

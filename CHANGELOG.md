@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Verify withdrawals of restored hash-prefab records without falsely rejecting
+  delivered items and compensating them back into the vault.
+- Fill compatible vault stacks before allocating new stacks, preserving item
+  metadata and enforcing stack limits for concurrent deposits. Use the same
+  merge rules as withdrawals and preflight capacity for the whole deposit.
+- Apply `kistRows` to existing vaults when the world reopens, preserving excess
+  stacks as overflow when shrinking. Upgrade SQLite storage to schema 6 for
+  recoverable resizing; older builds require a pre-upgrade backup.
+
 ## 0.9.1
 
 - Update the release version to 0.9.1 and rebuild the publishing package.

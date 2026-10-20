@@ -50,11 +50,11 @@ namespace ThorsKist.Sync
             timer = Task.Run(TimersAsync);
         }
         public static async Task<JournalVaultRuntime> OpenAsync(IJournalStorage storage, VaultState initial,
-            IReplicationClock clock, int maximumDepth, JournalTransferBudget transfers, int maximumConnections = 64)
+            IReplicationClock clock, int maximumDepth, JournalTransferBudget transfers, int maximumConnections = 64, Func<ItemRecord, int>? stackLimit = null)
         {
             if (maximumConnections <= 0) throw new ArgumentOutOfRangeException(nameof(maximumConnections));
             if (clock == null || transfers == null) throw new ArgumentNullException();
-            var server = await ReplicationServer.OpenAsync(storage, initial, clock, maximumDepth).ConfigureAwait(false);
+            var server = await ReplicationServer.OpenAsync(storage, initial, clock, maximumDepth, stackLimit).ConfigureAwait(false);
             return new JournalVaultRuntime(server, initial.Identity, clock, transfers, maximumConnections);
         }
         private void RequireRunning()

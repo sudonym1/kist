@@ -7,9 +7,37 @@ namespace ThorsKist
 {
     public sealed partial class AdapterTests
     {
+        private static void ChangeStackMetadata(ItemDrop.ItemData item, string field)
+        {
+            if (field == "custom") item.m_customData["unique"] = "retain me";
+            if (field == "variant") item.m_variant++;
+            if (field == "crafter") item.m_crafterID++;
+            if (field == "durability") item.m_durability += 1;
+            if (field == "quality") item.m_quality++;
+            if (field == "world") item.m_worldLevel++;
+            if (field == "picked") item.m_pickedUp = !item.m_pickedUp;
+            if (field == "cheated") item.m_cheated = !item.m_cheated;
+        }
+
         private void WithdrawalStacking()
         {
             int start = checks;
+            var named = JournalItemCodec.Capture(Wood(5), 5);
+            var alias = new ItemRecord("hash:" + "Wood".GetStableHashCode().ToString(System.Globalization.CultureInfo.InvariantCulture),
+                named.Quantity, named.FormatVersion, named.CopyPayload());
+            foreach (bool merge in new[] { false, true })
+            {
+                var restored = new Inventory("restored missing prefab", null, 1, 1);
+                if (merge) restored.GetAllItems().Add(Wood(40));
+                using var adapter = new JournalCharacterInventory(restored);
+                var effect = Effect(alias, Guid.NewGuid(), CharacterEffectKind.Add);
+                Check(adapter.Apply(effect) == InventoryResult.Applied && restored.GetAllItems().Sum(i => i.m_stack) == (merge ? 45 : 5),
+                    "Recovered hash alias completes verified withdrawal, merge=" + merge);
+                Check(adapter.Apply(effect) == InventoryResult.AlreadyApplied && restored.GetAllItems().Sum(i => i.m_stack) == (merge ? 45 : 5),
+                    "Recovered alias retry cannot duplicate inventory items");
+            }
+            Check(!JournalItemCodec.Matches(named, new ItemRecord("hash:0", 5, named.FormatVersion, named.CopyPayload())),
+                "Alias comparison still rejects a different prefab identity");
             var inventory = new Inventory("stacking full pack", null, 1, 1);
             var target = Wood(40); inventory.GetAllItems().Add(target);
             using (var adapter = new JournalCharacterInventory(inventory))
@@ -45,14 +73,7 @@ namespace ThorsKist
             foreach (string field in new[] { "custom", "variant", "crafter", "durability", "quality", "world", "picked", "cheated" })
             {
                 inventory = new Inventory("stacking metadata " + field, null, 2, 1); target = Wood(40); inventory.GetAllItems().Add(target);
-                if (field == "custom") target.m_customData["unique"] = "retain me";
-                if (field == "variant") target.m_variant++;
-                if (field == "crafter") target.m_crafterID++;
-                if (field == "durability") target.m_durability += 1;
-                if (field == "quality") target.m_quality++;
-                if (field == "world") target.m_worldLevel++;
-                if (field == "picked") target.m_pickedUp = !target.m_pickedUp;
-                if (field == "cheated") target.m_cheated = !target.m_cheated;
+                ChangeStackMetadata(target, field);
                 var original = JournalItemCodec.Capture(target, target.m_stack);
                 using var adapter = new JournalCharacterInventory(inventory);
                 var effect = Effect(JournalItemCodec.Capture(Wood(5), 5), Guid.NewGuid(), CharacterEffectKind.Add);

@@ -14,6 +14,22 @@ namespace ThorsKist
         public const int MaximumPayload = 256 * 1024;
         private const string UnknownPrefix = "hash:";
 
+        // Migration retains unresolved prefab hashes. Once a prefab is available,
+        // compare its captured name with that alias without rewriting durable bytes.
+        internal static bool Matches(ItemRecord captured, ItemRecord stored, bool includeQuantity = true)
+        {
+            bool samePrefab = captured.Prefab == stored.Prefab
+                || stored.Prefab == UnknownPrefix + captured.Prefab.GetStableHashCode().ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return samePrefab && (!includeQuantity || captured.Quantity == stored.Quantity)
+                && captured.FormatVersion == stored.FormatVersion && captured.CopyPayload().SequenceEqual(stored.CopyPayload());
+        }
+
+        // Shared by both transfer directions. Quantity/location do not affect
+        // compatibility; every canonical persisted field must still match.
+        internal static int MergeRoom(ItemRecord captured, ItemRecord stored, int maximum, long occupied)
+            => occupied < 0 || occupied >= maximum || !Matches(captured, stored, false)
+                ? 0 : (int)(maximum - occupied);
+
         public static ItemRecord Capture(ItemDrop.ItemData item, int quantity)
         {
             if (item == null || item.m_dropPrefab == null || item.m_shared == null

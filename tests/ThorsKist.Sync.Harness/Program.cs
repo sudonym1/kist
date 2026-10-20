@@ -24,6 +24,7 @@ static class Program
     }
     static async Task Run(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--fixes-only") { await ReviewFixTests.Run(); return; }
         if (args.Length > 0 && args[0] == "--incremental-only") { await IncrementalStorageTests.Run(); return; }
         if (args.Length > 0 && args[0] == "--diagnostics-only") { await DiagnosticsTests.Run(); return; }
         if (args.Length > 0 && args[0] == "--timing-only") { TimingTests.Run(); return; }
@@ -70,6 +71,7 @@ static class Program
         checks += await AccessTests.Run();
         checks += await WorldRuntimeTests.Run();
         checks += await RetentionTests.Run();
+        checks += await ReviewFixTests.Run();
         Console.WriteLine($"PASS {checks} contract/scheduler/reservation assertions");
         ProbeAndBaseline();
     }

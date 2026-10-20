@@ -91,7 +91,8 @@ namespace ThorsKist
                 catch (Exception error) { CutoverLog("M7 CONTROL/PEER CHECKS FAIL " + error); }
                 Application.Quit(); return;
             }
-            if (Environment.GetCommandLineArgs().Contains("-thorskist-cutover-verify"))
+            if (Environment.GetCommandLineArgs().Contains("-thorskist-cutover-verify")
+                || Environment.GetCommandLineArgs().Contains("-thorskist-review-fixes"))
             { StartCoroutine(RunCutoverVerification()); return; }
             // Normal manual host/client play must not run SQLite fixtures in
             // the menu. Standalone adapter probes require an explicit switch.
