@@ -15,7 +15,7 @@ namespace ThorsKist
         public const string MODNAME = "Thor's Kist";
         public const string AUTHOR = "posixone";
         public const string GUID = "posixone_ThorsKist";
-        public const string VERSION = "0.9.0";
+        public const string VERSION = "0.9.1";
 
         public static Main Instance;
         public static ManualLogSource Log;

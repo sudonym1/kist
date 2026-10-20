@@ -108,7 +108,7 @@ Unity/Mono provider checks have passed; Linux provider execution and the full
 authenticated multiplayer release matrix remain unverified. macOS and ARM
 native libraries are not included in this release.
 
-Version 0.9.0 is the performance fork's SQLite/journal release candidate.
+Version 0.9.1 is the performance fork's SQLite/journal release candidate.
 See the backup and migration instructions below before upgrading an existing world.
 
 > **On the server too, not just the clients.** The server owns the vault. A
