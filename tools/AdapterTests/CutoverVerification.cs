@@ -63,6 +63,7 @@ namespace ThorsKist
         }
         private IEnumerator CutoverVerification()
         {
+            ProfilingConfiguration();
             bool traceEnabled = Environment.GetCommandLineArgs().Contains("-thorskist-journal-trace-verify");
             bool buildEnabled = Environment.GetCommandLineArgs().Contains("-thorskist-build-verify");
             if (Environment.GetCommandLineArgs().Contains("-thorskist-stacking-verify")) WithdrawalStacking();
@@ -145,15 +146,15 @@ namespace ThorsKist
                 {
                     Player.m_localPlayer = player;
                     JournalBuilding.Placed(player, piece, false);
-                    Check(cutoverSession.PendingBuildPayments == 0 && inventory.CountItems(name) == 3, "Failed placement does not procure or charge materials");
+                    Check(cutoverSession.PendingImmediatePayments == 0 && inventory.CountItems(name) == 3, "Failed placement does not procure or charge materials");
                     JournalBuilding.Placed(player, piece, true);
                     player.ConsumeResources(piece.m_resources, 0);
-                    Check(inventory.CountItems(name) == 0 && cutoverSession.PendingBuildPayments == 1,
+                    Check(inventory.CountItems(name) == 0 && cutoverSession.PendingImmediatePayments == 1,
                         "Patched vanilla post-placement consumption immediately pays three local wood and queues only two missing wood");
-                    Check(cutoverSession.Client.Sequence == sequence && !cutoverSession.Procuring && cutoverSession.Count(name) == available - 2,
+                    Check(cutoverSession.Client.Sequence == sequence && cutoverSession.Count(name) == available - 2,
                         "Hammer payment returns before network delivery, without a procurement delay, and holds cached stock");
                     JournalBuilding.Consume(player, piece.m_resources, 0, -1, 1);
-                    Check(cutoverSession.PendingBuildPayments == 1, "Placement payment marker is consumed exactly once");
+                    Check(cutoverSession.PendingImmediatePayments == 1, "Placement payment marker is consumed exactly once");
                 }
                 finally { Player.m_localPlayer = oldPlayer; }
                 Check(cutoverSession.PayBuild(new[] { (name, -1, 1) }) && cutoverSession.Count(name) == available - 3,
@@ -162,7 +163,7 @@ namespace ThorsKist
                 for (int y = 0; y < inventory.GetHeight(); y++) for (int x = 0; x < inventory.GetWidth(); x++)
                 { var filler = Wood(1); filler.m_gridPos = new Vector2i(x, y); inventory.GetAllItems().Add(filler); }
                 int heldWood = inventory.CountItems(name);
-                yield return CutoverDrive(() => cutoverSession.PendingBuildPayments == 0 && cutoverSession.Client.Sequence > sequence);
+                yield return CutoverDrive(() => cutoverSession.PendingImmediatePayments == 0 && cutoverSession.Client.Sequence > sequence);
                 Check(inventory.CountItems(name) == heldWood && cutoverSession.Count(name) == available - 3,
                     "Verified hammer withdrawals settle with a full pack, without creating inventory resources or double-subtracting holds");
                 var paidRead = cutoverWorld.ReadAsync(vault.Identity); while (!paidRead.IsCompleted) yield return null;
@@ -172,6 +173,12 @@ namespace ThorsKist
                     "SQLite pays exactly the missing material shares of two immediate hammer builds");
                 before = JournalChecksum.Encode(paid.Current);
                 CutoverLog("M7 HAMMER PAYMENT PASS local=3 Kist=3; no inventory delivery; full pack; immediate repeated payments; native checks=" + checks);
+            }
+            if (Environment.GetCommandLineArgs().Contains("-thorskist-immediate-verify"))
+            {
+                yield return ImmediateGameplay(inventory);
+                var immediateRead = cutoverWorld.ReadAsync(vault.Identity); while (!immediateRead.IsCompleted) yield return null;
+                before = JournalChecksum.Encode(immediateRead.Result.Current);
             }
             var logout = cutoverSession.Logout();
             yield return CutoverDrive(() => logout.IsCompleted && cutoverSession.Client.ProcessingStopped);

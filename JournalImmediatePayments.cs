@@ -10,24 +10,33 @@ namespace ThorsKist
 {
     internal sealed partial class JournalGameplaySession
     {
-        private sealed class BuildPayment
+        private sealed class ImmediatePayment
         {
             internal ItemCommand Command;
             internal string Name;
             internal int Quality;
         }
-        private readonly Dictionary<Guid, BuildPayment> buildPayments = new Dictionary<Guid, BuildPayment>();
-        internal int PendingBuildPayments => buildPayments.Count;
-        private int PendingBuildStack(Guid id) => buildPayments.Values.Where(p => p.Command.StackId == id).Sum(p => p.Command.Item.Quantity);
-        private int PendingBuildCount(string name, int quality) => buildPayments.Values.Where(p => p.Name == name && (quality < 0 || p.Quality == quality)).Sum(p => p.Command.Item.Quantity);
+        private readonly Dictionary<Guid, ImmediatePayment> immediatePayments = new Dictionary<Guid, ImmediatePayment>();
+        internal int PendingImmediatePayments => immediatePayments.Count;
+        private int PendingPaymentStack(Guid id) => immediatePayments.Values.Where(p => p.Command.StackId == id).Sum(p => p.Command.Item.Quantity);
+        private int PendingPaymentCount(string name, int quality) => immediatePayments.Values.Where(p => p.Name == name && (quality < 0 || p.Quality == quality)).Sum(p => p.Command.Item.Quantity);
 
-        // Called only when paying an already successful vanilla placement.
-        // All planning is in memory; neither the click nor placement awaits IO.
+        // Pay an already applied optimistic action. All planning is in memory;
+        // neither building nor station interaction waits for journal IO.
         internal bool PayBuild(IReadOnlyList<(string Name, int Quality, int Quantity)> needs)
+            => PayImmediate(needs, ItemCommandPurpose.Craft);
+        internal bool PayCraft(string name, int quality, int quantity)
+            => PayImmediate(new[] { (name, quality, quantity) }, ItemCommandPurpose.Craft);
+        internal bool PayStation(string name)
+            => PayImmediate(new[] { (name, -1, 1) }, ItemCommandPurpose.Station);
+        internal ItemDrop.ItemData PeekAvailable(string name)
+            => Stock.Rows.FirstOrDefault(r => r.Item != null && r.Item.m_shared.m_name == name
+                && r.Stack.Item.Quantity > PendingPaymentStack(r.Stack.Id))?.Item;
+        private bool PayImmediate(IReadOnlyList<(string Name, int Quality, int Quantity)> needs, ItemCommandPurpose purpose)
         {
-            if (!AccessEnabled || Procuring || JournalReservationGuard.Busy(inventory)) return false;
-            using var timing = JournalDiagnostics.Measure("unity.hammer.submit", expected: JournalTimingThread.Main);
-            var planned = new List<BuildPayment>();
+            if (!AccessEnabled || JournalReservationGuard.Busy(inventory)) return false;
+            using var timing = JournalDiagnostics.Measure(purpose == ItemCommandPurpose.Station ? "unity.station.submit" : "unity.hammer.submit", expected: JournalTimingThread.Main);
+            var planned = new List<ImmediatePayment>();
             var held = new Dictionary<Guid, int>();
             foreach (var need in needs)
             {
@@ -35,22 +44,22 @@ namespace ThorsKist
                 foreach (var row in Stock.Rows.Where(r => r.Item != null && r.Item.m_shared.m_name == need.Name && (need.Quality < 0 || r.Item.m_quality == need.Quality)))
                 {
                     held.TryGetValue(row.Stack.Id, out int already);
-                    int take = Math.Min(remaining, row.Stack.Item.Quantity - PendingBuildStack(row.Stack.Id) - already);
+                    int take = Math.Min(remaining, row.Stack.Item.Quantity - PendingPaymentStack(row.Stack.Id) - already);
                     if (take <= 0) continue;
                     var item = row.Stack.Item;
-                    planned.Add(new BuildPayment { Name = need.Name, Quality = row.Item.m_quality,
+                    planned.Add(new ImmediatePayment { Name = need.Name, Quality = row.Item.m_quality,
                         Command = new ItemCommand(Client.Address, Guid.NewGuid(), row.Stack.Id, ItemCommandKind.Withdraw,
-                            new ItemRecord(item.Prefab, take, item.FormatVersion, item.CopyPayload()), ItemCommandPurpose.Craft) });
+                            new ItemRecord(item.Prefab, take, item.FormatVersion, item.CopyPayload()), purpose) });
                     held[row.Stack.Id] = already + take; remaining -= take;
                     if (remaining == 0) break;
                 }
                 if (remaining != 0) return false;
             }
-            if (planned.Count > 48 - buildPayments.Count) return false;
+            if (planned.Count > 48 - immediatePayments.Count) return false;
             foreach (var payment in planned)
             {
-                buildPayments.Add(payment.Command.RequestId, payment);
-                character.ExpectBuildPayment(payment.Command.RequestId, payment.Command.Item);
+                immediatePayments.Add(payment.Command.RequestId, payment);
+                character.ExpectImmediatePayment(payment.Command.RequestId, payment.Command.Item);
             }
             foreach (var payment in planned)
                 Observe(Task.Run(() => Client.ExecuteAsync(payment.Command)));

@@ -29,6 +29,8 @@ namespace ThorsKist
         private static bool active;
         private static Task exporting;
         internal static int TargetCount => Ids.Count;
+        [HarmonyPrepare]
+        private static bool Prepare() => Main.EnableProfiling.Value;
         [HarmonyTargetMethods]
         private static IEnumerable<MethodBase> Targets()
         {

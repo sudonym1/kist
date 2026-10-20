@@ -1,0 +1,42 @@
+[Message:   BepInEx] BepInEx 5.4.23.5 - valheim (10/6/2026 7:48:44 PM)
+[Message:   BepInEx] User is running BepInExPack Valheim version 5.4.2351
+[Info   :   BepInEx] Running under Unity v6000.0.75.2503836
+[Info   :   BepInEx] CLR runtime version: 4.0.30319.42000
+[Info   :   BepInEx] Supports SRE: True
+[Info   :   BepInEx] System platform: Bits64, Windows
+[Message:   BepInEx] Preloader started
+[Info   :   BepInEx] Loaded 1 patcher method from [BepInEx.Preloader 5.4.23.5]
+[Info   :   BepInEx] 1 patcher plugin loaded
+[Info   :   BepInEx] Patching [UnityEngine.CoreModule] with [BepInEx.Chainloader]
+[Message:   BepInEx] Preloader finished
+[Message:   BepInEx] Valheim Version: 1.0.20
+[Message:   BepInEx] Chainloader ready
+[Message:   BepInEx] Chainloader started
+[Info   :   BepInEx] 2 plugins to load
+[Info   :   BepInEx] Loading [Thor's Kist 0.8.6] (posixone_ThorsKist)
+[Info   :Thor's Kist] ThorsKist 0.8.6 loaded.
+[Info   :   BepInEx] Loading [ThorsKist Adapter Tests 1.0.0] (posixone_ThorsKist_AdapterTests)
+[Info   :ThorsKist Adapter Tests] M7 MAIN THREAD TIMING ready: 29 methods; F4 starts/stops a capture in BepInEx/timings
+[Info   :ThorsKist Adapter Tests] M5 TEST SAVE ISOLATION C:\Users\seamu\ThorsKist\.tools\m7\immediate-adapter-v26\saves
+[Info   :ThorsKist Adapter Tests] M7 LOCAL-ONLY SAVE ISOLATION installed; Steam cloud provider/enumeration hidden in this process; Steam settings unchanged
+[Message:   BepInEx] Chainloader startup complete (2 loaded, 0 skipped, 0 failed)
+[Info   :Thor's Kist] ThorsKist: conflict scan looked at 46 crafting seam(s), found 0 conflict(s).
+[Info   :ThorsKist Adapter Tests] M7 LOCAL CONTROL PASS 9 native assertions (listen-host request/reply cursor and retry)
+[Info   :ThorsKist Adapter Tests] M7 PEER CHARACTER PASS 10 native assertions (replicated identity, owner binding, readiness and finite position)
+[Info   :ThorsKist Adapter Tests] M5 ITEM ADAPTER PASS 68 assertions (real Unity/Valheim inventory)
+[Info   :ThorsKist Adapter Tests] M7 RESERVATION INTERCEPTION PASS 63 assertions (real patched inventory and interaction entry points)
+[Info   :ThorsKist Adapter Tests] M7 STOCK PROJECTION PASS 10 assertions (bounded restoration, stable UUIDs, unknown overflow, incremental deltas)
+[Info   :ThorsKist Adapter Tests] M5 LEGACY DECODER PASS 150 cumulative assertions (unknown prefab preserved)
+[Info   :ThorsKist Adapter Tests] M5 DISPATCH PASS 153 cumulative assertions
+[Info   :ThorsKist Adapter Tests] M7 WORKER MIGRATION DECODER PASS canonical items and unknowns decoded outside Unity thread
+[Info   :ThorsKist Adapter Tests] M5 TCP RPC PASS 256 ordered 1 KiB messages over real ZRpc/ZSocket2 loopback
+[Info   :ThorsKist Adapter Tests] M7 CATALOG MONO PASS real decoder/import/backup/reopen C:\Users\seamu\ThorsKist\.tools\m7\immediate-adapter-v26\BepInEx\m5-runtime-f661b849e69b466299b766ee2ea5d072.db.catalog.db
+[Info   :ThorsKist Adapter Tests] M6 JOURNAL TCP PASS 4 exact commands and 3 snapshot chunks through bounded worker and real ZRpc/ZSocket2
+[Info   :ThorsKist Adapter Tests] M7 CONTROL WIRE MONO PASS 2 correlated compact replies through real ZRpc/ZSocket2
+[Info   :ThorsKist Adapter Tests] M5 SQLITE MONO PASS login/commit/ack/session activation C:\Users\seamu\ThorsKist\.tools\m7\immediate-adapter-v26\BepInEx\m5-runtime-f661b849e69b466299b766ee2ea5d072.db
+[Info   :ThorsKist Adapter Tests] M5 JOURNAL INVENTORY PASS 168 cumulative assertions (deposit/take/duplicate/no-capacity/compensation)
+[Info   :Thor's Kist] KIST JOURNAL applied sequence=3 kind=Withdraw stack=913b1e94-22a3-4b37-9965-43342a8e4349; authority=SQLite/journal
+[Info   :Thor's Kist] KIST JOURNAL applied sequence=8 kind=Deposit stack=cd7b6696-aba6-433b-8053-589a9c3bc946; authority=SQLite/journal
+[Info   :Thor's Kist] KIST JOURNAL applied sequence=9 kind=Withdraw stack=cd7b6696-aba6-433b-8053-589a9c3bc946; authority=SQLite/journal
+[Info   :Thor's Kist] KIST JOURNAL applied sequence=10 kind=Withdraw stack=cd7b6696-aba6-433b-8053-589a9c3bc946; authority=SQLite/journal
+[Info   :ThorsKist Adapter Tests] M7 SESSION TCP MONO PASS 16 assertions: real ZRpc login/deposit/take/ack/retry/logout/rejoin with SQLite and bounded game-thread effects

@@ -6,19 +6,10 @@ namespace ThorsKist
     /// Feeding smelters, kilns, fireplaces, cooking stations and fermenters out
     /// of the Kist.
     ///
-    /// Stations do not go through the recipe machinery, so none of the crafting
-    /// work reaches them. They ask the player's inventory two different ways and
-    /// each needs its own answer widened:
-    ///
-    ///   Fuel  -- HaveItem(name) to check, then RemoveItem(name, 1) to take.
-    ///            That remove is the string overload the Kist already
-    ///            intercepts, so widening the CHECK is the whole job.
-    ///
-    ///   Ore   -- GetItem(name) to find a real stack, then RemoveItem(item, 1)
-    ///   and     or RemoveOneItem(item) to take from that exact instance. Both
-    ///   food    of those begin with m_inventory.Contains(item), so there is no
-    ///            faking it: the item has to genuinely be in the player's
-    ///            inventory. One is moved there from the Kist on the spot.
+    /// Query scopes widen inventory checks using verified Kist stock. Actual
+    /// interactions prefer local items. JournalMaterials sends Kist-only inputs
+    /// straight to the station and settles payment asynchronously, without an
+    /// inventory item. Committing scopes never expose synthetic inventory items.
     ///
     /// Everything patched here is a vanilla method. Nothing in this file knows
     /// about any other mod. The scope prefixes claim Priority.First so that the
@@ -41,11 +32,9 @@ namespace ThorsKist
         /// True only while a station is actually TAKING, never while it is
         /// merely asking whether it could be used.
         ///
-        /// The distinction is load bearing. CookingStation.CanUseItems calls
-        /// FindCookableItem, which calls GetItem -- so without this, walking up
-        /// to a cooking station and looking at it would quietly pull raw meat
-        /// out of the Kist and into your pack. Nothing may be moved on a
-        /// question; only on a commitment.
+        /// CookingStation.CanUseItems calls FindCookableItem/GetItem. Hover
+        /// queries can inspect Kist metadata, but vanilla item consumption must
+        /// see only real pack items; Kist-only insertion has its own path.
         /// </summary>
         public static bool Committing { get { return _commit > 0 && Active; } }
 
@@ -80,11 +69,6 @@ namespace ThorsKist
             CraftContext.Pop();
             if (committing && _commit > 0) _commit--;
             if (_depth > 0) _depth--;
-            // Stations never reach Player.ConsumeResources, so the crafting
-            // path's flush never fires for them. Report what the Kist paid once
-            // the outermost station call is done -- not per nested call, or a
-            // single interaction would send several messages.
-            if (_depth == 0) CraftContext.FlushDraws();
         }
 
         /// <summary>
@@ -93,10 +77,8 @@ namespace ThorsKist
         /// A Harmony postfix does not run if the original method throws, so one
         /// exception inside a station -- ours or anyone else's -- would leave
         /// the scope open for the rest of the session. An open scope means
-        /// GetItem would move items out of the Kist during calls that have
-        /// nothing to do with a station, which is exactly the kind of silent
-        /// wrongness this mod should not have. A station interaction is always
-        /// finished within the frame it began, so anything still open at the
+        /// inventory queries would stay widened during unrelated calls. A station
+        /// interaction finishes within one frame, so anything still open at the
         /// start of the next frame leaked and is forced shut.
         /// </summary>
         public static void FrameReset()
@@ -107,7 +89,6 @@ namespace ThorsKist
                                 ") -- a station call threw. Forcing it shut.");
             while (_depth > 0) { CraftContext.Pop(); _depth--; }
             _commit = 0;
-            CraftContext.FlushDraws();
         }
     }
 
@@ -231,8 +212,8 @@ namespace ThorsKist
     }
 
     // ----------------------------------------------------------------------
-    // Query widening uses only verified display records. Commit prefixes procure
-    // real character items first; these hooks never move or spend a mirror.
+    // Query widening uses verified display records. Commit prefixes insert
+    // directly into stations; these hooks never move or spend a mirror.
     [HarmonyPatch(typeof(Inventory), nameof(Inventory.HaveItem), new[] { typeof(string), typeof(bool) })]
     public static class Patches_HaveItem
     {

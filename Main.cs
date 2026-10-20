@@ -31,6 +31,7 @@ namespace ThorsKist
         // ---- General -------------------------------------------------------
         public static ConfigEntry<bool> ModEnable;
         public static ConfigEntry<int> ConfigVersion;
+        public static ConfigEntry<bool> EnableProfiling;
 
         // ---- Keys ----------------------------------------------------------
         public static ConfigEntry<KeyboardShortcut> DepositModifier;
@@ -88,6 +89,8 @@ namespace ThorsKist
                 "Master switch. False disables every part of Thor's Kist.");
             ConfigVersion = Config.Bind("General", "configVersion", 0,
                 "Internal. Lets the mod correct settings whose defaults changed. Do not edit.");
+            EnableProfiling = Config.Bind("Performance", "enableProfiling", false,
+                "Enable optional diagnostic-plugin profiling hooks and the F4 capture key. Requires a game restart. Disabled by default.");
 
             DepositModifier = Config.Bind("Keys", "depositModifier",
                 new KeyboardShortcut(KeyCode.LeftAlt),

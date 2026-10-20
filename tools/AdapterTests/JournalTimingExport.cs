@@ -13,10 +13,12 @@ namespace ThorsKist
     {
         // Allocate the event buffer on a worker before F4, never during a
         // transfer or frame probe. One bounded capture, no event streaming IO.
-        private static Task<JournalDiagnostics.Capture> preparedJournalTrace = Task.Run(() => JournalDiagnostics.PrepareCapture());
+        private static Task<JournalDiagnostics.Capture> preparedJournalTrace;
+        internal static void PrepareJournalTrace()
+            => preparedJournalTrace = Task.Run(() => JournalDiagnostics.PrepareCapture());
         private static bool StartJournalTrace(int mainThread)
         {
-            if (preparedJournalTrace.Status != TaskStatus.RanToCompletion) return false;
+            if (preparedJournalTrace == null || preparedJournalTrace.Status != TaskStatus.RanToCompletion) return false;
             JournalDiagnostics.StartCapture(preparedJournalTrace.Result, mainThread); return true;
         }
         private static string Csv(object value)

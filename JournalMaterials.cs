@@ -3,60 +3,35 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
-using ThorsKist.Sync;
 using UnityEngine;
 
 namespace ThorsKist
 {
     internal static class JournalMaterials
     {
-        internal static bool Executing;
         internal static bool NativeCraft;
+        // Vanilla charges ingredients only after producing the craft result.
+        // Count the real pack, let vanilla remove its share, and pay any missing
+        // share from the Kist without materializing ingredients in inventory.
+        internal static void PayCraft(Inventory inventory, string name, int amount, int quality, bool worldLevelBased)
+        {
+            if (!NativeCraft || amount <= 0 || !CraftContext.IsPlayerInventory(inventory) || !KistClient.CanCraft) return;
+            int local = inventory.GetAllItems().Where(i => i.m_shared.m_name == name && (quality < 0 || i.m_quality == quality)
+                && (!worldLevelBased || i.m_worldLevel >= Game.m_worldLevel) && !JournalReservationGuard.Blocks(i)).Sum(i => i.m_stack);
+            int missing = Math.Max(0, amount - local);
+            if (missing > 0 && !JournalGameplaySession.Current.PayCraft(name, quality, missing))
+                Main.Log.LogWarning("Kist crafting payment unavailable after optimistic craft");
+        }
         private static int Local(string name, int quality = -1)
         {
             CraftContext.EnterRaw();
             try { return Player.m_localPlayer.GetInventory().GetAllItems().Where(i => i.m_shared.m_name == name && (quality < 0 || i.m_quality == quality) && !JournalReservationGuard.Blocks(i)).Sum(i => i.m_stack); }
             finally { CraftContext.ExitRaw(); }
         }
-        internal static bool Requirements(Piece.Requirement[] resources, int quality, int multiplier, bool single, Action replay)
+        internal static bool Station(Component station, MethodBase method, object[] arguments, out bool handled)
         {
-            if (Executing || Player.m_localPlayer == null || Player.m_localPlayer.NoCostCheat()) return true;
-            if (JournalReservationGuard.Busy(Player.m_localPlayer.GetInventory())) return false;
-            var session = JournalGameplaySession.Current;
-            if (session == null || !KistClient.CanCraft) return true;
-            var needs = new List<(string Name, int Quality, int Quantity)>();
-            var station = Player.m_localPlayer.GetCurrentCraftingStation();
-            foreach (var req in resources)
-            {
-                if (req.m_resItem == null || (station != null ? station.m_upgrader != req.m_upgraderResource : req.m_upgraderResource)) continue;
-                int amount = req.GetAmount(quality) * multiplier; if (amount <= 0) continue;
-                string name = req.m_resItem.m_itemData.m_shared.m_name;
-                if (single)
-                {
-                    for (int q = 0; q <= req.m_resItem.m_itemData.m_shared.m_maxQuality; q++)
-                    {
-                        int missing = Math.Max(0, amount - Local(name, q));
-                        if (missing == 0) return true;
-                        if (session.Count(name, q) >= missing) { needs.Add((name, q, missing)); break; }
-                    }
-                    if (needs.Count > 0) break;
-                }
-                else
-                {
-                    int missing = Math.Max(0, amount - Local(name));
-                    if (session.Count(name) < missing) return false;
-                    if (missing > 0) needs.Add((name, -1, missing));
-                }
-            }
-            if (needs.Count == 0) return !single;
-            if (!session.Procuring && session.Procure(needs, ItemCommandPurpose.Craft, () => Run(replay))) KistClient.Message("Withdrawing Kist materials...");
-            return false;
-        }
-        private static void Run(Action action)
-        { Executing = true; try { action(); } finally { Executing = false; } }
-        internal static bool Station(Component station, MethodBase method, object[] arguments)
-        {
-            if (Executing || Player.m_localPlayer == null) return true;
+            handled = false;
+            if (Player.m_localPlayer == null) return true;
             var user = arguments.OfType<Humanoid>().FirstOrDefault();
             if (user != Player.m_localPlayer) return true;
             // Station vanilla code sometimes ignores failed RemoveItem. Freeze
@@ -74,6 +49,7 @@ namespace ThorsKist
             }
             if (station is CookingStation cooking)
             {
+                if (method.Name == "Interact" && AccessTools.Field(typeof(CookingStation), "m_addFoodSwitch").GetValue(cooking) is Switch) return true;
                 bool addingFuel = method.Name.IndexOf("Fuel", StringComparison.Ordinal) >= 0;
                 if (!addingFuel && (bool)AccessTools.Method(typeof(CookingStation), "HaveDoneItem").Invoke(cooking, null)) return true;
                 if (!addingFuel && (int)AccessTools.Method(typeof(CookingStation), "GetFreeSlot").Invoke(cooking, null) < 0) return true;
@@ -88,6 +64,8 @@ namespace ThorsKist
                 if (view == null || view.GetZDO() == null) return true;
                 float heldFuel = view.GetZDO().GetFloat(ZDOVars.s_fuel);
                 var flags = arguments.OfType<bool>().ToArray();
+                if (flags.Length > 0 && flags[0] && (fire.m_holdRepeatInterval <= 0
+                    || Time.time - (float)AccessTools.Field(typeof(Fireplace), "m_lastUseTime").GetValue(fire) < fire.m_holdRepeatInterval)) return true;
                 if (fire.m_canTurnOff && flags.Length >= 2 && !flags[0] && !flags[1] && heldFuel > 0) return true;
                 if (Mathf.CeilToInt(heldFuel) >= fire.m_maxFuel) return true;
             }
@@ -108,15 +86,15 @@ namespace ThorsKist
             if (candidates.Any(i => Local(i.m_itemData.m_shared.m_name) > 0)) return true;
             var input = candidates.FirstOrDefault(i => session.Count(i.m_itemData.m_shared.m_name) > 0);
             if (input == null) return true;
-            if (!session.Procuring)
+            if (session.AccessEnabled && session.PendingImmediatePayments < 48)
             {
-                var player = Player.m_localPlayer; var args = (object[])arguments.Clone();
-                session.Procure(new[] { (input.m_itemData.m_shared.m_name, -1, 1) }, ItemCommandPurpose.Station, () =>
+                var item = session.PeekAvailable(input.m_itemData.m_shared.m_name);
+                if (item != null && JournalStationInputs.Insert(station, fuel, item))
                 {
-                    if (station != null && player == Player.m_localPlayer && !player.IsDead()
-                        && Vector3.Distance(station.transform.position, player.transform.position) <= 5f)
-                        Run(() => method.Invoke(station, args));
-                });
+                    handled = true;
+                    // The station owner applies first, then its success reply
+                    // triggers payment. There is no inventory delivery/replay.
+                }
             }
             return false;
         }
@@ -124,28 +102,22 @@ namespace ThorsKist
     [HarmonyPatch]
     internal static class Patches_JournalMaterials
     {
+        [HarmonyPatch(typeof(Inventory), nameof(Inventory.RemoveItem), new[] { typeof(string), typeof(int), typeof(int), typeof(bool) })]
+        [HarmonyPrefix, HarmonyPriority(Priority.First + 200)]
+        private static void CraftPayment(Inventory __instance, string name, int amount, int itemQuality, bool worldLevelBased)
+            => JournalMaterials.PayCraft(__instance, name, amount, itemQuality, worldLevelBased);
         [HarmonyPatch(typeof(InventoryGui), nameof(InventoryGui.DoCrafting))]
         [HarmonyPrefix, HarmonyPriority(Priority.First + 200)]
-        private static bool Craft(InventoryGui __instance, Player player, Recipe ___m_craftRecipe, ItemDrop.ItemData ___m_craftUpgradeItem, bool ___m_multiCrafting, int ___m_multiCraftAmount)
+        private static bool Craft(Player player, out bool __state)
         {
-            if (___m_craftRecipe == null) return true;
-            var recipe = ___m_craftRecipe; var upgrade = ___m_craftUpgradeItem;
-            int multiplier = ___m_multiCrafting ? ___m_multiCraftAmount : 1;
-            bool ready = JournalMaterials.Requirements(recipe.m_resources, upgrade == null ? 1 : upgrade.m_quality + 1, multiplier, recipe.m_requireOnlyOneIngredient, () =>
-            {
-                // A selection changed while awaiting materials cancels the
-                // craft; delivered inputs stay available in the character.
-                if (__instance != null && player == Player.m_localPlayer
-                    && ReferenceEquals(AccessTools.Field(typeof(InventoryGui), "m_craftRecipe").GetValue(__instance), recipe)
-                    && ReferenceEquals(AccessTools.Field(typeof(InventoryGui), "m_craftUpgradeItem").GetValue(__instance), upgrade))
-                    AccessTools.Method(typeof(InventoryGui), "DoCrafting").Invoke(__instance, new object[] { player });
-            });
-            JournalMaterials.NativeCraft = ready;
-            return ready;
+            __state = JournalMaterials.NativeCraft;
+            if (player == Player.m_localPlayer && JournalReservationGuard.Busy(player.GetInventory())) return false;
+            JournalMaterials.NativeCraft = player == Player.m_localPlayer && KistClient.CanCraft;
+            return true;
         }
         [HarmonyPatch(typeof(InventoryGui), nameof(InventoryGui.DoCrafting))]
         [HarmonyFinalizer]
-        private static void CraftFinished() { JournalMaterials.NativeCraft = false; }
+        private static void CraftFinished(bool __state) { JournalMaterials.NativeCraft = __state; }
         [HarmonyPatch(typeof(Player), nameof(Player.TryPlacePiece))]
         [HarmonyPrefix, HarmonyPriority(Priority.First + 200)]
         private static bool Build(Player __instance, Piece piece, ref bool __result)
@@ -160,8 +132,8 @@ namespace ThorsKist
         }
         private static bool Station(Component instance, MethodBase method, object[] args, ref bool result)
         {
-            bool ready = JournalMaterials.Station(instance, method, args);
-            if (!ready) result = false;
+            bool ready = JournalMaterials.Station(instance, method, args, out bool handled);
+            if (!ready) result = handled;
             return ready;
         }
         [HarmonyPatch(typeof(Smelter), "OnAddOre")]

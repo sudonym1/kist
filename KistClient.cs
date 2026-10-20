@@ -79,11 +79,12 @@ namespace ThorsKist
         public static bool CanTake { get { return KistUnlocked && InRange(Main.TakeRadius.Value) && (JournalGameplaySession.Current != null && JournalGameplaySession.Current.AccessEnabled); } }
         public static bool CanCraft
         {
-            get { return !JournalMaterials.Executing && !JournalMaterials.NativeCraft && JournalGameplaySession.Current != null && JournalGameplaySession.Current.AccessEnabled && Main.CraftFromKist.Value && KistUnlocked && InRange(Main.CraftRadius.Value); }
+            get { return JournalGameplaySession.Current != null && JournalGameplaySession.Current.AccessEnabled && Main.CraftFromKist.Value && KistUnlocked && InRange(Main.CraftRadius.Value); }
         }
 
         public static void Reset()
         {
+            JournalStationInputs.Clear();
             JournalGameplaySession.Current?.Dispose();
             JournalGameplaySession.Current = null;
             Hird = null;
@@ -227,16 +228,6 @@ namespace ThorsKist
             ZPackage pkg = NewMessage(Wire.C2S.Diag);
             pkg.Write(text);
             Send(pkg);
-        }
-
-        /// <summary>
-        /// Tells the server which materials a craft drew out of the Kist. The
-        /// client has already spent them against its mirror; this is what makes
-        /// that real.
-        /// </summary>
-        public static void ReportCraftConsume(List<CraftDraw> draws)
-        {
-            throw new InvalidOperationException("Legacy crafting consumption is disabled; use journal withdrawals.");
         }
 
         // ------------------------------------------------------------------
@@ -410,10 +401,4 @@ namespace ThorsKist
         }
     }
 
-    public class CraftDraw
-    {
-        public string Name;
-        public int Amount;
-        public int Quality = -1;
-    }
 }

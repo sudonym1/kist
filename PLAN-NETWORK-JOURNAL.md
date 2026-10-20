@@ -2,6 +2,19 @@
 
 ## M7 integrated Windows candidate (2026-10-20 UTC)
 
+The user confirmed the v22 remote invite fix works. **v27** makes crafting and
+station loading immediate, like building: cached checks permit the action and
+its missing Kist cost settles asynchronously without delivering ingredients into
+the pack. Station owners confirm an actual quantity/slot change before payment;
+refusal, lost confirmation or failed payment can leave a free input. The old
+procurement/replay queue and unused legacy craft reporting are removed.
+Profiling defaults off via `[Performance] enableProfiling = false`; enabling it
+and restarting restores optional F4 hooks. Both settings pass native checks.
+The final targeted run passes 80 checks plus the full adapter regression suite;
+real two-PC crafting/station UX remains for user QA. Both Windows installers and
+the isolated host contain v27, with latest saves preserved and hashes verified.
+[Implementation and native evidence](notes/performance/m7-immediate-gameplay-20261020/README.md).
+
 The first two-PC v19 session exposed an ingress identity bug: the Steam peer's
 `m_playerID` remains zero on this connection path, so valid remote Hello messages
 were silently refused and the invite roster stayed empty. **v22** uses the

@@ -1,0 +1,11 @@
+2026-10-20T06:24:46.9569058Z M7 PROFILING CONFIG PASS enabled=False; 3 native assertions
+2026-10-20T06:24:47.5884121Z M7 CUTOVER AUTHORITY SQLite/journal C:\Users\seamu\ThorsKist\.tools\m7\immediate-profile-off\saves\ThorsKist\kist_2186005207.sqlite; legacy SHA256=4CDA2C3DC49F96DACC6FF0F8FF4D2663653F8D0CA92FB78595E3F7BCED32F5F1; initial head=0; stacks=587
+2026-10-20T06:24:47.5884121Z M7 JOURNAL TRACE uses current SQLite baseline after manual gameplay; exact restoration checked after scratch transfer and reopen
+2026-10-20T06:24:47.8719146Z M7 CUTOVER LOGIN ACTIVE displayed=587; sequence=1
+2026-10-20T06:24:47.9578984Z M7 CUTOVER DEPOSIT journal sequence=2; exact new stack=3a0ac86e-734f-4b03-ae2a-ea48e2820ed1; quantity=3
+2026-10-20T06:24:48.0735658Z M7 CUTOVER WITHDRAW journal sequence=3; native character received exact quantity=3
+2026-10-20T06:24:48.2058850Z M7 HAMMER PAYMENT PASS local=3 Kist=3; no inventory delivery; full pack; immediate repeated payments; native checks=43
+2026-10-20T06:24:48.4963292Z M7 IMMEDIATE GAMEPLAY PASS 28 native checks; craft Kist=5 local=2, station Kist=2; no inventory bounce; station transport captured, capacity/inventory/payment code native
+2026-10-20T06:24:48.8969579Z M7 CUTOVER PASS ordinary gameplay API -> journal -> SQLite -> reopen; dat unchanged; native checks=75
+2026-10-20T06:24:48.9205091Z M7 JOURNAL TIMING SAVED C:\Users\seamu\ThorsKist\.tools\m7\immediate-profile-off\journal-trace-verification; events=1148 dropped=0 thread_violations=0
+2026-10-20T06:24:48.9315457Z M7 JOURNAL TRACE PASS checks=80

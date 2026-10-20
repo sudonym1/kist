@@ -1,8 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using System.Collections.Generic;
 using System.Linq;
-using System.Collections.Concurrent;
 using ThorsKist.Sync;
 
 namespace ThorsKist
@@ -21,54 +19,8 @@ namespace ThorsKist
         internal readonly JournalStockProjection Stock = new JournalStockProjection();
         internal readonly JournalClientConnection Client;
         private Task closing;
-        private Task procurement;
-        private volatile bool procuring;
-        private readonly ConcurrentQueue<Action> continuations = new ConcurrentQueue<Action>();
-        internal bool Procuring => procuring;
-        internal int Count(string name, int quality = -1) => Math.Max(0, Stock.MaterialCount(name, quality) - PendingBuildCount(name, quality));
+        internal int Count(string name, int quality = -1) => Math.Max(0, Stock.MaterialCount(name, quality) - PendingPaymentCount(name, quality));
         internal ItemDrop.ItemData Peek(string name, int quality = -1) => Stock.Rows.FirstOrDefault(r => r.Item != null && r.Item.m_shared.m_name == name && (quality < 0 || r.Item.m_quality == quality))?.Item;
-        // Vanilla runs only after every requested single-stack withdrawal has
-        // been verified and delivered. A partial refusal leaves delivered items
-        // in the character inventory and does not create a craft/station effect.
-        internal bool Procure(IReadOnlyList<(string Name, int Quality, int Quantity)> needs, ItemCommandPurpose purpose, Action completed)
-        {
-            if (!AccessEnabled || Procuring || JournalReservationGuard.Busy(inventory)) return false;
-            var commands = new List<ItemCommand>();
-            foreach (var need in needs)
-            {
-                int remaining = need.Quantity;
-                foreach (var row in Stock.Rows.Where(r => r.Item != null && r.Item.m_shared.m_name == need.Name && (need.Quality < 0 || r.Item.m_quality == need.Quality)))
-                {
-                    int take = Math.Min(remaining, row.Stack.Item.Quantity - PendingBuildStack(row.Stack.Id)); if (take <= 0) break;
-                    var item = row.Stack.Item;
-                    commands.Add(new ItemCommand(Client.Address, Guid.NewGuid(), row.Stack.Id, ItemCommandKind.Withdraw,
-                        new ItemRecord(item.Prefab, take, item.FormatVersion, item.CopyPayload()), purpose));
-                    remaining -= take;
-                }
-                if (remaining != 0) return false;
-            }
-            procuring = true;
-            procurement = Task.Run(async () =>
-            {
-                try
-                {
-                    foreach (var command in commands)
-                    {
-                        var reply = await Client.ExecuteAsync(command);
-                        if (reply.Status != SessionStatus.Ok) throw new InvalidOperationException("Material session refused: " + reply.Status);
-                        if (reply.Command != CommandStatus.Accepted)
-                        { continuations.Enqueue(() => { procuring = false; KistClient.Message("Kist material withdrawal refused: " + reply.Command + ". Delivered materials remain in your inventory."); }); return; }
-                        var deadline = System.Diagnostics.Stopwatch.StartNew();
-                        while (!disposed && Failure == null && Client.Failure == null && Client.Sequence < reply.Sequence)
-                        { if (deadline.Elapsed > TimeSpan.FromSeconds(31)) throw new TimeoutException("Material delivery was not verified"); await Task.Delay(10); }
-                        if (disposed || Failure != null || Client.Failure != null) return;
-                    }
-                    continuations.Enqueue(() => { procuring = false; completed(); });
-                }
-                catch (Exception error) { Failure = error; procuring = false; }
-            });
-            return true;
-        }
         private bool disposed;
         private bool loggingOut;
         internal bool LoggingOut => loggingOut;
@@ -93,8 +45,8 @@ namespace ThorsKist
                 return;
             }
             Stock.Changed(state, entry);
-            if (entry != null && buildPayments.Remove(entry.RequestId) && entry.Kind == JournalEntryKind.Rejected)
-                Main.Log.LogWarning("Kist hammer payment rejected after optimistic placement; request=" + entry.RequestId);
+            if (entry != null && immediatePayments.Remove(entry.RequestId) && entry.Kind == JournalEntryKind.Rejected)
+                Main.Log.LogWarning("Kist payment rejected after optimistic action; request=" + entry.RequestId);
             if (entry != null && (entry.Kind == JournalEntryKind.Deposit || entry.Kind == JournalEntryKind.Withdraw || entry.Kind == JournalEntryKind.Rejected))
                 Main.Log.LogInfo("KIST JOURNAL applied sequence=" + entry.Sequence + " kind=" + entry.Kind + " stack=" + (entry.ChangedStack?.Id.ToString() ?? entry.DeletedStack?.ToString() ?? "none") + "; authority=SQLite/journal");
         }
@@ -106,14 +58,13 @@ namespace ThorsKist
             if (Client.LoginPending && clock.Elapsed - loginStarted >= TimeSpan.FromSeconds(31))
                 Failure = new TimeoutException("Journal login did not complete within 31 seconds");
             dispatch.Drain(4);
-            if (continuations.TryDequeue(out var continuation) && AccessEnabled) continuation();
             if (Stock.Drain() && ReferenceEquals(Current, this)) KistClient.OnStateChanged?.Invoke();
             if (Failure != null || Client.Failure != null || Client.RequiresSuspension || !character.IsValid)
             { Failure = Failure ?? Client.Failure ?? new InvalidOperationException("Character inventory invalidated"); Dispose(); }
         }
         internal bool Deposit(Inventory from, ItemDrop.ItemData item, int quantity)
         {
-            if (!AccessEnabled || Procuring || !ReferenceEquals(from, inventory) || item == null || quantity <= 0 || quantity > item.m_stack) return false;
+            if (!AccessEnabled || !ReferenceEquals(from, inventory) || item == null || quantity <= 0 || quantity > item.m_stack) return false;
             var request = Guid.NewGuid();
             using var diagnosticContext = JournalDiagnostics.Correlate(request, 0, "deposit");
             using var submit = JournalDiagnostics.Measure("unity.deposit.submit", JournalTimingKind.Work, JournalTimingThread.Main, quantity);
@@ -138,7 +89,7 @@ namespace ThorsKist
         }
         internal bool Take(Guid stackId, int quantity)
         {
-            if (!AccessEnabled || Procuring || !Stock.Find(stackId, out var stack) || quantity <= 0 || quantity > stack.Item.Quantity - PendingBuildStack(stackId)) return false;
+            if (!AccessEnabled || !Stock.Find(stackId, out var stack) || quantity <= 0 || quantity > stack.Item.Quantity - PendingPaymentStack(stackId)) return false;
             var item = stack.Item;
             try
             {

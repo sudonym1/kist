@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using HarmonyLib;
 
 namespace ThorsKist
@@ -41,36 +40,6 @@ namespace ThorsKist
             return p != null && inv != null && inv == p.GetInventory();
         }
 
-        // Materials this craft pulled out of the vault, flushed to the server
-        // once the whole cost has been paid.
-        public static readonly List<CraftDraw> PendingDraws = new List<CraftDraw>();
-
-        public static void FlushDraws()
-        {
-            if (PendingDraws.Count == 0) return;
-
-            // Say what the vault actually paid. "It did not deduct" is otherwise
-            // impossible to tell apart from "it was never asked to" -- the
-            // materials having come from a pack, a backpack or a nearby chest
-            // instead -- and guessing between those wastes an evening.
-            System.Text.StringBuilder sb = new System.Text.StringBuilder("ThorsKist: Kist paid");
-            for (int i = 0; i < PendingDraws.Count; i++)
-                sb.Append(i == 0 ? " " : ", ").Append(PendingDraws[i].Amount)
-                  .Append(" x ").Append(PendingDraws[i].Name);
-            Main.Log.LogInfo(sb.ToString());
-
-            KistClient.ReportCraftConsume(new List<CraftDraw>(PendingDraws));
-            PendingDraws.Clear();
-        }
-
-        public static void Record(string name, int amount, int quality)
-        {
-            foreach (CraftDraw d in PendingDraws)
-            {
-                if (d.Name == name && d.Quality == quality) { d.Amount += amount; return; }
-            }
-            PendingDraws.Add(new CraftDraw { Name = name, Amount = amount, Quality = quality });
-        }
     }
 
     // ----------------------------------------------------------------------
@@ -116,10 +85,6 @@ namespace ThorsKist
         public static void DoCraftingPost()
         {
             CraftContext.Pop();
-            // The single-ingredient branch pays without ConsumeResources, so
-            // this is the only flush those crafts ever get. Harmless after a
-            // normal craft: FlushDraws does nothing when nothing was drawn.
-            CraftContext.FlushDraws();
         }
 
         [HarmonyPatch(typeof(Player), nameof(Player.ConsumeResources))]
@@ -130,14 +95,11 @@ namespace ThorsKist
         public static void ConsumePost()
         {
             CraftContext.Pop();
-            // Tell the server what the vault actually paid, once, after the
-            // whole recipe is settled -- not once per ingredient.
-            CraftContext.FlushDraws();
         }
     }
 
     // ----------------------------------------------------------------------
-    // The two widened answers
+    // Widen requirement counts; immediate payments live in JournalMaterials.
     // ----------------------------------------------------------------------
 
     [HarmonyPatch(typeof(Inventory), nameof(Inventory.CountItems))]

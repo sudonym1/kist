@@ -112,6 +112,7 @@ else is yours alone. Every radius is measured from the Kist itself.
 | Section | Key | Default | Meaning |
 |---|---|---|---|
 | General | `modEnable` | `true` | Master switch. |
+| Performance | `enableProfiling` | `false` | Enables optional diagnostic-plugin profiling hooks and F4 captures. Restart after changing. |
 | Keys | `depositModifier` | `LeftAlt` | Hold this and left-click to deposit. |
 | Keys | `openKist` | `F3` | Opens and closes the Kist window. |
 | Range | `unlimitedRange` | `false` | Ignore every radius; the Kist reaches the whole world. |

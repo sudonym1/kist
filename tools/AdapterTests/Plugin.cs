@@ -19,6 +19,7 @@ namespace ThorsKist
     public sealed partial class AdapterTests : BaseUnityPlugin
     {
         private bool ran;
+        private bool profilingEnabled;
         private int checks;
         private TcpProbe tcp;
         private JournalTcpProbe journalTcp;
@@ -47,13 +48,19 @@ namespace ThorsKist
             TestSaveIsolation.Root = expected;
             Main.MinHirdSize.Value = 1;
             harmony = new Harmony("posixone_ThorsKist_AdapterTests");
+            profilingEnabled = Main.EnableProfiling.Value;
             harmony.PatchAll(typeof(AdapterTests).Assembly);
             if (FileHelpers.CloudStorageSupported || FileHelpers.CloudStorageSupportedAndEnabled
                 || !string.Equals(Utils.GetSaveDataPath(FileHelpers.FileSource.Legacy), expected, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Test process save isolation did not install");
             authenticatedPeers = new AuthenticatedPeerProbe(message => Logger.LogInfo(message));
             timingLog = message => Logger.LogInfo(message);
-            Logger.LogInfo("M7 MAIN THREAD TIMING ready: " + MainThreadProfiler.TargetCount + " methods; F4 starts/stops a capture in BepInEx/timings");
+            if (profilingEnabled)
+            {
+                MainThreadProfiler.PrepareJournalTrace();
+                Logger.LogInfo("M7 MAIN THREAD TIMING ready: " + MainThreadProfiler.TargetCount + " methods; F4 starts/stops a capture in BepInEx/timings");
+            }
+            else Logger.LogInfo("M7 profiling disabled: no timing hooks or F4 recorder; set [Performance] enableProfiling = true and restart to enable");
             Logger.LogInfo("M5 TEST SAVE ISOLATION " + expected);
             Logger.LogInfo("M7 LOCAL-ONLY SAVE ISOLATION installed; Steam cloud provider/enumeration hidden in this process; Steam settings unchanged");
         }
@@ -61,7 +68,7 @@ namespace ThorsKist
         { if (!ok) throw new Exception(message); checks++; }
         private void Update()
         {
-            MainThreadProfiler.Tick(timingLog);
+            if (profilingEnabled) MainThreadProfiler.Tick(timingLog);
             tcp?.Tick();
             journalTcp?.Tick();
             journalSessionTcp?.Tick();
@@ -75,7 +82,7 @@ namespace ThorsKist
             ran = true;
             if (Environment.GetCommandLineArgs().Contains("-thorskist-control-verify"))
             {
-                try { LocalControl(); PeerCharacterIdentity(); CutoverLog("M7 CONTROL/PEER CHECKS PASS " + checks + " native assertions"); }
+                try { LocalControl(); PeerCharacterIdentity(); ProfilingConfiguration(); CutoverLog("M7 CONTROL/PEER CHECKS PASS " + checks + " native assertions"); }
                 catch (Exception error) { CutoverLog("M7 CONTROL/PEER CHECKS FAIL " + error); }
                 Application.Quit(); return;
             }
@@ -84,7 +91,7 @@ namespace ThorsKist
             // Normal manual host/client play must not run SQLite fixtures in
             // the menu. Standalone adapter probes require an explicit switch.
             if (!Environment.GetCommandLineArgs().Contains("-thorskist-adapter-probes"))
-            { Logger.LogInfo("M7 manual gameplay: adapter/database fixtures disabled; F4 profiling active"); return; }
+            { Logger.LogInfo("M7 manual gameplay: adapter/database fixtures disabled; profiling " + (profilingEnabled ? "enabled (F4)" : "disabled")); return; }
             try
             {
                 LocalControl(); PeerCharacterIdentity(); Items(); ReservationInterception(); Projection(); Legacy(); Dispatch();
@@ -124,7 +131,7 @@ namespace ThorsKist
             }
             catch (Exception error) { Logger.LogError("M5 POOLED UI FAIL " + error); }
         }
-        private void OnDestroy() { MainThreadProfiler.Stop(); authenticatedPeers?.Dispose(); manualInventory?.Dispose(); tcp?.Dispose(); journalTcp?.Dispose(); journalSessionTcp?.Dispose(); gameThread?.Dispose(); harmony?.UnpatchSelf(); }
+        private void OnDestroy() { if (profilingEnabled) MainThreadProfiler.Stop(); authenticatedPeers?.Dispose(); manualInventory?.Dispose(); tcp?.Dispose(); journalTcp?.Dispose(); journalSessionTcp?.Dispose(); gameThread?.Dispose(); harmony?.UnpatchSelf(); }
         private void Dispatch()
         {
             var dispatcher = new JournalGameThread(2); int actions = 0;

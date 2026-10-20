@@ -7,6 +7,26 @@ claimed to have passed. Game validation and release are now **M8**.
 
 ## First two-PC invite diagnosis, v22 (2026-10-20 UTC)
 
+The user subsequently confirmed that inviting the remote character works.
+
+## Immediate crafting and station inputs, v27 (2026-10-20 UTC)
+
+The user clarified that the journal's purpose is fast distributed state
+synchronization. Gameplay should use cached checks and proceed immediately,
+accepting rare free/double-spent results when background payment fails. Building,
+crafting and station loading now share `JournalImmediatePayments.cs`; ingredients
+are never delivered into the pack to fund those actions. Ordinary withdrawals
+still deliver items normally. Procurement/replay, its queue/polling/state flags,
+and unused legacy craft-draw reporting were removed. Profiling defaults off,
+with optional `[Performance] enableProfiling = true` plus restart restoring F4.
+The native run passes 80 checks, including 28 new immediate-gameplay checks;
+profiling enabled passes a separate 22-check control/configuration run. The full
+adapter suite passes. Both installers and isolated host contain v27; the ZIP is
+in `C:\shared` and latest save files remain byte-identical after deployment.
+[Behavior, boundaries, timing and retained evidence](performance/m7-immediate-gameplay-20261020/README.md).
+
+## First two-PC invite implementation, v22 (2026-10-20 UTC)
+
 The remote character joined Valheim but never appeared in the invite roster.
 Remote logs and all 29 installation payload hashes confirm v19 loaded correctly.
 Production ingress incorrectly required `ZNetPeer.m_playerID`, which this Steam
