@@ -1,5 +1,10 @@
 # M8: Game validation and release
 
+The [local spending follow-up plan](../PLAN-LOCAL-FIRST-JOURNAL.md) adds L1-L6
+implementation and acceptance gates. Apply its revised local-spending,
+replication, and accounting semantics when validating that candidate; this
+historical matrix does not require destination durability.
+
 Status: **planned**, after [M7 live journal integration](network-journal-m7.md).
 This is the former M7 scope, renumbered when the user requested moving pending
 M6 integration work into a later milestone on 2026-10-19.
