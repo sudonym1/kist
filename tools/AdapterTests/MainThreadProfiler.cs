@@ -35,10 +35,10 @@ namespace ThorsKist
             if (Ids.Count != 0) return Ids.OrderBy(p => p.Value).Select(p => p.Key).ToArray();
             var targets = new[] {
                 (typeof(Main), "Update"),
-                (typeof(KistServer), "Tick"), (typeof(KistServer), "EnsureLoaded"), (typeof(KistServer), "Save"),
+                (typeof(KistServer), "Tick"), (typeof(KistServer), "EnsureLoaded"), (typeof(JournalWorldOwner), "Tick"),
                 (typeof(KistServer), "OnMessage"), (typeof(KistServer), "SendState"),
                 (typeof(KistClient), "Tick"), (typeof(KistClient), "OnMessage"), (typeof(KistClient), "ReadState"),
-                (typeof(KistClient), "Deposit"), (typeof(KistClient), "Take"),
+                (typeof(KistClient), "Deposit"), (typeof(JournalGameplaySession), "Take"),
                 (typeof(KistUI), "Tick"), (typeof(KistUI), "Open"), (typeof(KistUI), "Build"),
                 (typeof(KistUI), "BuildKistRows"), (typeof(KistUI), "BuildHirdRows"),
                 (typeof(KistStock), "Count"), (typeof(KistSort), "Arrange"),

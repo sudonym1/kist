@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <ProjectReference Include="src/ThorsKist.Sync/ThorsKist.Sync.csproj" />
+    <ProjectReference Include="src/ThorsKist.Sync.Sqlite/ThorsKist.Sync.Sqlite.csproj" />
   </ItemGroup>
 
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">

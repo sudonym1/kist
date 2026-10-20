@@ -458,6 +458,8 @@ namespace ThorsKist
                 AddNotice(_content, "You are not in a hird. Open the HIRD tab to found one.");
                 return;
             }
+            if (KistClient.InHird && JournalGameplaySession.Current == null)
+            { AddNotice(_content, "Kist session is connecting or temporarily unavailable. Check the host log if it does not reconnect."); return; }
             if (KistClient.Kist == null || KistClient.Kist.NrOfItems() == 0)
             {
                 AddNotice(_content, "The Kist is empty. Hold " + Main.DepositModifier.Value.MainKey +

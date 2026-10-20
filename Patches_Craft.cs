@@ -148,71 +148,10 @@ namespace ThorsKist
         {
             if (!CraftContext.Active) return;
             if (!CraftContext.IsPlayerInventory(__instance)) return;
-            Inventory kist = KistClient.Kist;
-            if (kist == null) return;
+            var session = JournalGameplaySession.Current;
+            if (session != null) { __result += session.Count(name, quality); return; }
 
-            CraftContext.EnterRaw();
-            try { __result += KistStock.Count(kist, name, quality); }
-            finally { CraftContext.ExitRaw(); }
         }
     }
 
-    [HarmonyPatch(typeof(Inventory), nameof(Inventory.RemoveItem),
-        new[] { typeof(string), typeof(int), typeof(int), typeof(bool) })]
-    public static class Patches_RemoveItem
-    {
-        /// <summary>
-        /// Spends the player's own stock first and lets vanilla remove exactly
-        /// that much, then covers the shortfall from the Kist. Doing it in this
-        /// order means a craft the player could already afford never touches the
-        /// vault, so shared materials are only ever spent when actually needed.
-        /// </summary>
-        [HarmonyPrefix]
-        public static void Prefix(Inventory __instance, string name, ref int amount, int itemQuality,
-                                  bool worldLevelBased, out int __state)
-        {
-            __state = 0;
-            if (!CraftContext.Active) return;
-            if (!CraftContext.IsPlayerInventory(__instance)) return;
-            if (KistClient.Kist == null) return;
-
-            int localHave;
-            CraftContext.EnterRaw();
-            try { localHave = __instance.CountItems(name, itemQuality, worldLevelBased); }
-            finally { CraftContext.ExitRaw(); }
-
-            if (amount <= localHave) return;
-
-            __state = amount - localHave;
-            amount = localHave;
-        }
-
-        [HarmonyPostfix]
-        public static void Postfix(Inventory __instance, string name, int itemQuality, int __state)
-        {
-            if (__state <= 0) return;
-            Inventory kist = KistClient.Kist;
-            if (kist == null) return;
-
-            CraftContext.EnterRaw();
-            try
-            {
-                int available = KistStock.Count(kist, name, itemQuality);
-                int take = __state < available ? __state : available;
-                if (take <= 0)
-                {
-                    // We were asked to cover a shortfall and the vault held
-                    // nothing matching. This is the exact line that separates
-                    // "the Kist refused to pay" from "the Kist was never asked"
-                    // -- without it both look identical from in game.
-                    Main.Log.LogWarning("ThorsKist: needed " + __state + " x " + name +
-                        " (quality " + itemQuality + ") from the Kist, but it holds none that match -- nothing charged.");
-                    return;
-                }
-                KistStock.Take(kist, name, take, itemQuality);
-                CraftContext.Record(name, take, itemQuality);
-            }
-            finally { CraftContext.ExitRaw(); }
-        }
-    }
 }

@@ -16,23 +16,19 @@ namespace ThorsKist
         private class Vault
         {
             public Hird Hird;
-            public Inventory Inventory;
         }
 
         private static readonly List<Vault> Vaults = new List<Vault>();
         private static readonly Dictionary<long, long> PeerByPlayer = new Dictionary<long, long>();
-        // Player ids are the only stable handle on a character, but nothing in
-        // ZNet's roster carries one -- so the server learns them from the Hello
-        // each client sends, and that map is what the invite list is built from.
+        // Character identities are checked against the actual authenticated
+        // direct peer and its owned character ZDO before entering this map.
         private static readonly Dictionary<long, string> NameByPlayer = new Dictionary<long, string>();
-        // Where each member last said they were. Clients heartbeat this, because
-        // ZNet's own player list is keyed by name and carries no player id, and
-        // the re-anchor rule needs to know where everybody actually is.
+        // Positions are captured from the authenticated character ZDO (or the
+        // local listen-host character), never from the claimed wire header.
         private static readonly Dictionary<long, Vector3> PosByPlayer = new Dictionary<long, Vector3>();
         private static readonly Dictionary<long, float> PosSeenAt = new Dictionary<long, float>();
         private static bool _loaded;
         private static bool _dirty;
-        private static float _nextSave;
 
         public static bool IsServer
         {
@@ -43,190 +39,32 @@ namespace ThorsKist
         // Persistence
         // ------------------------------------------------------------------
 
-        private const string VaultFolder = "ThorsKist";
-
-        /// <summary>
-        /// Where vaults live: the -savedir root, beside the world files.
-        ///
-        /// Deliberately NOT BepInEx/config. Server managers rebuild the mod tree
-        /// on every update -- PhValheim runs `rm -rf BepInEx/config/*` on each
-        /// mod sync -- so a vault stored there is one world update away from
-        /// being gone. The save directory is the one place a host must preserve,
-        /// because the world itself is in it.
-        /// </summary>
-        private static string SaveDir
+        internal static bool Ready => _loaded && JournalWorldOwner.Ready;
+        public static void EnsureLoaded() { JournalWorldOwner.EnsureStarted(); }
+        internal static void InstallHeaders(IEnumerable<byte[]> headers)
         {
-            get
+            Vaults.Clear();
+            foreach (var header in headers)
             {
-                // Honours -savedir, which is how every managed host points the
-                // server at its persistent volume.
-                string root = Utils.GetSaveDataPath(FileHelpers.FileSource.Local);
-                if (string.IsNullOrEmpty(root)) root = Paths.ConfigPath;
-                return Path.Combine(root, VaultFolder);
+                var hird = Hird.ReadHeader(new ZPackage(header));
+                Vaults.Add(new Vault { Hird = hird });
             }
-        }
-
-        /// <summary>Where vaults lived before 0.6.0.</summary>
-        private static string LegacySaveDir
-        {
-            get { return Path.Combine(Paths.ConfigPath, VaultFolder); }
-        }
-
-        private static string VaultFileName
-        {
-            get
-            {
-                long uid = ZNet.instance != null ? ZNet.instance.GetWorldUID() : 0L;
-                return "kist_" + uid + ".dat";
-            }
-        }
-
-        private static string SavePath
-        {
-            get { return Path.Combine(SaveDir, VaultFileName); }
-        }
-
-        /// <summary>
-        /// Brings a vault written by an older build across to the save directory.
-        /// Moves rather than copies: two files claiming to be the same vault is
-        /// how a rollback silently resurrects last week's inventory.
-        /// </summary>
-        private static void MigrateLegacyVault()
-        {
-            try
-            {
-                string target = SavePath;
-                if (File.Exists(target)) return;
-
-                string legacy = Path.Combine(LegacySaveDir, VaultFileName);
-                if (!File.Exists(legacy)) return;
-
-                Directory.CreateDirectory(SaveDir);
-                File.Copy(legacy, target, false);
-                File.Delete(legacy);
-                Main.Log.LogWarning("ThorsKist: moved the vault out of BepInEx/config, which server " +
-                                    "managers wipe on update.\n  from: " + legacy + "\n  to:   " + target);
-            }
-            catch (Exception e)
-            {
-                Main.Log.LogError("ThorsKist: could not move the old vault file: " + e);
-            }
-        }
-
-        public static void EnsureLoaded()
-        {
-            if (_loaded || !IsServer) return;
-            // Items cannot be rebuilt before the prefab database exists, and
-            // loading early would silently drop every stack in the vault.
-            if (ObjectDB.instance == null) return;
             _loaded = true;
-
-            try
-            {
-                MigrateLegacyVault();
-
-                string path = SavePath;
-                if (!File.Exists(path))
-                {
-                    Main.Log.LogInfo("ThorsKist: no vault file yet at " + path);
-                    return;
-                }
-                byte[] bytes = File.ReadAllBytes(path);
-                ZPackage pkg = new ZPackage(bytes);
-                int version = pkg.ReadInt();
-                if (version != Wire.SaveFormat)
-                {
-                    Main.Log.LogError("ThorsKist: vault file is protocol " + version +
-                                      ", this build speaks " + Wire.SaveFormat + ". Refusing to load it.");
-                    return;
-                }
-                int count = pkg.ReadInt();
-                for (int i = 0; i < count; i++)
-                {
-                    Hird hird = Hird.ReadHeader(pkg);
-                    ZPackage inv = pkg.ReadPackage();
-                    Vault v = new Vault { Hird = hird, Inventory = NewInventory(hird) };
-                    v.Inventory.Load(inv);
-                    Vaults.Add(v);
-                }
-                Main.Log.LogInfo("ThorsKist: loaded " + Vaults.Count + " hird(s) from " + path);
-            }
-            catch (Exception e)
-            {
-                Main.Log.LogError("ThorsKist: could not load the vault file: " + e);
-            }
         }
-
-        private static Inventory NewInventory(Hird hird)
+        internal static byte[][] Headers()
         {
-            return new Inventory("Kist_" + hird.Id, null, 8, Mathf.Clamp(Main.KistRows.Value, 4, 256));
+            var result = new List<byte[]>();
+            foreach (var v in Vaults) { var p = new ZPackage(); v.Hird.WriteHeader(p); result.Add(p.GetArray()); }
+            return result.ToArray();
         }
-
-        private static void Save()
-        {
-            if (!IsServer) return;
-            try
-            {
-                Directory.CreateDirectory(SaveDir);
-                ZPackage pkg = new ZPackage();
-                pkg.Write(Wire.SaveFormat);
-                pkg.Write(Vaults.Count);
-                foreach (Vault v in Vaults)
-                {
-                    v.Hird.WriteHeader(pkg);
-                    ZPackage inv = new ZPackage();
-                    v.Inventory.Save(inv);
-                    pkg.Write(inv);
-                }
-                string path = SavePath;
-                string tmp = path + ".tmp";
-                File.WriteAllBytes(tmp, pkg.GetArray());
-                // Replace atomically: a half-written vault would cost people
-                // everything they own.
-                if (File.Exists(path)) File.Delete(path);
-                File.Move(tmp, path);
-                _dirty = false;
-            }
-            catch (Exception e)
-            {
-                Main.Log.LogError("ThorsKist: could not save the vault file: " + e);
-            }
-        }
-
-        private static void MarkDirty()
-        {
-            _dirty = true;
-            // Coalesce bursts (a player emptying their pack) into one write.
-            _nextSave = Time.realtimeSinceStartup + 2f;
-        }
-
-        public static void Tick()
-        {
-            if (!IsServer) return;
-            EnsureLoaded();
-            if (_dirty && Time.realtimeSinceStartup >= _nextSave) Save();
-        }
-
-        public static void FlushNow()
-        {
-            if (_dirty) Save();
-        }
-
-        /// <summary>
-        /// Drops every vault from memory. Called when the world goes away, so a
-        /// host who quits to the menu and loads a different world does not carry
-        /// the last world's hirds -- or write them into the new world's file.
-        /// </summary>
+        private static void MarkDirty() { _dirty = true; }
+        public static void Tick() { JournalWorldOwner.Tick(); }
+        public static void FlushNow() { }
         public static void Reset()
         {
-            FlushNow();
-            Vaults.Clear();
-            PeerByPlayer.Clear();
-            NameByPlayer.Clear();
-            PosByPlayer.Clear();
-            PosSeenAt.Clear();
-            _loaded = false;
-            _dirty = false;
+            JournalWorldOwner.Stop();
+            Vaults.Clear(); PeerByPlayer.Clear(); NameByPlayer.Clear(); PosByPlayer.Clear(); PosSeenAt.Clear();
+            _loaded = false; _dirty = false;
         }
 
         // ------------------------------------------------------------------
@@ -262,6 +100,9 @@ namespace ThorsKist
         {
             if (!IsServer) return;
             EnsureLoaded();
+            if (!Ready || JournalWorldOwner.MetadataBusy || pkg.Size() > 64 * 1024) return;
+            var replies = new List<Action>();
+            pendingReplies = replies;
             try
             {
                 int protocol = pkg.ReadInt();
@@ -274,6 +115,10 @@ namespace ThorsKist
                 long playerId = pkg.ReadLong();
                 string playerName = pkg.ReadString();
                 Vector3 pos = pkg.ReadVector3();
+                if (!JournalWorldOwner.Authenticate(senderPeer, playerId, out pos)) return;
+                playerName = senderPeer == ZNet.GetUID() ? Player.m_localPlayer.GetPlayerName() : ZNet.instance.GetPeer(senderPeer).m_playerName;
+                if (op == Wire.C2S.Deposit || op == Wire.C2S.Take || op == Wire.C2S.ConsumeForCraft)
+                { Deny(senderPeer, "Journal item session required."); return; }
 
                 if (playerId != 0L)
                 {
@@ -330,10 +175,8 @@ namespace ThorsKist
                         SetAnchor(senderPeer, playerId, pos);
                         break;
                     case Wire.C2S.Deposit:
-                        Deposit(senderPeer, playerId, playerName, pos, pkg.ReadInt(), pkg.ReadPackage());
                         break;
                     case Wire.C2S.Take:
-                        Take(senderPeer, playerId, pos, pkg.ReadInt(), pkg.ReadVector2i(), pkg.ReadString(), pkg.ReadInt());
                         break;
                     case Wire.C2S.Diag:
                         // Info, not Warning. These only arrive when a station
@@ -343,13 +186,18 @@ namespace ThorsKist
                         break;
 
                     case Wire.C2S.ConsumeForCraft:
-                        ConsumeForCraft(senderPeer, playerId, pos, pkg);
                         break;
                 }
             }
             catch (Exception e)
             {
-                Main.Log.LogError("ThorsKist: bad message from peer " + senderPeer + ": " + e);
+                replies.Clear(); Main.Log.LogError("ThorsKist: bad message from peer " + senderPeer + ": " + e);
+            }
+            finally
+            {
+                pendingReplies = null;
+                if (_dirty) { _dirty = false; JournalWorldOwner.CommitHeaders(Headers(), replies); }
+                else foreach (var reply in replies) reply();
             }
         }
 
@@ -375,7 +223,7 @@ namespace ThorsKist
                 Anchor = pos,
             };
             h.Members.Add(new HirdMember(playerId, playerName));
-            Vault created = new Vault { Hird = h, Inventory = NewInventory(h) };
+            Vault created = new Vault { Hird = h };
             Vaults.Add(created);
             MarkDirty();
             AnnounceAnchor(created, 0L);   // founding is free
@@ -448,6 +296,7 @@ namespace ThorsKist
         {
             Vault v = VaultOf(playerId);
             if (v == null) return;
+            if (v.Hird.Members.Count == 1) { Deny(PeerByPlayer[playerId], "Disband the empty hird before leaving."); return; }
             if (v.Hird.OwnerId == playerId)
             {
                 // The founder leaving hands the hird to whoever joined next
@@ -492,16 +341,12 @@ namespace ThorsKist
             Vault v = VaultOf(playerId);
             if (v == null) return;
             if (v.Hird.OwnerId != playerId) { Deny(peer, "Only the hird's founder may disband it."); return; }
-            if (v.Inventory.NrOfItems() > 0)
+            JournalWorldOwner.Retire(v.Hird.Id, () =>
             {
-                Deny(peer, "Empty the Kist before disbanding -- " + v.Inventory.NrOfItems() +
-                           " stack(s) would be destroyed.");
-                return;
-            }
-            List<HirdMember> members = new List<HirdMember>(v.Hird.Members);
-            Vaults.Remove(v);
-            MarkDirty();
-            foreach (HirdMember m in members) SendState(m.PlayerId);
+                var members = new List<HirdMember>(v.Hird.Members);
+                Vaults.Remove(v);
+                foreach (var member in members) SendState(member.PlayerId);
+            });
         }
 
         /// <summary>
@@ -595,136 +440,6 @@ namespace ThorsKist
         // Items
         // ------------------------------------------------------------------
 
-        private static bool Usable(Vault v, Vector3 pos, float radius, out string why)
-        {
-            why = null;
-            if (v.Hird.Members.Count < Main.MinHirdSize.Value)
-            {
-                why = "The Kist stays shut until the hird has " + Main.MinHirdSize.Value + " members.";
-                return false;
-            }
-            if (Main.UnlimitedRange.Value) return true;
-            float d = Vector3.Distance(pos, v.Hird.Anchor);
-            if (d > radius)
-            {
-                why = "Too far from the Kist (" + Mathf.RoundToInt(d) + "m of " + Mathf.RoundToInt(radius) + "m).";
-                return false;
-            }
-            return true;
-        }
-
-        private static void Deposit(long peer, long playerId, string playerName, Vector3 pos, int token, ZPackage items)
-        {
-            Vault v = VaultOf(playerId);
-            if (v == null) { Reject(peer, token, "You are not in a hird."); return; }
-
-            string why;
-            if (!Usable(v, pos, Main.DepositRadius.Value, out why)) { Reject(peer, token, why); return; }
-
-            List<ItemDrop.ItemData> incoming = ItemWire.ReadItems(items);
-            if (incoming.Count == 0) { Reject(peer, token, "Nothing to store."); return; }
-
-            foreach (ItemDrop.ItemData item in incoming)
-            {
-                if (!v.Inventory.CanAddItem(item, item.m_stack))
-                {
-                    Reject(peer, token, "The Kist is full.");
-                    return;
-                }
-            }
-            foreach (ItemDrop.ItemData item in incoming)
-                v.Inventory.AddItem(item);
-
-            MarkDirty();
-            Ack(peer, token);
-            AnnounceDeposit(v, playerId, pos);
-            SendStateToHird(v);
-        }
-
-        private static void Take(long peer, long playerId, Vector3 pos, int token, Vector2i slot, string expectName, int amount)
-        {
-            Vault v = VaultOf(playerId);
-            if (v == null) { Reject(peer, token, "You are not in a hird."); return; }
-
-            string why;
-            if (!Usable(v, pos, Main.TakeRadius.Value, out why)) { Reject(peer, token, why); return; }
-
-            // Addressed by grid position, not by list index: positions survive a
-            // save/load round trip, and list order does not.
-            ItemDrop.ItemData item = v.Inventory.GetItemAt(slot.x, slot.y);
-            if (item == null) { Reject(peer, token, "That item is already gone."); return; }
-            // Two people can reach for the same stack at once; the name check
-            // turns a race into a harmless refusal instead of the wrong item.
-            if (item.m_shared.m_name != expectName) { Reject(peer, token, "That item is already gone."); return; }
-
-            if (amount <= 0 || amount > item.m_stack) amount = item.m_stack;
-
-            ItemDrop.ItemData sent = item.Clone();
-            sent.m_stack = amount;
-
-            if (amount >= item.m_stack) v.Inventory.RemoveItem(item);
-            else item.m_stack -= amount;
-
-            MarkDirty();
-
-            ZPackage reply = NewReply(Wire.S2C.TakeResult);
-            reply.Write(token);
-            ZPackage payload = new ZPackage();
-            ItemWire.WriteItem(payload, sent);
-            reply.Write(payload);
-            SendToPeer(peer, reply);
-            SendStateToHird(v);
-        }
-
-        private static void ConsumeForCraft(long peer, long playerId, Vector3 pos, ZPackage pkg)
-        {
-            Vault v = VaultOf(playerId);
-            if (v == null) return;
-
-            string why;
-            if (!Usable(v, pos, Main.CraftRadius.Value, out why))
-            {
-                // The client has already spent its mirror by the time this
-                // arrives, so dropping it silently hands out free materials
-                // and leaves no trace of why.
-                Main.Log.LogWarning("ThorsKist: refused a craft consume from player " + playerId + " -- " + why);
-                return;
-            }
-
-            int count = pkg.ReadInt();
-            bool changed = false;
-            for (int i = 0; i < count; i++)
-            {
-                string name = pkg.ReadString();
-                int amount = pkg.ReadInt();
-                int quality = pkg.ReadInt();
-                if (amount <= 0) continue;
-                int have = KistStock.Count(v.Inventory, name, quality);
-                if (have < amount)
-                {
-                    // The client counted a stack that has since been spent.
-                    // Take what is there and tell them; the recipe is already
-                    // crafted on their end, so refusing outright helps nobody.
-                    Main.Log.LogWarning("ThorsKist: craft consume short by " + (amount - have) + " x " + name);
-                    amount = have;
-                }
-                if (amount > 0)
-                {
-                    KistStock.Take(v.Inventory, name, amount, quality);
-                    changed = true;
-                }
-            }
-            if (changed)
-            {
-                MarkDirty();
-                SendStateToHird(v);
-            }
-        }
-
-        // ------------------------------------------------------------------
-        // Send
-        // ------------------------------------------------------------------
-
         private static ZPackage NewReply(Wire.S2C op)
         {
             ZPackage pkg = new ZPackage();
@@ -733,10 +448,11 @@ namespace ThorsKist
             return pkg;
         }
 
+        private static List<Action> pendingReplies;
         private static void SendToPeer(long peer, ZPackage pkg)
         {
-            if (ZRoutedRpc.instance == null) return;
-            ZRoutedRpc.instance.InvokeRoutedRPC(peer, Wire.RpcToClient, pkg);
+            if (pendingReplies != null) { var bytes = pkg.GetArray(); pendingReplies.Add(() => SendToPeer(peer, new ZPackage(bytes))); return; }
+            JournalControlRpc.SendReply(peer, pkg);
         }
 
         private static void SendToPlayer(long playerId, ZPackage pkg)
@@ -839,9 +555,9 @@ namespace ThorsKist
                 pkg.Write(true);
                 v.Hird.WriteHeader(pkg);
                 pkg.Write(Main.MinHirdSize.Value);
-                ZPackage inv = new ZPackage();
-                v.Inventory.Save(inv);
-                pkg.Write(inv);
+                var identity = JournalWorldOwner.Identity(v.Hird.Id);
+                // New hirds publish only after the metadata transaction commits.
+                pkg.Write(identity != null ? identity.Epoch.ToString("N") : JournalWorldOwner.PendingEpoch(v.Hird.Id).ToString("N"));
             }
             WriteRoster(pkg, playerId);
             SendToPlayer(playerId, pkg);

@@ -231,169 +231,37 @@ namespace ThorsKist
     }
 
     // ----------------------------------------------------------------------
-    // The widened answers a station asks for
-    // ----------------------------------------------------------------------
-
-    /// <summary>
-    /// "Do I have any of this?" -- the gate on every fuel path, and on the
-    /// CanUseItems prompt. Saying yes is enough on its own for fuel: the take
-    /// that follows is RemoveItem(name, 1), which the crafting patch already
-    /// splits between the player and the Kist.
-    /// </summary>
+    // Query widening uses only verified display records. Commit prefixes procure
+    // real character items first; these hooks never move or spend a mirror.
     [HarmonyPatch(typeof(Inventory), nameof(Inventory.HaveItem), new[] { typeof(string), typeof(bool) })]
     public static class Patches_HaveItem
     {
         [HarmonyPostfix]
         public static void Postfix(Inventory __instance, string name, ref bool __result)
         {
-            if (__result) return;
-            if (!StationScope.Active) return;
-            if (!CraftContext.IsPlayerInventory(__instance)) return;
-            Inventory kist = KistClient.Kist;
-            if (kist == null) return;
-
-            CraftContext.EnterRaw();
-            try { if (KistStock.Count(kist, name, -1) > 0) __result = true; }
-            finally { CraftContext.ExitRaw(); }
+            if (!__result && StationScope.Active && !StationScope.Committing && CraftContext.IsPlayerInventory(__instance))
+                __result = JournalGameplaySession.Current?.Count(name) > 0;
         }
     }
-
-    /// <summary>
-    /// The smelter's own "is there anything here I could smelt?" check, which
-    /// asks about every conversion at once rather than one name at a time.
-    /// </summary>
     [HarmonyPatch(typeof(Inventory), nameof(Inventory.CountItemsByName))]
     public static class Patches_CountItemsByName
     {
         [HarmonyPostfix]
         public static void Postfix(Inventory __instance, string[] names, int quality, ref int __result)
         {
-            if (!StationScope.Active) return;
-            if (!CraftContext.IsPlayerInventory(__instance)) return;
-            if (names == null) return;
-            Inventory kist = KistClient.Kist;
-            if (kist == null) return;
-
-            CraftContext.EnterRaw();
-            try
-            {
-                foreach (string n in names)
-                    if (!string.IsNullOrEmpty(n)) __result += KistStock.Count(kist, n, quality);
-            }
-            finally { CraftContext.ExitRaw(); }
+            if (!StationScope.Active || StationScope.Committing || !CraftContext.IsPlayerInventory(__instance) || names == null) return;
+            var session = JournalGameplaySession.Current; if (session == null) return;
+            foreach (var name in names) if (!string.IsNullOrEmpty(name)) __result += session.Count(name, quality);
         }
     }
-
-    /// <summary>
-    /// "Hand me the stack." The ore and food paths take from the exact instance
-    /// this returns, and both check m_inventory.Contains first, so the only
-    /// honest answer is to move one across from the Kist and hand back the item
-    /// that is now genuinely in the player's hands.
-    ///
-    /// Exactly one is moved, never the whole stack: the station consumes one per
-    /// interaction, so moving one leaves nothing stranded in the player's pack
-    /// afterwards.
-    /// </summary>
-    [HarmonyPatch(typeof(Inventory), nameof(Inventory.GetItem),
-        new[] { typeof(string), typeof(int), typeof(bool) })]
+    [HarmonyPatch(typeof(Inventory), nameof(Inventory.GetItem), new[] { typeof(string), typeof(int), typeof(bool) })]
     public static class Patches_GetItem
     {
         [HarmonyPostfix]
-        public static void Postfix(Inventory __instance, string name, int quality, bool isPrefabName,
-                                   ref ItemDrop.ItemData __result)
+        public static void Postfix(Inventory __instance, string name, int quality, ref ItemDrop.ItemData __result)
         {
-            if (__result != null) return;               // the player already has one
-            if (!StationScope.Active) return;
-            // The Kist is keyed on the display token, which is what a station
-            // asks with. A prefab-name lookup is somebody else's question.
-            if (isPrefabName) return;
-            if (!CraftContext.IsPlayerInventory(__instance)) return;
-            Inventory kist = KistClient.Kist;
-            if (kist == null) return;
-
-            // Read the tier BEFORE the re-entry guard goes up. Committing asks
-            // CraftContext.Active, and Active is false whenever _reentry != 0 --
-            // so reading it after EnterRaw() always answered "no". That made the
-            // materialise branch below unreachable and turned every station take
-            // into a borrow: the station got its material and the Kist was never
-            // charged. Cost seven rounds of testing to find, because from in game
-            // a borrow and a purchase look identical.
-            bool committing = StationScope.Committing;
-            string stateBefore = StationScope.State;
-
-            CraftContext.EnterRaw();
-            try
-            {
-                ItemDrop.ItemData source = KistStock.Find(kist, name, quality);
-
-                if (source == null)
-                {
-                    // Only worth saying when a station actually tried to take
-                    // something. A question that finds nothing is just a player
-                    // standing near a cooking station with an empty vault, and
-                    // CookingStation.CanUseItems asks once a FRAME.
-                    if (committing)
-                        KistClient.ReportDiag("station[" + StationScope.Label + "] wanted " + name +
-                            " and the Kist holds none that match. " + stateBefore);
-                    return;
-                }
-
-                // Only a question -- "could this station be used?" Answer it
-                // with the Kist's own stack and move nothing. Every caller in
-                // this path does no more than check the result for null, and
-                // the two takes that could follow both begin with
-                // m_inventory.Contains, so a borrowed item fails safe rather
-                // than being spent twice.
-                if (!committing)
-                {
-                    // Hand back a DETACHED copy, never the vault's live object.
-                    // The old code returned the Kist's own ItemData, and the
-                    // claim that Contains() made that safe was wrong:
-                    // Smelter.OnAddOre throws away RemoveItem's return value and
-                    // queues the ore regardless, so a borrow became free
-                    // material and the Kist was never charged.
-                    // Deliberately silent. This is the answer to a question, it
-                    // moves nothing, and on a cooking station it is asked every
-                    // frame the player stands near one -- logging it buried the
-                    // lines that actually matter.
-                    ItemDrop.ItemData peek = source.Clone();
-                    peek.m_stack = 1;
-                    __result = peek;
-                    return;
-                }
-
-                ItemDrop.ItemData one = source.Clone();
-                one.m_stack = 1;
-                if (!__instance.CanAddItem(one, 1))
-                {
-                    KistClient.Message("$msg_yourinventoryisfull");
-                    KistClient.ReportDiag("station[" + StationScope.Label + "] could not take " + name +
-                        " -- the player's inventory is full.");
-                    return;
-                }
-                if (!__instance.AddItem(one))
-                {
-                    KistClient.ReportDiag("station[" + StationScope.Label + "] could not take " + name +
-                        " -- AddItem refused it.");
-                    return;
-                }
-
-                KistStock.Take(kist, name, 1, quality);
-                CraftContext.Record(name, 1, quality);
-                // Local log only. A successful take is already recorded in the
-                // vault itself, so telling the server as well doubles the
-                // traffic of every ore a smelter eats to say what the numbers
-                // already say. Failures still go to the server, because those
-                // are the ones nobody can see from the outside.
-                Main.Log.LogInfo("ThorsKist: station[" + StationScope.Label +
-                    "] took 1 x " + name + " from the Kist.");
-
-                // Hand back the instance that actually landed in the inventory.
-                // AddItem is free to merge into a stack rather than keep ours,
-                // and the caller is about to check Contains on whatever it gets.
-                __result = __instance.GetItem(name, quality);
-            }
-            finally { CraftContext.ExitRaw(); }
+            if (__result != null || !CraftContext.Active || StationScope.Committing || !CraftContext.IsPlayerInventory(__instance)) return;
+            __result = JournalGameplaySession.Current?.Peek(name, quality)?.Clone();
         }
     }
 }

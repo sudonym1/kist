@@ -14,15 +14,7 @@ namespace ThorsKist
         public static void RegisterJournalPeer(ZNetPeer peer)
         {
             JournalDirectRpc.Register(peer);
-        }
-
-        [HarmonyPatch(typeof(ZRoutedRpc), MethodType.Constructor, new[] { typeof(bool) })]
-        [HarmonyPostfix]
-        public static void RegisterRpcs(ZRoutedRpc __instance)
-        {
-            __instance.Register<ZPackage>(Wire.RpcToServer, KistServer.OnMessage);
-            __instance.Register<ZPackage>(Wire.RpcToClient, KistClient.OnMessage);
-            Main.Log.LogInfo("ThorsKist: routed RPCs registered.");
+            JournalControlRpc.Register(peer);
         }
 
         [HarmonyPatch(typeof(ZNet), nameof(ZNet.Shutdown))]

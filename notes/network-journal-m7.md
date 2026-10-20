@@ -1,9 +1,95 @@
 # M7: Live journal integration
 
-Status: **in progress; activation gates remain open**. This milestone owns all live-integration and platform work
+Status: **integrated Windows candidate; loaded-world activation and QA gates remain open**. This milestone owns all live-integration and platform work
 left after [M6: Transport foundations](network-journal-m6.md). The scope was moved
 here at the user's request on 2026-10-19; no unfinished integration gate was
 claimed to have passed. Game validation and release are now **M8**.
+
+## SQLite cutover implementation (2026-10-20 UTC)
+
+Preservation commits: `be429dd` keeps the profiling collector, analysis and legacy
+baseline; `6137246` checkpoints all pre-existing M7 work. The journal F4 profiler
+retains 29 targets, replacing removed legacy Save/Take targets with world-owner
+tick/journal take; baseline sources remain in the preservation commits.
+
+`JournalWorldOwner.cs` starts the production catalog/runtime at normal world
+startup, installs `JournalDirectRpc`, routes listen-host sessions through the
+same encoded protocol, and settles the old world before reopening. Prefab names
+and configuration are captured on Unity's thread; SQLite, checksums, encoding
+and server timers run on workers. Initial display installation and entry effects
+share the bounded Unity queue. `JournalStockProjection` enforces thread ownership,
+caches material counts and signals incremental changes without heartbeat redraws.
+
+`KistServer` retains hird controls/presentation. Live legacy item mutation,
+`.dat` load/save, optimistic client escrow and timeout refunds are removed.
+Metadata commits through SQLite before buffered confirmations are sent.
+`JournalControlRpc.cs` also authenticates hird controls on the exact ready direct
+peer; old routed registrations are removed. The control wire is **protocol 5**.
+State carries the journal epoch instead of an inventory mirror. Session failure/
+catch-up closes Kist actions. Startup logs identify SQLite/journal and disabled
+legacy writes; applied item entries log their sequence and kind.
+
+`JournalMaterials.cs` procures missing materials as separate purpose-tagged,
+single-stack withdrawals before vanilla creates a craft/station effect. A partial
+refusal leaves delivered inputs in the character and creates no output. Placement
+asks the player to place again when inputs arrive, avoiding delayed automatic
+placement. Checks do not spend items; output retrieval/full/toggle paths avoid
+procurement. Reservations block competing local payment. `JournalLogout.cs`
+waits asynchronously for ordinary menu logout marker/acknowledgment; abrupt
+shutdown/death/replacement uses exclusion/settlement. The journal never requests
+or awaits a character save.
+
+The **current disposable vault**, not the Desktop import source, was migrated
+once: `.tools/m7/manual-install/saves/ThorsKist/kist_2186005207.dat`.
+Source: **10,022 bytes**, SHA256
+`4cda2c3dc49f96dacc6ff0f8ff4d2663653f8d0ca92fb78595e3f7bced32f5f1`.
+Its verified `.journal-backup-<hash>` remains beside it. SQLite retains **587
+stacks** and exactly **one migration record**. Native verification compares every
+quantity, canonical item byte, slot/overflow position and hird header. A three-Wood
+deposit/withdrawal uses ordinary `KistClient.Deposit`/`TakeAction` with a native
+disposable inventory and the actual migrated SQLite vault. Temporary stock is
+removed, restoring the exact original current checksum. Logout/reopen uses a
+decoder that throws if legacy bytes are consulted; fresh processes see the prior
+durable head. `.dat` stays unchanged. All **568 original save files** still match
+the independently verified backup.
+
+Evidence: `.tools/m7/manual-install/cutover-evidence.log`,
+`cutover-candidate-final.log`, `.tools/m7/cutover-adapter-evidence.log`,
+`cutover-harness.log`, `cutover-patches.log`, `cutover-native-build.log`,
+`cutover-categories.log` and `cutover-original-save-audit.json`.
+The explicit test-only `-thorskist-cutover-verify` switch runs
+`tools/AdapterTests/CutoverVerification.cs` and exits the hidden isolated process.
+Its temporary range setting is restored without saving configuration. Native
+probe inventories are scratch objects, not the saved test character. These
+checks do **not** prove normal-world owner startup, real-character lifecycle,
+actual station/crafting outcomes or authenticated multiplayer.
+
+Checks: **175,291 harness assertions**, including existing forced crash suites;
+Windows reservation/projection/decoder/dispatcher/SQLite/control/session probes
+pass (**148 cumulative adapter assertions**, plus **16 session/TCP** and **13
+current-vault cutover** checks). Release mod/adapter builds: zero warnings/errors.
+**124 Harmony targets** and **124 game member references** pass; category,
+version and package checks pass. Sandboxed game startup could not initialize
+Steam; hidden probes were rerun with Steam IPC access. Only agent-launched test
+processes were stopped.
+
+Final bundle: `.tools/m7/ThorsKist-M7-Windows-Journal-v8.zip`, containing matching
+**Setup.cmd and Update.cmd** with managed/native Windows SQLite dependencies,
+F4 profiling and process-only cloud isolation. Bundle SHA256: `ebc3cd3e9278142b9641595d5916f7610198a7a465a332bb23fb7acc3c412bca`.
+It supersedes v4 and intermediate
+cutover candidates. The local isolated installation is updated with that payload;
+the second PC must apply Update before connecting and has not been remotely
+updated or observed. Both game assembly hashes must match. Reproduce with
+`scripts/build-windows-test.py` and the verified v4 loader baseline plus current
+compiled plugin. Nothing is published.
+
+Remaining activation gates: ordinary host authority startup log, loaded-character
+deposit/take and save/exit/reopen; actual crafting/build/station effects and partial
+failures; real reservations/death/replacement, logout/rejoin; authenticated two-PC
+lifecycle/ingress; and F4 comparison. The user drives these checks in separate
+installs. **M7 completion and M8 readiness are not claimed.** Historical sections
+below describe prior stages; references to an absent owner or keeping legacy
+active are superseded by this cutover candidate.
 
 ## User-attended validation scope (2026-10-19)
 

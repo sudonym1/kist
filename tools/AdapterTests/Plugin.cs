@@ -66,13 +66,15 @@ namespace ThorsKist
             journalTcp?.Tick();
             journalSessionTcp?.Tick();
             gameThread?.Drain(4);
-            ManualKeys();
-            TickManualImport();
+            if (JournalGameplaySession.Current == null) ManualKeys();
+            // Desktop legacy fixture importer is retired after the SQLite cutover.
             authenticatedPeers?.Tick();
-            if (Player.m_localPlayer != null && Input.GetKeyDown(KeyCode.F8)) ViewFixture();
+            if (Player.m_localPlayer != null && JournalGameplaySession.Current == null && Input.GetKeyDown(KeyCode.F8)) ViewFixture();
             if (Player.m_localPlayer != null && Input.GetKeyDown(KeyCode.F9)) { KistUI.Close(); KistClient.RequestState(); }
             if (ran || ObjectDB.instance == null || ObjectDB.instance.GetItemPrefab("Wood") == null) return;
             ran = true;
+            if (Environment.GetCommandLineArgs().Contains("-thorskist-cutover-verify"))
+            { StartCoroutine(RunCutoverVerification()); return; }
             try
             {
                 Items(); ReservationInterception(); Projection(); Legacy(); Dispatch();

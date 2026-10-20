@@ -1,0 +1,27 @@
+{
+  "status": "integrated candidate; loaded-world and authenticated-peer gates pending",
+  "legacy_sha256": "4cda2c3dc49f96dacc6ff0f8ff4d2663653f8d0ca92fb78595e3f7bced32f5f1",
+  "legacy_bytes": 10022,
+  "stack_count": 587,
+  "migration_count": 1,
+  "capacity": 1000,
+  "head_after_native_logout": 20,
+  "checkpoint": 18,
+  "current_checksum": "d654f32a9a9142a313d9fa29a03da815862f9774933c32f988b6d3c4411ae391",
+  "harness_assertions": 175291,
+  "native_cutover_checks": 13,
+  "harmony_targets": 124,
+  "game_member_references": 124,
+  "original_save_audit": {
+    "original_save_files_checked": 568,
+    "mismatches": []
+  },
+  "windows_bundle": ".tools\\m7\\ThorsKist-M7-Windows-Journal-v8.zip",
+  "windows_bundle_sha256": "ebc3cd3e9278142b9641595d5916f7610198a7a465a332bb23fb7acc3c412bca",
+  "production_plugin_sha256": "677a865f209eb8e3f875b63841ed002582fb7c4d0f4acb6d74de91acbf6dd2c0",
+  "limits": [
+    "native probe uses a disposable Inventory, not the saved loaded character",
+    "transport fixture is not proof of an authenticated remote peer",
+    "normal-world owner startup, actual crafting/station/lifecycle outcomes and profiling remain pending"
+  ]
+}

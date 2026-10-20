@@ -15,7 +15,7 @@ namespace ThorsKist
 
         // Bumped whenever the payload layout changes incompatibly. The server
         // refuses clients that do not match rather than half-reading a message.
-        public const int Protocol = 4;
+        public const int Protocol = 5;
 
         // The on-disk vault format, deliberately SEPARATE from the wire
         // protocol. Adding a message is not a reason to refuse to load someone's

@@ -240,6 +240,7 @@ namespace ThorsKist
 
         private void OnDestroy()
         {
+            JournalWorldOwner.Stop();
             JournalGameplaySession.Current?.Dispose();
             JournalReservationGuard.Reset();
             JournalDirectRpc.Current?.Dispose();

@@ -1,37 +1,37 @@
 # ThorsKist network journal plan
 
-## Next session: complete M7 journal and SQLite cutover
+## M7 integrated Windows candidate (2026-10-20 UTC)
 
-User direction after the single-machine baseline: integrate the new system
-before requesting further gameplay tests. **Normal listen-host and remote Kist
-gameplay must use the journal, and SQLite must replace `.dat` as the sole live
-persistence authority.** This includes actual owner/session startup and shutdown,
-authenticated transport, inventory actions, crafting/stations, membership/access
-changes, lifecycle handling and incremental UI. Do not stop at dormant components
-or fixture-only demonstrations.
+Preservation commits: `be429dd` (profiling baseline) and `6137246` (all existing
+M7 work). Normal world startup now installs the production SQLite catalog/runtime,
+authenticated direct-peer transport, listen-host sessions, bounded Unity effects,
+journal inventory/UI, metadata commits, crafting/station withdrawals, and logout/
+exclusion/teardown. Live legacy server item methods and `.dat` loading/writing
+are removed. Provider/load/commit faults close access; no fallback or dual writes.
 
-Preserve the existing test vault by backing up and migrating its current `.dat`
-once, including hird metadata and every item/unknown/overflow record. After
-successful migration, reopen from SQLite and disable legacy load/save and item
-mutation paths for that world. Keep the source as a backup; never dual-write,
-silently fall back to `.dat`, or reimport stale data over journal changes. A
-failed migration or provider/commit failure closes Kist access with a clear error.
+The **current isolated M7TEST vault** (`2186005207`) was backed up and migrated
+exactly once: 587 stacks, quantities, item metadata and hird headers preserved.
+Windows Unity/Mono tests call ordinary deposit/take APIs against this SQLite
+vault, verify native inventory effects and committed sequences, log out and
+reopen with a legacy decoder that throws if called. The original stock checksum
+is restored and `.dat` stays byte-for-byte unchanged. This is automated native
+API evidence with a disposable inventory, not a loaded-character/remote-peer pass.
 
-Implement and verify this cutover in the separate Windows test installations,
-then update both PCs' installers with matching managed/native dependencies and
-explicit startup evidence identifying SQLite/journal authority. Before asking
-the user to test again, show that ordinary actions produce journal entries and
-SQLite state, that a restart restores that state, and that the legacy `.dat`
-remains unchanged. Fixtures and loopback tests alone do not satisfy this gate.
-Further user-attended tests cover the new system; do not repeat legacy gameplay.
+**M7 remains open for loaded-world activation and QA.** Normal host startup,
+real-character actions/lifecycle, actual crafting/station outcomes, authenticated
+two-PC behavior and F4 comparison still need observed evidence. The user drives
+gameplay in separate full installations; never load original worlds/characters or
+modify the normal Steam installation. Start the next handoff by confirming
+`KIST AUTHORITY READY SQLite/journal` in the ordinary host world.
 
-Profiling is saved as the **legacy baseline**, not journal evidence: idle mean
-0.012 ms/frame; opening 486.586 ms; transfer frames mean 83.938 ms, maximum
-101.457 ms. Preserve the test-only F4 profiler and compare the journal build to
-this capture after cutover. See the [M7 implementation and handoff](notes/network-journal-m7.md)
-for source files, evidence, environment and remaining work. Windows only, two
-Steam accounts, Thor's Kist + BepInEx, isolated game/saves on both PCs. The user
-drives gameplay; never modify the main installation or original saves.
+Both Windows installer modes (Setup and Update) use one checksummed Windows
+payload with SQLite dependencies and the F4 profiler. The local isolated copy is
+updated; the second PC's user must apply the matching updater there. See
+[M7 evidence and handoff](notes/network-journal-m7.md) for the final v8 bundle,
+checks and remaining gates. No release is published.
+
+Preserved **legacy baseline**: idle mean 0.012 ms/frame; opening 486.586 ms;
+transfer mean 83.938 ms, maximum 101.457 ms. It is not journal performance evidence.
 
 Thor's Kist is a Valheim mod that provides shared item storage. A **hird** is a player group; its **Kist**, or **vault**, is the shared inventory. An **anchor** is its world location for access-distance checks. A **take** (withdrawal) moves items to a character; a **deposit** moves them back. A **stack** groups items in an inventory slot. A **station**, such as a smelter, consumes materials. The **invite list** (roster in code) lists connected players eligible for invitation.
 
