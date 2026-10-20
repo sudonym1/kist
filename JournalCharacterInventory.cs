@@ -92,8 +92,8 @@ namespace ThorsKist
                 }
                 else if (immediatePayments.TryGetValue(effect.RequestId, out var spent))
                 {
-                    // Building or station insertion has already happened.
-                    // This verified withdrawal pays that immediate action;
+                    // Building, station insertion or explicit deletion consumes
+                    // this verified withdrawal without delivering it;
                     // it must never materialize spendable items in the pack.
                     if (!JournalChecksum.SameItem(spent, effect.Item)) return InventoryResult.InventoryChanged;
                     immediatePayments.Remove(effect.RequestId);

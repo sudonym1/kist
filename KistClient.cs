@@ -213,6 +213,19 @@ namespace ThorsKist
             return () => { };
         }
 
+        internal static Action DeleteAction(Guid stackId)
+        {
+            var session = JournalGameplaySession.Current;
+            return () =>
+            {
+                if (session != null && ReferenceEquals(session, JournalGameplaySession.Current) && CanTake)
+                    session.Delete(stackId);
+            };
+        }
+
+        internal static Action DeleteAction(ItemDrop.ItemData item)
+            => DeleteAction(JournalGameplaySession.Current?.Stock.Identify(item) ?? Guid.Empty);
+
         /// <summary>
         /// Sends one line of diagnostic text to the server's log.
         ///

@@ -172,6 +172,19 @@ namespace ThorsKist
                 Check(cutoverSession.Count(name) == stock - 7, "Normal background settlement charges exactly five craft ingredients and two station inputs");
                 var read = cutoverWorld.ReadAsync(cutoverPeer.Vault); while (!read.IsCompleted) yield return null;
                 Check(read.Result.Results.Where(r => r.Command.Purpose == ItemCommandPurpose.Station).Any(), "Station payments retain station range/purpose authorization");
+                var deleteStack = cutoverSession.Stock.Rows.First(r => r.Item != null && r.Item.m_shared.m_name == name).Stack;
+                int beforeDelete = cutoverSession.Count(name);
+                Check(cutoverSession.Delete(deleteStack.Id) && !cutoverSession.Delete(deleteStack.Id),
+                    "Delete queues the whole selected stack and blocks a repeated click while pending");
+                Check(cutoverSession.Count(name) == beforeDelete - deleteStack.Item.Quantity,
+                    "Pending deletion cannot be spent by crafting or station payments");
+                yield return CutoverDrive(() => cutoverSession.PendingImmediatePayments == 0 && !cutoverSession.Stock.Find(deleteStack.Id, out _));
+                Check(inventory.GetAllItems().Sum(i => i.m_stack) == pack && inventory.GetAllItems().All(i => i.m_dropPrefab.name == "Stone"),
+                    "Delete commits a withdrawal with a full pack without delivering the removed stack");
+                read = cutoverWorld.ReadAsync(cutoverPeer.Vault); while (!read.IsCompleted) yield return null;
+                Check(read.Result.Results.Any(r => r.Command.StackId == deleteStack.Id && r.Command.Kind == ItemCommandKind.Withdraw
+                    && r.Command.Purpose == ItemCommandPurpose.Inventory && r.Command.Item.Quantity == deleteStack.Item.Quantity
+                    && r.Status == CommandStatus.Accepted), "Delete follows the ordinary whole-stack inventory withdrawal path");
                 CutoverLog("M7 IMMEDIATE GAMEPLAY PASS " + (checks - start) + " native checks; craft Kist=5 local=2, station Kist=2; no inventory bounce; station transport captured, capacity/inventory/payment code native");
             }
             finally
