@@ -57,8 +57,13 @@ namespace ThorsKist
             // TCP endpoints are addresses, not authenticated accounts. Crossplay
             // GetHostName is the platform ID sent in its package; the Party peer
             // entity is supplied by the connected socket instead.
-            if (peer.m_socket is ZSteamSocket) return "steam:" + peer.m_socket.GetHostName();
-            if (peer.m_socket is ZPlayFabSocket playfab && !string.IsNullOrWhiteSpace(playfab.m_remotePlayerId))
+            // ServerSync buffers the same connection while synchronizing mod
+            // config. Its wrapper inherits PlayFab even for a Steam transport.
+            // Resolve the actual transport before selecting its account source;
+            // continue using the wrapped peer/RPC for all communication.
+            var socket = JournalSocketTransport.Unwrap(peer?.m_socket);
+            if (socket is ZSteamSocket) return "steam:" + socket.GetHostName();
+            if (socket is ZPlayFabSocket playfab && !string.IsNullOrWhiteSpace(playfab.m_remotePlayerId))
                 return "playfab:" + playfab.m_remotePlayerId;
             return null;
         }
