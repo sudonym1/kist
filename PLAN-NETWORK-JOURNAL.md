@@ -29,6 +29,14 @@ pending item login. v10 distinguishes pending login from terminal closure;
 native verification reaches active login with all 587 display rows. Confirm the
 corrected loaded-host item display before item QA.
 
+The v10 loaded-host resin round trip now passes conservation: **731 out, 731
+back, 731 in SQLite, zero on the saved character**. The latest F4 capture records
+a **225.6112 ms maximum frame interval**, including **106.7334 ms instrumented
+Kist work** on UI reopen. Transfers remain slow: full-vault persistence on item/
+ack/timer changes, per-entry acknowledgment waits and duplicate Take requests
+create a backend queue. Performance work remains open; see the resin capture
+analysis in the M7 notes. These results do not establish remote-peer validation.
+
 Both Windows installer modes (Setup and Update) use one checksummed Windows
 payload with SQLite dependencies and the F4 profiler. The local isolated copy is
 updated; the second PC's user must apply the matching updater there. See

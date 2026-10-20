@@ -1,0 +1,65 @@
+{
+  "legacy_vault_resin": 731,
+  "legacy_stacks": [
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    31
+  ],
+  "sqlite_vault_resin": 731,
+  "sqlite_stacks": [
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    31
+  ],
+  "accepted_withdrawals": {
+    "count": 15,
+    "quantity": 731
+  },
+  "accepted_deposits": {
+    "count": 15,
+    "quantity": 731
+  },
+  "rejected_withdrawals": {
+    "count": 15,
+    "reason": "InsufficientStock; repeated requests for three already withdrawn stack IDs",
+    "quantity_mutated": 0
+  },
+  "all_30_accepted_effects_settlement": "Processed; no compensation",
+  "saved_character_resin": 0,
+  "saved_character_profile_sha512_valid": true,
+  "saved_character_versions": {
+    "profile": 47,
+    "player_data": 34,
+    "inventory": 110
+  },
+  "character_inventory_decoded_from_profile_layout": true,
+  "sqlite_head": 79,
+  "sqlite_checkpoint": 79,
+  "sqlite_stack_count": 587,
+  "legacy_sha256": "4cda2c3dc49f96dacc6ff0f8ff4d2663653f8d0ca92fb78595e3f7bced32f5f1",
+  "resin_missing": 0
+}

@@ -1,0 +1,11 @@
+Instrumented synchronous main-thread elapsed time; background workers excluded.
+Kist union counts nested instrumented scopes once. Method inclusive totals must not be added.
+Frame wall interval includes VSync/GPU/OS/other mods. It is not Kist blocking time.
+UnityUI.AllCanvasLayout covers all game UI and is not attributed to Kist.
+Bookkeeping is reported separately; measured spans include a small entry-probe cost. Do not subtract all bookkeeping from union.
+Method percentiles use the last 65536 calls; full totals/max include all calls. Last incomplete frame excluded from frame percentiles.
+Deferred render/layout and uninstrumented Harmony hooks are not fully attributed; this is a measured scope, not total game CPU.
+Frames=13805 invalid_nesting=0
+Kist union p50_ms=0.058500 p95_ms=0.198200 p99_ms=0.828800 max_ms=106.733400
+Frame wall p95_ms=10.608500 max_ms=225.611200
+Profiler bookkeeping total_ms=104.824800

@@ -144,6 +144,62 @@ Evidence: `.tools/m7/host-v9-empty-view.log`, `login-pending-build.log`,
 `login-pending-harness.log`, `login-pending-patches.log`, and
 `.tools/m7/manual-install/login-pending-v10.log`. No original saves were loaded.
 
+### User resin round trip and profiling (2026-10-20 04:26 UTC)
+
+On v10 the user captured F4, about ten seconds idle, Kist opening, withdrawal of
+all resin, redeposit of all resin, F4 stop and save/exit. This supplies real loaded
+listen-host action evidence, superseding the prior pending empty-view report.
+Capture: `.tools/m7/manual-install/BepInEx/timings/20261020-042649-de2baf`.
+The 66.834-second capture contains 13,805 complete frames and four Open calls.
+
+Maximum recorded main-loop interval: **225.6112 ms**, at frame 13194 during a
+Kist reopen. Kist instrumented synchronous elapsed: **106.7334 ms**, with
+**106.6758 ms** in KistUI.Tick. All-game canvas layout in that frame totals
+**96.8144 ms**; it is not exclusively attributed to Kist and inclusive method
+totals must not be added. First opening's Kist union is 103.4772 ms. Worst native
+item effect is 0.735 ms; worst Take submission 0.0907 ms and Deposit submission
+1.4943 ms. Idle Kist mean before first opening: 0.069626 ms/frame. The frame and
+Kist maxima measure different scopes; do not label the full 225.6 ms as exclusively
+Kist CPU time. Some of the maximum frame also includes GC and ordinary game work.
+
+Transactions have a separate seconds-long latency problem: after the final
+deposit click, native deposit removals continue for **9.0347 seconds**. The code
+path still calls full state read/validation and deletes/reinserts current stacks,
+checkpoint stacks, history/results, used identities, sessions and settlements for
+each persistent transition. Active-session TickAsync creates a new revision every
+100 ms even when no heartbeat/change is needed, taking the same full-write path.
+QueueDelivery and acknowledgments also persist through it. The client's batch
+processor awaits each acknowledgment response before processing the next entry;
+commands and acknowledgments share serialized ingress/writer queues. This makes
+pending commands delay the acknowledgment needed for further character effects.
+The 100 ms fan-out pump adds latency too. No worker phase timestamps were recorded,
+so a precise split between validation, SQL, flush and queue wait is not available.
+
+Thirty Take calls produced **15 accepted and 15 InsufficientStock results**.
+Repeated clicks on three still-visible, in-flight stacks created new requests
+instead of being locally suppressed. Rejections leave stock unchanged but append
+journal/results and add commit/acknowledgment work. The 15 deposits all succeeded.
+The complete withdrawal phase includes user pauses and reopenings, so its total
+wall time is not a pure backend benchmark.
+
+**Resin conservation passes:** original legacy source 731 (14 stacks of 50 and
+one of 31); accepted withdrawals 15 / 731; accepted deposits 15 / 731; final SQLite
+731 with the same stack quantities; all thirty effects durably Processed, with no
+compensation. The saved character and its .old copy each contain zero resin.
+Their SHA512 envelopes are valid; the inventories were reached by decoding the
+actual version-47 profile/version-34 player-data/version-110 inventory layout,
+not by guessing an offset. SQLite is checkpointed at head 79, with 587 stacks.
+The legacy source hash is unchanged. No game or save files were modified by the
+audit.
+
+Committed analysis/summary/methods/events and resin audit are under
+`notes/performance/m7-journal-resin-20261020/`. A local ZIP preserves raw CSVs,
+analysis readers, logs and the final isolated SQLite/legacy/character state:
+`.tools/m7/checkpoints/journal-resin-20261020.zip`. Performance fixes are still
+required: incremental persistence, no unchanged timer commits, acknowledgment
+progress independent of command backlog, in-flight Take suppression, and bounded
+UI row/layout work. No new gameplay binaries were installed during this analysis.
+
 ## User-attended validation scope (2026-10-19)
 
 ### Fresh-session priority after baseline
