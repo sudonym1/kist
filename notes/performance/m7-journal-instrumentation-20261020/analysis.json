@@ -1,0 +1,37 @@
+{
+  "sqlite.previous.read_verify": {
+    "calls": 29,
+    "mean_ms": 41.29105862068966,
+    "max_ms": 64.2672
+  },
+  "sqlite.rows.write": {
+    "calls": 29,
+    "mean_ms": 28.045472413793103,
+    "max_ms": 55.4721
+  },
+  "sqlite.transaction.commit_flush": {
+    "calls": 29,
+    "mean_ms": 5.467813793103448,
+    "max_ms": 9.4012
+  },
+  "client.ack.round_trip": {
+    "calls": 6,
+    "mean_ms": 229.16735000000003,
+    "max_ms": 334.754
+  },
+  "server.serial_queue.wait": {
+    "calls": 56,
+    "mean_ms": 33.73236607142857,
+    "max_ms": 127.1854
+  },
+  "sqlite.operation.work": {
+    "calls": 39,
+    "mean_ms": 97.85924871794872,
+    "max_ms": 149.4297
+  },
+  "writer.transition.compute": {
+    "calls": 30,
+    "mean_ms": 1.0503733333333334,
+    "max_ms": 10.0773
+  }
+}

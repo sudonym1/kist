@@ -63,6 +63,13 @@ namespace ThorsKist
         }
         private IEnumerator CutoverVerification()
         {
+            bool traceEnabled = Environment.GetCommandLineArgs().Contains("-thorskist-journal-trace-verify");
+            if (traceEnabled)
+            {
+                var prepare = Task.Run(() => JournalDiagnostics.PrepareCapture());
+                while (!prepare.IsCompleted) yield return null;
+                JournalDiagnostics.StartCapture(prepare.GetAwaiter().GetResult(), System.Threading.Thread.CurrentThread.ManagedThreadId);
+            }
             string source = Path.Combine(TestSaveIsolation.Root, "ThorsKist", "kist_2186005207.dat");
             string database = Path.ChangeExtension(source, ".sqlite");
             byte[] legacy = File.ReadAllBytes(source); string hash = Digest(legacy);
@@ -83,7 +90,11 @@ namespace ThorsKist
             Check(vault.CopyHeader().SequenceEqual(imports[0].CopyHeader()), "Hird metadata preserved exactly");
             Check(initial.Current.Stacks.Count == imports[0].State.Stacks.Count, "Every current test stack retained including opaque/overflow");
             Func<VaultState, string[]> records = state => state.Stacks.Select(s => s.Slot + ":" + s.Item.Prefab + ":" + s.Item.Quantity + ":" + s.Item.FormatVersion + ":" + Convert.ToBase64String(s.Item.CopyPayload())).OrderBy(s => s, StringComparer.Ordinal).ToArray();
-            Check(records(initial.Current).SequenceEqual(records(imports[0].State)), "Every item quantity, metadata byte and overflow position retained");
+            // The migration fixture matches the immutable import exactly. A
+            // later transfer trace uses the current SQLite baseline: ordinary
+            // withdrawal/redeposit legitimately replaces stack IDs and slots.
+            if (!traceEnabled) Check(records(initial.Current).SequenceEqual(records(imports[0].State)), "Every item quantity, metadata byte and overflow position retained");
+            else CutoverLog("M7 JOURNAL TRACE uses current SQLite baseline after manual gameplay; exact restoration checked after scratch transfer and reopen");
             var before = JournalChecksum.Encode(initial.Current);
             var inventory = new Inventory("cutover-verification-character", null, 8, 4);
             var wood = Wood(3); Check(inventory.AddItem(wood), "Native disposable character inventory seeded");
@@ -136,7 +147,23 @@ namespace ThorsKist
             Check(File.Exists(source + ".journal-backup-" + hash), "Verified once-only migration backup retained");
             stop = cutoverWorld.StopAsync(); while (!stop.IsCompleted) yield return null; stop.GetAwaiter().GetResult();
             CutoverLog("M7 CUTOVER PASS ordinary gameplay API -> journal -> SQLite -> reopen; dat unchanged; native checks=" + checks);
-            RestoreCutoverConfig(); Application.Quit();
+            RestoreCutoverConfig();
+            if (traceEnabled)
+            {
+                var trace = JournalDiagnostics.StopCapture();
+                string path = Path.Combine(Path.GetDirectoryName(Paths.BepInExRootPath), "journal-trace-verification");
+                var export = Task.Run(() => MainThreadProfiler.ExportJournalTrace(trace, path, CutoverLog));
+                while (!export.IsCompleted) yield return null;
+                export.GetAwaiter().GetResult();
+                var samples = trace.Snapshot();
+                Check(samples.Any(s => s.Stage == "sqlite.transaction.commit_flush"), "Native trace captures real durable commits");
+                Check(samples.Any(s => s.Stage == "unity.inventory_effect.work" && s.StartThread == trace.MainThread), "Native inventory effects run on Unity thread");
+                Check(samples.Any(s => s.Stage == "client.ack.round_trip"), "Native trace captures acknowledgment latency");
+                Check(!samples.Any(trace.ThreadViolation), "All sampled native worker and Unity stages respect their thread expectations");
+                Check(File.Exists(Path.Combine(path, "journal-events.csv")) && File.Exists(Path.Combine(path, "journal-stages.csv")), "Native trace export writes events and stage summaries");
+                CutoverLog("M7 JOURNAL TRACE PASS checks=" + checks);
+            }
+            Application.Quit();
         }
         // Iterator exceptions are caught here so headless execution always
         // leaves an explicit failure and exits without touching original saves.
@@ -151,7 +178,7 @@ namespace ThorsKist
                     if (!stack.Peek().MoveNext()) { stack.Pop(); continue; }
                     current = stack.Peek().Current;
                 }
-                catch (Exception error) { RestoreCutoverConfig(); CutoverLog("M7 CUTOVER FAIL " + error); Application.Quit(); yield break; }
+                catch (Exception error) { JournalDiagnostics.StopCapture(); RestoreCutoverConfig(); CutoverLog("M7 CUTOVER FAIL " + error); Application.Quit(); yield break; }
                 if (current is IEnumerator nested) stack.Push(nested); else yield return current;
             }
         }

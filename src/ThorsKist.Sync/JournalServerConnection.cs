@@ -38,7 +38,10 @@ namespace ThorsKist.Sync
         public Task ReceiveAsync(JournalFrame frame, CancellationToken token = default) => ReceiveAsync(frame, peer, token);
         public async Task ReceiveAsync(JournalFrame frame, JournalPeerIdentity current, CancellationToken token = default)
         {
-            await gate.WaitAsync(token).ConfigureAwait(false);
+            using var correlation = JournalDiagnostics.Correlate(frame.Correlation, 0, JournalDiagnostics.Operation(frame.Message));
+            using (JournalDiagnostics.Measure("server.connection_gate.wait", JournalTimingKind.Wait, JournalTimingThread.Any))
+                await gate.WaitAsync(token).ConfigureAwait(false);
+            using var elapsed = JournalDiagnostics.Measure("server.request.elapsed", JournalTimingKind.Elapsed, JournalTimingThread.Any);
             try
             {
                 if (closed) throw new ObjectDisposedException(nameof(JournalServerConnection));
@@ -61,7 +64,9 @@ namespace ThorsKist.Sync
                     SendReply(frame, await server.LogoutAsync(boundAddress, frame.Correlation).ConfigureAwait(false));
                     return;
                 }
-                var request = JournalRequest.Decode(frame, current, binding);
+                JournalRequest request;
+                using (JournalDiagnostics.Measure("server.request.decode")) request = JournalRequest.Decode(frame, current, binding);
+                using var requestContext = JournalDiagnostics.Correlate(frame.Correlation, request.Sequence, JournalDiagnostics.Operation(frame.Message));
                 SessionReply reply;
                 switch (request.Message)
                 {
@@ -106,7 +111,7 @@ namespace ThorsKist.Sync
                         }
                         break;
                     case JournalMessage.Command:
-                        JournalDelivery.ValidateCommand(request.Command!);
+                        using (JournalDiagnostics.Measure("server.command.validate_wire")) JournalDelivery.ValidateCommand(request.Command!);
                         reply = await server.ExecuteAsync(request.Command!).ConfigureAwait(false);
                         break;
                     case JournalMessage.Acknowledge:
@@ -137,6 +142,8 @@ namespace ThorsKist.Sync
 
         private void SendReply(JournalFrame request, SessionReply reply, Guid transferId = default)
         {
+            using var encoding = JournalDiagnostics.Measure("server.reply.encode");
+            JournalDiagnostics.Mark("server.reply.ready", request.Correlation, reply.Command?.Result?.Entry.Sequence ?? reply.Session?.Acknowledged ?? 0);
             var response = new JournalFrame(JournalMessage.Reply, request.Correlation, JournalReply.From(request.Message, reply, transferId).Encode());
             if (!outgoing.TryEnqueue(JournalWire.EncodeFrame(response))) throw new IOException("Journal reply queue full");
         }
@@ -146,7 +153,10 @@ namespace ThorsKist.Sync
         // resetting the persisted oldest-entry deadline.
         public async Task PumpAsync(CancellationToken token = default)
         {
-            await gate.WaitAsync(token).ConfigureAwait(false);
+            using var correlation = JournalDiagnostics.Correlate(Guid.Empty, sentThrough, "delivery");
+            using (JournalDiagnostics.Measure("server.delivery_gate.wait", JournalTimingKind.Wait, JournalTimingThread.Any))
+                await gate.WaitAsync(token).ConfigureAwait(false);
+            using var elapsed = JournalDiagnostics.Measure("server.delivery.elapsed", JournalTimingKind.Elapsed, JournalTimingThread.Any);
             try
             {
                 var address = binding.Session;
@@ -183,7 +193,8 @@ namespace ThorsKist.Sync
                 if (candidates.Length == 0) return;
                 (byte[] Body, int Count) prefix;
                 bool large = false;
-                try { prefix = JournalDelivery.EncodePrefix(session.Address, candidates); }
+                using var deliveryContext = JournalDiagnostics.Correlate(candidates[0].RequestId, candidates[0].Sequence, "delivery");
+                try { using (JournalDiagnostics.Measure("server.delivery.select_encode", count: candidates.Length)) prefix = JournalDelivery.EncodePrefix(session.Address, candidates); }
                 catch (InvalidDataException)
                 { prefix = (Array.Empty<byte>(), 1); large = true; }
                 var delivery = await server.QueueDeliveryAsync(session.Address, sentThrough, prefix.Count).ConfigureAwait(false);
@@ -201,7 +212,8 @@ namespace ThorsKist.Sync
                     catch { ReleaseTransfer(); throw; }
                     transferIndex = 0; transferThrough = delivery.Entries.Last().Sequence; return;
                 }
-                var body = JournalWire.EncodeEntries(session.Address, delivery.Entries);
+                byte[] body;
+                using (JournalDiagnostics.Measure("server.delivery.encode", count: delivery.Entries.Count)) body = JournalWire.EncodeEntries(session.Address, delivery.Entries);
                 pendingThrough = delivery.Entries.Last().Sequence;
                 pending = JournalWire.EncodeFrame(new JournalFrame(JournalMessage.Entries, session.Address.Session, body));
                 if (outgoing.TryEnqueue(pending)) { sentThrough = pendingThrough; pending = null; }

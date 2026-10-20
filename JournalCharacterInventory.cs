@@ -54,9 +54,10 @@ namespace ThorsKist
             if (!CheckCurrent() || !local.TryGetValue(localStackId, out var stack) || stack.m_shared == null || stack.m_equipped || stack.m_shared.m_questItem
                 || (!pending.ContainsKey(requestId) && pending.Count >= 64)) return false;
             ItemRecord record;
-            try { record = JournalItemCodec.Capture(stack, quantity); }
+            try { using (JournalDiagnostics.Measure("unity.reservation.capture", expected: JournalTimingThread.Main)) record = JournalItemCodec.Capture(stack, quantity); }
             catch { return false; }
-            if (!reservations.TryReserve(requestId, stack, quantity)) return false;
+            using (JournalDiagnostics.Measure("unity.reservation.snapshot", expected: JournalTimingThread.Main))
+                if (!reservations.TryReserve(requestId, stack, quantity)) return false;
             if (!pending.ContainsKey(requestId)) pending.Add(requestId, record);
             return true;
         }
@@ -67,6 +68,8 @@ namespace ThorsKist
         }
         public InventoryResult Apply(CharacterEffect effect)
         {
+            using var correlation = JournalDiagnostics.Correlate(effect.RequestId, JournalDiagnostics.Current.Sequence, "character_effect");
+            using var timing = JournalDiagnostics.Measure("unity.inventory_effect.work", JournalTimingKind.Work, JournalTimingThread.Main, effect.Item.Quantity);
             if (disposed) return InventoryResult.Failed;
             if (applied.TryGetValue(effect.EffectId, out var old))
                 return SameEffect(old, effect) ? InventoryResult.AlreadyApplied : InventoryResult.Failed;
@@ -81,21 +84,25 @@ namespace ThorsKist
                 {
                     if (!pending.TryGetValue(effect.RequestId, out var reserved)) return InventoryResult.MissingReservation;
                     if (!JournalChecksum.SameItem(reserved, effect.Item)) return InventoryResult.InventoryChanged;
-                    result = reservations.ApplyVerifiedRemoval(effect.RequestId, effect.EffectId, effect.Item.Quantity);
+                    using (JournalDiagnostics.Measure("unity.inventory.remove_reserved", expected: JournalTimingThread.Main))
+                        result = reservations.ApplyVerifiedRemoval(effect.RequestId, effect.EffectId, effect.Item.Quantity);
                     if (result == InventoryResult.Applied || result == InventoryResult.AlreadyApplied) pending.Remove(effect.RequestId);
                 }
                 else
                 {
-                    var item = JournalItemCodec.Restore(effect.Item);
+                    ItemDrop.ItemData item;
+                    using (JournalDiagnostics.Measure("unity.inventory.restore", expected: JournalTimingThread.Main)) item = JournalItemCodec.Restore(effect.Item);
                     // Vanilla AddItem merges by name/quality/world level and can
                     // destroy variant, crafter and custom data. Install the exact
                     // stack in an empty slot, preserving every canonical field.
-                    var slot = EmptySlot();
+                    Vector2i slot;
+                    using (JournalDiagnostics.Measure("unity.inventory.find_slot", expected: JournalTimingThread.Main)) slot = EmptySlot();
                     if (slot.x < 0) return InventoryResult.NoCapacity;
                     item.m_gridPos = slot;
-                    inventory.GetAllItems().Add(item);
-                    changed(false, false);
-                    result = inventory.GetAllItems().Any(i => ReferenceEquals(i, item))
+                    using (JournalDiagnostics.Measure("unity.inventory.add", expected: JournalTimingThread.Main)) inventory.GetAllItems().Add(item);
+                    using (JournalDiagnostics.Measure("unity.inventory.changed_callbacks", expected: JournalTimingThread.Main)) changed(false, false);
+                    using (JournalDiagnostics.Measure("unity.inventory.verify_added", expected: JournalTimingThread.Main))
+                        result = inventory.GetAllItems().Any(i => ReferenceEquals(i, item))
                         && JournalChecksum.SameItem(JournalItemCodec.Capture(item, item.m_stack), effect.Item)
                         ? InventoryResult.Applied : InventoryResult.Failed;
                 }

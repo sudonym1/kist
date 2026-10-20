@@ -95,6 +95,7 @@ namespace ThorsKist.Sync
         // bounded separately, so a slow Unity dispatcher cannot grow it forever.
         public Task ReceiveAsync(JournalFrame frame)
         {
+            using var correlation = JournalDiagnostics.Correlate(frame.Correlation, 0, JournalDiagnostics.Operation(frame.Message));
             lock (sync)
             {
                 if (closing != null) return Task.CompletedTask;
@@ -160,11 +161,13 @@ namespace ThorsKist.Sync
             if ((!login && (pendingFrames >= 16 || bytes > 2 * JournalWire.MaximumLogicalBody - pendingBytes))) throw new IOException("Client application queue full");
             pendingFrames++; pendingBytes += bytes;
             var previous = application;
+            var waiting = JournalDiagnostics.Measure("client.application_queue.wait", JournalTimingKind.Wait, JournalTimingThread.Any, bytes);
             application = Task.Run(async () =>
             {
                 try
                 {
                     await previous.ConfigureAwait(false);
+                    waiting.Dispose();
                     if (!stopped) await action().ConfigureAwait(false);
                 }
                 catch (Exception error) { Fail(error); }

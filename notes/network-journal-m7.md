@@ -5,6 +5,63 @@ left after [M6: Transport foundations](network-journal-m6.md). The scope was mov
 here at the user's request on 2026-10-19; no unfinished integration gate was
 claimed to have passed. Game validation and release are now **M8**.
 
+## Transfer instrumentation (2026-10-20 UTC)
+
+F4 now captures a bounded journal trace alongside the existing frame profiler.
+Kist drawing is outside this investigation and its implementation is unchanged.
+The event buffer is prepared on a worker; probes append in memory without file
+IO or logging. Export runs on a worker after F4 stops. Disabled timing probes
+allocate no memory in the harness hot-loop check. The trace caps at 131,072
+completed events and reports dropped and unfinished spans explicitly.
+
+`journal-events.csv` correlates request IDs and journal sequences across command
+submission, transport/application/server queues, writer scheduling, SQLite
+validation/read/rewrite/flush/close, client verification, Unity dispatch and
+acknowledgments. `journal-stages.csv` gives latency percentiles and thread IDs;
+`journal-summary.txt` flags synchronous main-thread spans above 1 ms and worker
+thread violations. Work is synchronous wall time; asynchronous waits and nested
+spans must not be summed as main-thread blocking. Inventory access remains on
+Unity's thread, with separate timings for identification, reservation capture
+and snapshots, removal, restoration, slot lookup, callbacks and verification.
+
+The packaged v13 native probe passed **19 checks**, recorded **1,091 events**,
+and reported **zero dropped events and zero thread violations**. Sampled SQLite
+and client verification work ran on workers. This is a cold headless three-Wood
+transfer against the current 587-stack vault, not the user's resin gameplay
+capture. Main-thread submission peaked at **4.5273 ms** (reservation setup
+**3.2738 ms**, identification **1.1283 ms**); dispatched effect peaked at
+**3.3331 ms**, including verified removal **2.0443 ms**. The 1 ms budget is
+therefore **not established**; first-use/JIT costs require a normal gameplay
+capture to distinguish from recurring costs.
+
+The worker trace quantifies substantial persistence latency: 29 commits averaged
+**41.2911 ms** reading/verifying previous state, **28.0455 ms** writing rows, and
+**5.4678 ms** flushing. Six acknowledgment round trips averaged **229.1674 ms**,
+maximum **334.7540 ms**. Timer ticks also rewrite state; a client waits for each
+acknowledgment before applying its next entry. These measurements support the
+earlier full-rewrite/serial-ack diagnosis. No optimization or protocol change is
+included. Raw trace, summaries and checks are in
+[the evidence directory](performance/m7-journal-instrumentation-20261020).
+
+Validation: **175,305 harness assertions**, including all **45 forced crash
+cases** and 10 new diagnostics assertions; Release builds have zero warnings or
+errors; all **124 Harmony targets and 124 runtime references**, categories,
+version and whitespace checks pass. Setup.cmd and Update.cmd in
+`.tools/m7/ThorsKist-M7-Windows-Journal-v13.zip` share the verified 29-file payload,
+which exactly matches the isolated installation. Bundle SHA256:
+`ad56e14dc351e880e43f6d24c008350f1ee9a3909a8a17638ce54048a8b99fa9`.
+
+The first probe refused the migration fixture's exact-slot comparison after
+legitimate resin withdrawal/redeposit replaced stack slots. Optional trace mode
+now uses the current SQLite baseline and checks exact restoration after scratch
+transfers and reopen; ordinary cutover verification retains its original exact
+migration comparison. Final native restart retained 587 stacks at head 87;
+integrity_check is `ok`. Resin remains **731 in the vault, zero in the saved
+character**; its SHA512 verifies and legacy bytes retain the original SHA256.
+Manual follow-up: F4, idle 10 seconds, F3, withdraw/deposit all resin, F4, wait
+for both timing exports, save/exit. Analyze transfers independently of drawing
+before choosing performance changes.
+
 ## SQLite cutover implementation (2026-10-20 UTC)
 
 Preservation commits: `be429dd` keeps the profiling collector, analysis and legacy

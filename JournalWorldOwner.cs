@@ -95,7 +95,7 @@ namespace ThorsKist
                 if (ZNet.instance.IsServer())
                 {
                     if (!Ready || MetadataBusy) return;
-                    localRequests = new JournalSendQueue(); localReplies = new JournalSendQueue(); localConnection = new object();
+                    localRequests = new JournalSendQueue(diagnosticName: "listen.requests_queue.wait"); localReplies = new JournalSendQueue(diagnosticName: "listen.replies_queue.wait"); localConnection = new object();
                     var identity = LocalIdentity(); if (identity == null) return;
                     localBinding = new JournalPeerBinding(identity); outgoing = localRequests;
                 }

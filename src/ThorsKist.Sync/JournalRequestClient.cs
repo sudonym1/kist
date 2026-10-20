@@ -16,8 +16,11 @@ namespace ThorsKist.Sync
         {
             public readonly JournalFrame Frame;
             public readonly byte[] Bytes;
+            public readonly JournalDiagnostics.Scope RoundTrip;
+            private int timingEnded;
+            public void EndTiming() { if (Interlocked.Exchange(ref timingEnded, 1) == 0) RoundTrip.Dispose(); }
             public readonly TaskCompletionSource<JournalReply> Reply = new TaskCompletionSource<JournalReply>(TaskCreationOptions.RunContinuationsAsynchronously);
-            public Pending(JournalFrame frame, byte[] bytes) { Frame = frame; Bytes = bytes; }
+            public Pending(JournalFrame frame, byte[] bytes) { Frame = frame; Bytes = bytes; RoundTrip = JournalDiagnostics.Measure("client.request.round_trip", JournalTimingKind.Elapsed, JournalTimingThread.Any); }
         }
         private readonly object sync = new object();
         private readonly Dictionary<Guid, Pending> pending = new Dictionary<Guid, Pending>();
@@ -35,6 +38,7 @@ namespace ThorsKist.Sync
         {
             if (frame.Message < JournalMessage.Login || frame.Message > JournalMessage.Suspend) throw new ArgumentException("Not a request");
             token.ThrowIfCancellationRequested();
+            using var correlation = JournalDiagnostics.Correlate(frame.Correlation, JournalDiagnostics.Current.Sequence, JournalDiagnostics.Operation(frame.Message));
             bool large = frame.Message == JournalMessage.Command && frame.CopyBody().Length > JournalWire.MaximumFrameBody;
             var bytes = large ? frame.CopyBody() : JournalWire.EncodeFrame(frame);
             lock (sync)
@@ -52,7 +56,7 @@ namespace ThorsKist.Sync
                     if (large) _ = Task.Run(() => SendLargeAsync(p, token));
                     else if (!send(bytes)) throw new IOException("Journal request queue full");
                 }
-                catch { pending.Remove(frame.Correlation); throw; }
+                catch { pending.Remove(frame.Correlation); p.EndTiming(); throw; }
                 _ = ExpireAsync(p, token); return p.Reply.Task;
             }
         }
@@ -82,7 +86,7 @@ namespace ThorsKist.Sync
                 lock (sync)
                 {
                     if (pending.TryGetValue(p.Frame.Correlation, out var current) && ReferenceEquals(current, p)) pending.Remove(p.Frame.Correlation);
-                    p.Reply.TrySetException(error);
+                    p.EndTiming(); p.Reply.TrySetException(error);
                 }
             }
             finally { if (entered) largeSend.Release(); }
@@ -102,6 +106,7 @@ namespace ThorsKist.Sync
                             if (pending.TryGetValue(p.Frame.Correlation, out var current) && ReferenceEquals(current, p))
                             {
                                 pending.Remove(p.Frame.Correlation);
+                                p.EndTiming();
                                 if (token.IsCancellationRequested) p.Reply.TrySetCanceled();
                                 else p.Reply.TrySetException(new TimeoutException("Journal request outcome is uncertain"));
                             }
@@ -115,7 +120,7 @@ namespace ThorsKist.Sync
                     lock (sync)
                     {
                         if (pending.TryGetValue(p.Frame.Correlation, out var current) && ReferenceEquals(current, p)) pending.Remove(p.Frame.Correlation);
-                        p.Reply.TrySetException(error);
+                        p.EndTiming(); p.Reply.TrySetException(error);
                     }
                 }
             }
@@ -131,11 +136,15 @@ namespace ThorsKist.Sync
             {
                 if (closed || !pending.TryGetValue(frame.Correlation, out var p)) return false;
                 if (p.Frame.Message != reply.Request) throw new InvalidDataException("Reply request kind mismatch");
-                pending.Remove(frame.Correlation); p.Reply.TrySetResult(reply); return true;
+                pending.Remove(frame.Correlation); p.EndTiming();
+                JournalDiagnostics.Mark("client.reply.received", frame.Correlation, reply.Sequence != 0 ? reply.Sequence : reply.Acknowledged);
+                p.Reply.TrySetResult(reply); return true;
             }
         }
         public async Task<JournalReply> ExecuteAsync(ItemCommand command, CancellationToken token = default)
         {
+            using var correlation = JournalDiagnostics.Correlate(command.RequestId, 0, "command");
+            using var elapsed = JournalDiagnostics.Measure("client.command.elapsed", JournalTimingKind.Elapsed, JournalTimingThread.Any, command.Item.Quantity);
             JournalDelivery.ValidateCommand(command);
             var frame = new JournalFrame(JournalMessage.Command, command.RequestId, JournalWire.EncodeCommand(command));
             while (true)
@@ -150,7 +159,7 @@ namespace ThorsKist.Sync
             lock (sync)
             {
                 if (closed) return; closed = true;
-                foreach (var p in pending.Values) p.Reply.TrySetException(new IOException("Journal connection closed; outcome is uncertain"));
+                foreach (var p in pending.Values) { p.EndTiming(); p.Reply.TrySetException(new IOException("Journal connection closed; outcome is uncertain")); }
                 pending.Clear();
             }
         }

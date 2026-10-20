@@ -55,7 +55,10 @@ def main():
         'Startup must report KIST AUTHORITY READY SQLite/journal on the host.\n'
         'The current world .dat is backed up and imported once; subsequent opens use SQLite exclusively.\n'
         'Provider, migration and commit errors close Kist access. Never delete SQLite to recover from an error.\n'
-        'F4 retains the legacy profiler. Use ordinary F3 Kist actions for journal gameplay.\n'
+        'F4 records frames plus bounded journal transfer timings; F4 again stops and exports on a worker.\n'
+        'BepInEx/timings/<capture>/journal-events.csv links requests and sequence numbers across queues, SQLite, effects and acknowledgments.\n'
+        'journal-stages.csv and journal-summary.txt report thread violations and synchronous main-thread work above 1 ms. Kist drawing is outside this journal trace.\n'
+        'Use ordinary F3 Kist actions for journal gameplay. Wait for TIMING SAVED before exiting.\n'
         'Await the validation handoff before manual testing. Diagnostic fixture keys are not gameplay evidence.\n'
         'Logs: BepInEx/LogOutput.log and Player.log. Production min hird size remains 2; isolated tests use 1.\n', encoding='utf-8')
     archive = args.output.with_suffix('.zip')

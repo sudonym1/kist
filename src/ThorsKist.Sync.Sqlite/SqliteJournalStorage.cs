@@ -67,35 +67,51 @@ namespace ThorsKist.Sync.Sqlite
         public Task CommitAsync(StorageCommit commit, CancellationToken cancellationToken) => Work(db =>
         {
             if (!identity.Matches(commit.State.Current.Identity)) throw new InvalidOperationException("Commit belongs to another vault/epoch");
-            Validate(commit.State);
-            using (var tx = db.BeginTransaction(deferred: false))
+            using (JournalDiagnostics.Measure("sqlite.candidate.validate", count: commit.State.Current.Stacks.Count)) Validate(commit.State);
+            Microsoft.Data.Sqlite.SqliteTransaction transaction;
+            using (JournalDiagnostics.Measure("sqlite.transaction.begin")) transaction = db.BeginTransaction(deferred: false);
+            using (var tx = transaction)
             {
-                var previous = Read(db, tx, identity);
+                JournalMachineState? previous;
+                using (JournalDiagnostics.Measure("sqlite.previous.read_verify")) previous = Read(db, tx, identity);
                 if (previous != null && commit.ExpectedReplicationRevision.HasValue && previous.Replication.Revision != commit.ExpectedReplicationRevision.Value) throw new InvalidOperationException("Stale replication revision");
                 if ((previous?.Head ?? 0) != commit.ExpectedHead) throw new InvalidOperationException("Stale storage head");
-                if (previous != null) ValidateSuccessor(previous, commit.State);
+                if (previous != null) { using (JournalDiagnostics.Measure("sqlite.successor.validate")) ValidateSuccessor(previous, commit.State); }
                 else if (commit.ExpectedHead != 0) throw new InvalidOperationException("Uninitialized vault");
-                Write(db, tx, commit.State, boundary);
+                using (JournalDiagnostics.Measure("sqlite.rows.write", count: commit.State.Current.Stacks.Count)) Write(db, tx, commit.State, boundary);
                 boundary?.Invoke(StorageBoundary.BeforeCommit);
-                tx.Commit();
+                using (JournalDiagnostics.Measure("sqlite.transaction.commit_flush")) tx.Commit();
                 boundary?.Invoke(StorageBoundary.AfterCommit);
             }
             return true;
         }, cancellationToken);
 
-        private Task<T> Work<T>(Func<SqliteConnection, T> action, CancellationToken token) => Task.Run(async () =>
+        private Task<T> Work<T>(Func<SqliteConnection, T> action, CancellationToken token)
         {
-            await gate.WaitAsync(token).ConfigureAwait(false);
+            var scheduled = JournalDiagnostics.Measure("sqlite.schedule.wait", JournalTimingKind.Wait, JournalTimingThread.Any);
+            return Task.Run(async () =>
+        {
+            scheduled.Dispose();
+            using (JournalDiagnostics.Measure("sqlite.gate.wait", JournalTimingKind.Wait, JournalTimingThread.Any))
+                await gate.WaitAsync(token).ConfigureAwait(false);
             try
             {
                 if (disposed) throw new ObjectDisposedException(nameof(SqliteJournalStorage));
                 token.ThrowIfCancellationRequested();
-                using (var db = SqliteConnections.Open(path)) { EnsureSchema(db); return action(db); }
+                using var operation = JournalDiagnostics.Measure("sqlite.operation.work");
+                var db = SqliteConnections.Open(path);
+                try
+                {
+                    using (JournalDiagnostics.Measure("sqlite.schema.check")) EnsureSchema(db);
+                    return action(db);
+                }
+                finally { using (JournalDiagnostics.Measure("sqlite.connection.close")) db.Dispose(); }
                 // Once a transaction starts, cancellation cannot turn a committed
                 // result into an apparently canceled request. Query on uncertainty.
             }
             finally { gate.Release(); }
         }, token);
+        }
 
         public void Dispose()
         {
@@ -307,19 +323,26 @@ PRAGMA user_version=5;");
                 ("$s", state.Checkpoint.Sequence), ("$ch", state.Checkpoint.Checksum), ("$hash", JournalChecksum.Compute(state.Current)), ("$schema", state.Checkpoint.Schema),
                 ("$history", HistoryChecksum(state.Results, state.UsedStackIds)));
             long id = Convert.ToInt64(Scalar(db, tx, "SELECT id FROM vaults WHERE world=$w AND vault=$v;", ("$w", v.World), ("$v", v.Vault)));
-            foreach (string table in new[] { "current_stacks", "checkpoint_stacks", "journal", "request_results", "used_stack_ids" })
-                Execute(db, tx, "DELETE FROM " + table + " WHERE vault_id=$id;", ("$id", id));
-            foreach (var s in state.Current.Stacks) InsertStack(db, tx, "current_stacks", id, s);
+            using (JournalDiagnostics.Measure("sqlite.rows.delete_all"))
+                foreach (string table in new[] { "current_stacks", "checkpoint_stacks", "journal", "request_results", "used_stack_ids" })
+                    Execute(db, tx, "DELETE FROM " + table + " WHERE vault_id=$id;", ("$id", id));
+            using (JournalDiagnostics.Measure("sqlite.current_stacks.write", count: state.Current.Stacks.Count))
+                foreach (var s in state.Current.Stacks) InsertStack(db, tx, "current_stacks", id, s);
             boundary?.Invoke(StorageBoundary.AfterCurrentWrite);
-            foreach (var s in state.Checkpoint.State.Stacks) InsertStack(db, tx, "checkpoint_stacks", id, s);
+            using (JournalDiagnostics.Measure("sqlite.checkpoint_stacks.write", count: state.Checkpoint.State.Stacks.Count))
+                foreach (var s in state.Checkpoint.State.Stacks) InsertStack(db, tx, "checkpoint_stacks", id, s);
+            using (JournalDiagnostics.Measure("sqlite.journal.write", count: state.Journal.Count))
             foreach (var e in state.Journal)
                 Execute(db, tx, "INSERT INTO journal VALUES($id,$s,$body);", ("$id", id), ("$s", e.Sequence), ("$body", StorageEncoding.Encode(e, StorageEncoding.Entry)));
             boundary?.Invoke(StorageBoundary.AfterJournalWrite);
+            using (JournalDiagnostics.Measure("sqlite.results.write", count: state.Results.Count))
             foreach (var r in state.Results)
                 Execute(db, tx, "INSERT INTO request_results VALUES($id,$p,$r,$s,$body);", ("$id", id), ("$p", r.Command.Address.Player),
                     ("$r", r.Command.RequestId.ToString("N")), ("$s", r.Entry.Sequence), ("$body", StorageEncoding.Encode(r, StorageEncoding.Result)));
+            using (JournalDiagnostics.Measure("sqlite.used_ids.write", count: state.UsedStackIds.Count))
             foreach (var stack in state.UsedStackIds) Execute(db, tx, "INSERT INTO used_stack_ids VALUES($id,$stack);", ("$id", id), ("$stack", stack.ToString("N")));
-            WriteProtocol(db, tx, id, state.Replication);
+            using (JournalDiagnostics.Measure("sqlite.protocol.write", count: state.Replication.Sessions.Count + state.Replication.Settlements.Count))
+                WriteProtocol(db, tx, id, state.Replication);
             return id;
         }
         private static void InsertStack(SqliteConnection db, SqliteTransaction tx, string table, long id, StackRecord stack) => Execute(db, tx,

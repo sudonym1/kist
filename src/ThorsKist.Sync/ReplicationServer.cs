@@ -78,7 +78,14 @@ namespace ThorsKist.Sync
             {
                 if (disposed) throw new ObjectDisposedException(nameof(ReplicationServer));
                 var previous = tail;
-                var task = Task.Run(async () => { try { await previous.ConfigureAwait(false); } catch { /* Writer faults remain latched. */ } return await action().ConfigureAwait(false); });
+                var waiting = JournalDiagnostics.Measure("server.serial_queue.wait", JournalTimingKind.Wait, JournalTimingThread.Any);
+                var task = Task.Run(async () =>
+                {
+                    try { await previous.ConfigureAwait(false); } catch { /* Writer faults remain latched. */ }
+                    waiting.Dispose();
+                    using (JournalDiagnostics.Measure("server.operation.elapsed", JournalTimingKind.Elapsed, JournalTimingThread.Any))
+                        return await action().ConfigureAwait(false);
+                });
                 tail = task; return task;
             }
         }
@@ -259,7 +266,10 @@ namespace ThorsKist.Sync
                 return Finish(s, sessions, settlements);
             }).ConfigureAwait(false); return reply;
         });
-        public Task<JournalMachineState> TickAsync() => Enqueue(() => Change(s =>
+        public Task<JournalMachineState> TickAsync()
+        {
+            using var context = JournalDiagnostics.Correlate(Guid.Empty, 0, "tick");
+            return Enqueue(() => Change(s =>
         {
             var sessions = Copies(s); var settlements = s.Replication.Settlements.ToList();
             foreach (var session in sessions.Where(x => x.Phase != SessionPhase.Closed))
@@ -270,7 +280,11 @@ namespace ThorsKist.Sync
             { s = JournalMachine.AppendNoOp(s); next = Now + TimeSpan.FromSeconds(10); }
             return Finish(s, sessions, settlements, next);
         }));
-        public Task<JournalMachineState> CheckpointAsync() => Enqueue(() => Change(s =>
+        }
+        public Task<JournalMachineState> CheckpointAsync()
+        {
+            using var context = JournalDiagnostics.Correlate(Guid.Empty, 0, "checkpoint");
+            return Enqueue(() => Change(s =>
         {
             long cutoff = s.Replication.Sessions.Where(x => x.Phase != SessionPhase.Closed).Select(x => x.Acknowledged).DefaultIfEmpty(s.Head).Min();
             // Protect even unexpected/unowned pending effects rather than prune them.
@@ -278,6 +292,7 @@ namespace ThorsKist.Sync
                 .Select(r => r.Entry.Sequence - 1).DefaultIfEmpty(s.Head).Min());
             return JournalMachine.Checkpoint(s, cutoff);
         }));
+        }
         public void Dispose()
         {
             Task pending; lock (sync) { disposed = true; pending = tail; }

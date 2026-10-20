@@ -15,6 +15,7 @@ static class Program
     static void Check(bool condition, string message) { if (!condition) throw new Exception(message); checks++; }
     static async Task Main(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--diagnostics-only") { await DiagnosticsTests.Run(); return; }
         if (args.Length > 0 && args[0] == "--timing-only") { TimingTests.Run(); return; }
         if (args.Length > 0 && args[0] == "--m4-child") { await SessionTests.Child(args); return; }
         if (args.Length > 0 && args[0] == "--m3-child") { await StorageTests.Child(args); return; }
@@ -46,6 +47,7 @@ static class Program
         }
         Reservations();
         checks += TimingTests.Run();
+        checks += await DiagnosticsTests.Run();
         checks += StateMachineTests.Run();
         checks += await StorageTests.Run();
         checks += await SessionTests.Run();

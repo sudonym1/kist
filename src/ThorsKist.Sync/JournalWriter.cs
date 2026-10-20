@@ -38,15 +38,25 @@ namespace ThorsKist.Sync
         { await Install(JournalMachine.Checkpoint(state, safeCutoff), token).ConfigureAwait(false); return state; }, token);
         public Task<JournalMachineState> ReadAsync(CancellationToken token = default) => Run(() => Task.FromResult(state), token);
         internal Task<JournalMachineState> TransitionAsync(Func<JournalMachineState, JournalMachineState> transition) => Run(async () =>
-        { var next = transition(state); if (!ReferenceEquals(next, state)) await Install(next, default).ConfigureAwait(false); return state; }, default);
+        {
+            JournalMachineState next;
+            using (JournalDiagnostics.Measure("writer.transition.compute")) next = transition(state);
+            if (!ReferenceEquals(next, state)) await Install(next, default).ConfigureAwait(false); return state;
+        }, default);
         private async Task Install(JournalMachineState next, CancellationToken token)
         {
+            using var elapsed = JournalDiagnostics.Measure("writer.commit.elapsed", JournalTimingKind.Elapsed, JournalTimingThread.Any, next.Current.Stacks.Count);
             try { await storage.CommitAsync(new StorageCommit(state.Head, next, state.Replication.Revision), token).ConfigureAwait(false); state = next; }
             catch { faulted = true; throw; }
         }
-        private Task<T> Run<T>(Func<Task<T>> action, CancellationToken token) => Task.Run(async () =>
+        private Task<T> Run<T>(Func<Task<T>> action, CancellationToken token)
         {
-            await gate.WaitAsync(token).ConfigureAwait(false);
+            var scheduled = JournalDiagnostics.Measure("writer.schedule.wait", JournalTimingKind.Wait, JournalTimingThread.Any);
+            return Task.Run(async () =>
+        {
+            scheduled.Dispose();
+            using (JournalDiagnostics.Measure("writer.gate.wait", JournalTimingKind.Wait, JournalTimingThread.Any))
+                await gate.WaitAsync(token).ConfigureAwait(false);
             try
             {
                 if (disposed) throw new ObjectDisposedException(nameof(JournalWriter));
@@ -55,6 +65,7 @@ namespace ThorsKist.Sync
             }
             finally { gate.Release(); }
         }, token);
+        }
         public void Dispose() { gate.Wait(); try { disposed = true; storage.Dispose(); } finally { gate.Release(); } }
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using Microsoft.Data.Sqlite;
+using ThorsKist.Sync;
 
 namespace ThorsKist.Sync.Sqlite
 {
@@ -21,6 +22,7 @@ namespace ThorsKist.Sync.Sqlite
         }
         public static SqliteConnection Open(string path)
         {
+            using var timing = JournalDiagnostics.Measure("sqlite.connection.open_configure");
             if (string.IsNullOrWhiteSpace(path) || path == ":memory:") throw new ArgumentException("File path required", nameof(path));
             Initialize();
             var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path, Pooling = false }.ToString());

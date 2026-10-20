@@ -38,11 +38,13 @@ namespace ThorsKist.Sync
             {
                 if (closed || failure != null || pendingFrames >= maximumFrames || bytes.Length > maximumBytes - pendingBytes) return false;
                 var immutable = (byte[])bytes.Clone(); var previous = tail; pendingFrames++; pendingBytes += immutable.Length;
+                var waiting = JournalDiagnostics.Measure("transport.ingress_queue.wait", JournalTimingKind.Wait, JournalTimingThread.Any, bytes.Length);
                 tail = Task.Run(async () =>
                 {
                     try
                     {
                         await previous.ConfigureAwait(false);
+                        waiting.Dispose();
                         cancellation.Token.ThrowIfCancellationRequested();
                         await handle(JournalWire.DecodeFrame(immutable), context, cancellation.Token).ConfigureAwait(false);
                     }

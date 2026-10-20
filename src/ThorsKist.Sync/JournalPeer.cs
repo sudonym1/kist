@@ -63,14 +63,21 @@ namespace ThorsKist.Sync
     // peer cannot occupy another peer's queue. No Unity calls under this lock.
     public sealed class JournalSendQueue : IDisposable
     {
-        private readonly Queue<byte[]> frames = new Queue<byte[]>();
+        private readonly struct Queued
+        {
+            internal readonly byte[] Bytes;
+            internal readonly JournalDiagnostics.Scope Waiting;
+            internal Queued(byte[] bytes, JournalDiagnostics.Scope waiting) { Bytes = bytes; Waiting = waiting; }
+        }
+        private readonly Queue<Queued> frames = new Queue<Queued>();
+        private readonly string diagnosticName;
         private readonly int maximumBytes, maximumFrames;
         private int bytes;
         private bool closed;
-        public JournalSendQueue(int maximumBytes = 256 * 1024, int maximumFrames = 16)
+        public JournalSendQueue(int maximumBytes = 256 * 1024, int maximumFrames = 16, string diagnosticName = "transport.outgoing_queue.wait")
         {
             if (maximumBytes < JournalWire.MaximumFrameBytes || maximumFrames <= 0) throw new ArgumentOutOfRangeException(nameof(maximumBytes));
-            this.maximumBytes = maximumBytes; this.maximumFrames = maximumFrames;
+            this.maximumBytes = maximumBytes; this.maximumFrames = maximumFrames; this.diagnosticName = diagnosticName;
         }
         // Encoding, including large image hashing, must be performed on workers.
         public bool TryEnqueue(byte[] encodedFrame)
@@ -80,7 +87,8 @@ namespace ThorsKist.Sync
             lock (frames)
             {
                 if (closed || frames.Count >= maximumFrames || encodedFrame.Length > maximumBytes - bytes) return false;
-                frames.Enqueue((byte[])encodedFrame.Clone()); bytes += encodedFrame.Length; return true;
+                frames.Enqueue(new Queued((byte[])encodedFrame.Clone(), JournalDiagnostics.Measure(diagnosticName, JournalTimingKind.Wait, JournalTimingThread.Any, encodedFrame.Length)));
+                bytes += encodedFrame.Length; return true;
             }
         }
         public byte[]? Dequeue()
@@ -88,7 +96,7 @@ namespace ThorsKist.Sync
             lock (frames)
             {
                 if (closed || frames.Count == 0) return null;
-                var frame = frames.Dequeue(); bytes -= frame.Length; return frame;
+                var frame = frames.Dequeue(); bytes -= frame.Bytes.Length; frame.Waiting.Dispose(); return frame.Bytes;
             }
         }
         public void Dispose() { lock (frames) { closed = true; frames.Clear(); bytes = 0; } }

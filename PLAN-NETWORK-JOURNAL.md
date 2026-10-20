@@ -2,6 +2,14 @@
 
 ## M7 integrated Windows candidate (2026-10-20 UTC)
 
+Transfer instrumentation is installed in the matching **v13 Windows Setup/Update
+bundle** and isolated game. F4 exports bounded request/sequence-correlated queue,
+SQLite, verification, main-thread inventory and acknowledgment timings alongside
+the preserved profiler. Drawing is excluded from this investigation. The native
+probe records zero worker-thread violations, but first-use inventory work exceeds
+1 ms; the target remains unproven. Repeated full-state commits and serial ack
+waits are measured bottlenecks. See [the M7 instrumentation evidence](notes/network-journal-m7.md#transfer-instrumentation-2026-10-20-utc).
+
 Preservation commits: `be429dd` (profiling baseline) and `6137246` (all existing
 M7 work). Normal world startup now installs the production SQLite catalog/runtime,
 authenticated direct-peer transport, listen-host sessions, bounded Unity effects,

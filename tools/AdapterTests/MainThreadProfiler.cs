@@ -16,7 +16,7 @@ using UnityEngine;
 namespace ThorsKist
 {
     [HarmonyPatch]
-    internal static class MainThreadProfiler
+    internal static partial class MainThreadProfiler
     {
         private static readonly Dictionary<MethodBase, int> Ids = new Dictionary<MethodBase, int>();
         private static readonly List<string> Names = new List<string>();
@@ -73,6 +73,7 @@ namespace ThorsKist
         private static void Start()
         {
             owner = Thread.CurrentThread.ManagedThreadId;
+            if (!StartJournalTrace(owner)) { report("Journal trace buffer is preparing; press F4 again shortly."); return; }
             capture = new MainThreadTimings(Names.ToArray(), IsKist.ToArray());
             output = Path.Combine(Paths.BepInExRootPath, "timings", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N").Substring(0, 6));
             warmup = Time.frameCount + 3; lastFrame = -1; started = Stopwatch.GetTimestamp(); active = true;
@@ -82,6 +83,7 @@ namespace ThorsKist
         private static void EnsureFrame()
         {
             int frame = Time.frameCount;
+            ThorsKist.Sync.JournalDiagnostics.SetFrame(frame);
             if (frame < warmup || frame == lastFrame) return;
             lastFrame = frame;
             int stacks = JournalGameplaySession.Current != null ? JournalGameplaySession.Current.Stock.Count : KistClient.Kist?.NrOfItems() ?? 0;
@@ -107,7 +109,9 @@ namespace ThorsKist
         {
             if (!active) return; active = false;
             var data = capture; var path = output; var logger = report;
-            exporting = Task.Run(() => Export(data, path, logger));
+            var journal = ThorsKist.Sync.JournalDiagnostics.StopCapture();
+            preparedJournalTrace = Task.Run(() => ThorsKist.Sync.JournalDiagnostics.PrepareCapture());
+            exporting = Task.Run(() => { Export(data, path, logger); if (journal != null) ExportJournalTrace(journal, path, logger); });
             KistClient.Message("Kist timing stopped; CSV reports are being written off the game thread.");
         }
         private static string Ms(long ticks) => (ticks * 1000.0 / Stopwatch.Frequency).ToString("F6", CultureInfo.InvariantCulture);

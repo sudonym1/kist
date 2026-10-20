@@ -57,12 +57,13 @@ namespace ThorsKist.Sync
             foreach (var entry in entries)
             {
                 if (Stopped) break;
+                using var correlation = JournalDiagnostics.Correlate(entry.RequestId, entry.Sequence, "entry");
                 ReplicaResult result;
                 if (entry.Sequence <= replica.Sequence) result = replica.Process(deliverySession, entry);
                 else
                 {
                     VerifiedJournalUpdate update;
-                    try { update = JournalReplay.Prepare(replica.Current!, replica.Sequence, entry); }
+                    try { using (JournalDiagnostics.Measure("client.entry.verify")) update = JournalReplay.Prepare(replica.Current!, replica.Sequence, entry); }
                     catch (System.IO.InvalidDataException)
                     {
                         replica.VerificationFailed(deliverySession); Stopped = true; AccessEnabled = false;
@@ -75,7 +76,9 @@ namespace ThorsKist.Sync
                 if (result != ReplicaResult.Applied && result != ReplicaResult.Duplicate)
                 { Stopped = true; AccessEnabled = false; break; }
                 processed++;
-                var reply = await acknowledge(address, replica.Sequence).ConfigureAwait(false);
+                SessionReply reply;
+                using (JournalDiagnostics.Measure("client.ack.round_trip", JournalTimingKind.Elapsed, JournalTimingThread.Any))
+                    reply = await acknowledge(address, replica.Sequence).ConfigureAwait(false);
                 AccessEnabled = !requestsStopped && reply.Status == SessionStatus.Ok && reply.Phase == SessionPhase.Active;
                 if (reply.Status != SessionStatus.Ok || reply.Phase == SessionPhase.Closed)
                 { Stopped = true; AccessEnabled = false; break; }

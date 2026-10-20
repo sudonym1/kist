@@ -13,6 +13,8 @@ namespace ThorsKist
         private sealed class Work
         {
             public Func<ReplicaResult> Action;
+            public JournalDiagnostics.Scope Waiting;
+            public JournalDiagnostics.Correlation Correlation;
             public TaskCompletionSource<ReplicaResult> Completion;
         }
         private readonly Queue<Work> queue = new Queue<Work>();
@@ -32,7 +34,8 @@ namespace ThorsKist
                 if (disposed) return Task.FromException<ReplicaResult>(new ObjectDisposedException(nameof(JournalGameThread)));
                 if (queue.Count >= maximumPending) return Task.FromException<ReplicaResult>(new InvalidOperationException("Journal game-thread queue is full"));
                 var completion = new TaskCompletionSource<ReplicaResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-                queue.Enqueue(new Work { Action = action, Completion = completion });
+                queue.Enqueue(new Work { Action = action, Completion = completion, Correlation = JournalDiagnostics.Current,
+                    Waiting = JournalDiagnostics.Measure("unity.effect_dispatch.wait", JournalTimingKind.Wait, JournalTimingThread.Any) });
                 return completion.Task;
             }
         }
@@ -53,6 +56,9 @@ namespace ThorsKist
                     work = queue.Dequeue();
                 }
                 executed++;
+                work.Waiting.Dispose();
+                using var correlation = JournalDiagnostics.Use(work.Correlation);
+                using var timing = JournalDiagnostics.Measure("unity.effect.work", JournalTimingKind.Work, JournalTimingThread.Main);
                 try { work.Completion.TrySetResult(work.Action()); }
                 catch (Exception error) { work.Completion.TrySetException(error); }
             }
