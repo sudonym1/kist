@@ -5,6 +5,20 @@ left after [M6: Transport foundations](network-journal-m6.md). The scope was mov
 here at the user's request on 2026-10-19; no unfinished integration gate was
 claimed to have passed. Game validation and release are now **M8**.
 
+## First two-PC invite diagnosis, v22 (2026-10-20 UTC)
+
+The remote character joined Valheim but never appeared in the invite roster.
+Remote logs and all 29 installation payload hashes confirm v19 loaded correctly.
+Production ingress incorrectly required `ZNetPeer.m_playerID`, which this Steam
+connection path never populated. Both metadata and item authentication now derive
+identity from the exact peer's owned replicated character ZDO, retaining socket,
+connection, ownership and claimed-character checks. A separate test probe now
+waits for World readiness instead of throwing during connection. Nineteen native
+control/identity assertions pass; both Windows installers and the isolated host
+contain v22, with saved files verified unchanged. The ZIP is in `C:\shared` for
+the second PC. Real invite/accept/transfer/rejoin QA remains open.
+[Diagnosis, implementation and native evidence](validation/m7-remote-invite-20261020/README.md).
+
 ## Withdrawal stacking, v19 (2026-10-20 UTC)
 
 The user confirmed the v16 immediate hammer behavior looks good, then reported

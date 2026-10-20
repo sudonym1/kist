@@ -36,12 +36,14 @@ namespace ThorsKist
         internal void Tick()
         {
             if (disposed || Time.unscaledTime < next) return; next = Time.unscaledTime + 2;
-            if (!ReferenceEquals(world, ZNet.instance) || (world != null && world.GetWorldUID() != worldId))
+            var current = ZNet.instance;
+            long currentId = current != null && current.GetWorld() != null ? current.GetWorldUID() : 0;
+            if (!ReferenceEquals(world, current) || currentId != worldId)
             {
                 inspector?.Dispose(); inspector = null; identify = null; passed.Clear(); pending = Guid.Empty; world = ZNet.instance;
-                if (world != null)
+                worldId = currentId;
+                if (world != null && currentId != 0)
                 {
-                    worldId = world.GetWorldUID();
                     var vault = new VaultIdentity(worldId.ToString(), "authenticated-probe-only", Guid.NewGuid());
                     inspector = new JournalDirectRpc(world, (account, character, position) => (vault, JournalAccess.All),
                         (peer, binding, queue, frame, token) => System.Threading.Tasks.Task.CompletedTask, _ => { });
@@ -50,7 +52,7 @@ namespace ThorsKist
                     foreach (var peer in world.GetPeers()) Register(peer);
                 }
             }
-            if (world == null || world.IsServer() || Player.m_localPlayer == null) return;
+            if (world == null || worldId == 0 || world.IsServer() || Player.m_localPlayer == null) return;
             var server = world.GetServerPeer();
             if (server == null || passed.Contains(server) || !Live(server, server.m_rpc)) return;
             pending = Guid.NewGuid(); var message = new ZPackage(); message.Write(1); message.Write(pending.ToString("N"));

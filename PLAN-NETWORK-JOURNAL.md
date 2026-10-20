@@ -2,6 +2,16 @@
 
 ## M7 integrated Windows candidate (2026-10-20 UTC)
 
+The first two-PC v19 session exposed an ingress identity bug: the Steam peer's
+`m_playerID` remains zero on this connection path, so valid remote Hello messages
+were silently refused and the invite roster stayed empty. **v22** uses the
+authenticated peer's owned character ZDO identity for both control and item
+ingress, retaining exact connection/socket/ownership checks. The connecting-client
+test probe now tolerates a world not yet received from the server. Nineteen
+native control/identity assertions pass. Both installers and the isolated host
+are updated; loaded two-PC invite/journal verification remains open.
+[Diagnosis and checks](notes/validation/m7-remote-invite-20261020/README.md).
+
 The user confirms one-click hammer building looks good. **v19** restores
 withdrawal stacking lost at journal cutover, using full canonical metadata
 matching and whole-delivery capacity checks. Reserved stacks are protected;

@@ -65,14 +65,27 @@ namespace ThorsKist
         private JournalPeerIdentity Identify(ZNetPeer peer)
         {
             string account = SocketAccount(peer);
-            if (account == null || peer.m_playerID == 0 || peer.m_characterID.IsNone() || ZDOMan.instance == null) return null;
-            var character = ZDOMan.instance.GetZDO(peer.m_characterID);
-            if (character == null || character.GetOwner() != peer.m_uid
-                || character.GetLong(ZDOVars.s_playerID, 0L) != peer.m_playerID) return null;
-            var position = character.GetPosition();
-            if (!Finite(position.x) || !Finite(position.y) || !Finite(position.z)) return null;
-            var access = resolve(account, peer.m_playerID, position);
-            return access.Vault == null ? null : new JournalPeerIdentity(peer.m_rpc, account, peer.m_playerID, access.Vault, access.Access);
+            if (account == null || !TryCharacter(peer, out long character, out var position)) return null;
+            var access = resolve(account, character, position);
+            return access.Vault == null ? null : new JournalPeerIdentity(peer.m_rpc, account, character, access.Vault, access.Access);
+        }
+        internal static bool TryCharacter(ZNetPeer peer, out long character, out Vector3 position)
+        {
+            character = 0; position = Vector3.zero;
+            if (peer.m_characterID.IsNone() || ZDOMan.instance == null) return false;
+            return ReadCharacter(peer.m_uid, ZDOMan.instance.GetZDO(peer.m_characterID), out character, out position);
+        }
+        internal static bool ReadCharacter(long peerUid, ZDO zdo, out long character, out Vector3 position)
+        {
+            character = 0; position = Vector3.zero;
+            // Steam's CharacterID RPC supplies the character ZDO, but vanilla
+            // does not populate ZNetPeer.m_playerID on this connection path.
+            // Read identity from that exact peer-owned replicated object.
+            if (peerUid == 0 || zdo == null || zdo.GetOwner() != peerUid) return false;
+            long id = zdo.GetLong(ZDOVars.s_playerID, 0L);
+            var pos = zdo.GetPosition();
+            if (id == 0 || !Finite(pos.x) || !Finite(pos.y) || !Finite(pos.z)) return false;
+            character = id; position = pos; return true;
         }
         private void Receive(ZNetPeer peer, ZRpc rpc, ZPackage package)
         {

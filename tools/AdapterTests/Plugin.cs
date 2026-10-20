@@ -75,7 +75,8 @@ namespace ThorsKist
             ran = true;
             if (Environment.GetCommandLineArgs().Contains("-thorskist-control-verify"))
             {
-                try { LocalControl(); } catch (Exception error) { Logger.LogError("M7 LOCAL CONTROL FAIL " + error); }
+                try { LocalControl(); PeerCharacterIdentity(); CutoverLog("M7 CONTROL/PEER CHECKS PASS " + checks + " native assertions"); }
+                catch (Exception error) { CutoverLog("M7 CONTROL/PEER CHECKS FAIL " + error); }
                 Application.Quit(); return;
             }
             if (Environment.GetCommandLineArgs().Contains("-thorskist-cutover-verify"))
@@ -86,7 +87,7 @@ namespace ThorsKist
             { Logger.LogInfo("M7 manual gameplay: adapter/database fixtures disabled; F4 profiling active"); return; }
             try
             {
-                LocalControl(); Items(); ReservationInterception(); Projection(); Legacy(); Dispatch();
+                LocalControl(); PeerCharacterIdentity(); Items(); ReservationInterception(); Projection(); Legacy(); Dispatch();
                 tcp = new TcpProbe(message => Logger.LogInfo(message)); journalTcp = new JournalTcpProbe(message => Logger.LogInfo(message));
                 journalSessionTcp = new JournalSessionTcpProbe(Wood(10), Path.Combine(Paths.BepInExRootPath, "m7-session-" + Guid.NewGuid().ToString("N") + ".db"), message => Logger.LogInfo(message));
                 _ = Storage();

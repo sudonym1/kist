@@ -159,11 +159,9 @@ namespace ThorsKist
                 position = p.transform.position; return true;
             }
             var peer = world.GetPeer(sender);
-            if (peer == null || !peer.IsReady() || !peer.m_socket.IsConnected() || peer.m_playerID != character
-                || JournalDirectRpc.SocketAccount(peer) == null || peer.m_characterID.IsNone()) return false;
-            var zdo = ZDOMan.instance?.GetZDO(peer.m_characterID);
-            if (zdo == null || zdo.GetOwner() != peer.m_uid || zdo.GetLong(ZDOVars.s_playerID, 0L) != character) return false;
-            position = zdo.GetPosition(); return true;
+            if (peer == null || !peer.IsReady() || !peer.m_socket.IsConnected()
+                || JournalDirectRpc.SocketAccount(peer) == null) return false;
+            return JournalDirectRpc.TryCharacter(peer, out long actual, out position) && actual == character;
         }
         internal static void SelectVault(VaultIdentity vault)
         {

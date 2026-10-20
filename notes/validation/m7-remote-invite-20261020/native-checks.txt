@@ -1,0 +1,3 @@
+[Info   :ThorsKist Adapter Tests] M7 LOCAL CONTROL PASS 9 native assertions (listen-host request/reply cursor and retry)
+[Info   :ThorsKist Adapter Tests] M7 PEER CHARACTER PASS 10 native assertions (replicated identity, owner binding, readiness and finite position)
+[Info   :ThorsKist Adapter Tests] M7 CONTROL/PEER CHECKS PASS 19 native assertions
