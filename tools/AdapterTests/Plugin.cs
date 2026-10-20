@@ -80,6 +80,11 @@ namespace ThorsKist
             if (Player.m_localPlayer != null && Input.GetKeyDown(KeyCode.F9)) { KistUI.Close(); KistClient.RequestState(); }
             if (ran || ObjectDB.instance == null || ObjectDB.instance.GetItemPrefab("Wood") == null) return;
             ran = true;
+            if (Environment.GetCommandLineArgs().Contains("-thorskist-socket-verify"))
+            {
+                try { SocketWrappers(); } catch (Exception error) { CutoverLog("M7 SOCKET WRAPPER FAIL " + error); }
+                Application.Quit(); return;
+            }
             if (Environment.GetCommandLineArgs().Contains("-thorskist-control-verify"))
             {
                 try { LocalControl(); PeerCharacterIdentity(); ProfilingConfiguration(); CutoverLog("M7 CONTROL/PEER CHECKS PASS " + checks + " native assertions"); }
