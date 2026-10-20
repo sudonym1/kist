@@ -100,7 +100,12 @@ namespace ThorsKist
         {
             if (!IsServer) return;
             EnsureLoaded();
-            if (!Ready || JournalWorldOwner.MetadataBusy || pkg.Size() > 64 * 1024) return;
+            if (!Ready || JournalWorldOwner.MetadataBusy || pkg.Size() > 64 * 1024)
+            {
+                JournalConnectionDiagnostics.State("server-" + senderPeer, "control waiting peer=" + senderPeer
+                    + " authorityReady=" + Ready + " metadataBusy=" + JournalWorldOwner.MetadataBusy + " bytes=" + pkg.Size());
+                return;
+            }
             var replies = new List<Action>();
             pendingReplies = replies;
             try
@@ -115,7 +120,13 @@ namespace ThorsKist
                 long playerId = pkg.ReadLong();
                 string playerName = pkg.ReadString();
                 Vector3 pos = pkg.ReadVector3();
-                if (!JournalWorldOwner.Authenticate(senderPeer, playerId, out pos)) return;
+                if (!JournalWorldOwner.Authenticate(senderPeer, playerId, out pos))
+                {
+                    if (op == Wire.C2S.Hello || op == Wire.C2S.RequestState)
+                        JournalConnectionDiagnostics.State("server-" + senderPeer, "control identity waiting: "
+                            + JournalConnectionDiagnostics.Peer(ZNet.instance.GetPeer(senderPeer), playerId));
+                    return;
+                }
                 playerName = senderPeer == ZNet.GetUID() ? Player.m_localPlayer.GetPlayerName() : ZNet.instance.GetPeer(senderPeer).m_playerName;
                 if (op == Wire.C2S.Deposit || op == Wire.C2S.Take || op == Wire.C2S.ConsumeForCraft)
                 { Deny(senderPeer, "Journal item session required."); return; }
@@ -133,6 +144,8 @@ namespace ThorsKist
                 switch (op)
                 {
                     case Wire.C2S.Hello:
+                        JournalConnectionDiagnostics.State("server-" + senderPeer, "hello authenticated peer=" + senderPeer
+                            + " character=" + playerId + " name=" + playerName + " hird=" + (VaultOf(playerId)?.Hird.Id ?? "none"));
                         // A new arrival changes who everyone else can invite,
                         // so the whole population gets a fresh roster, not just
                         // the player who just said hello.

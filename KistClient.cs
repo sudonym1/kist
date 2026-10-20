@@ -84,6 +84,7 @@ namespace ThorsKist
 
         public static void Reset()
         {
+            JournalConnectionDiagnostics.Clear();
             JournalStationInputs.Clear();
             JournalGameplaySession.Current?.Dispose();
             JournalGameplaySession.Current = null;
@@ -339,6 +340,9 @@ namespace ThorsKist
                 e.Name = pkg.ReadString();
                 Roster.Add(e);
             }
+            JournalConnectionDiagnostics.State("client-state", "state received hird=" + (Hird?.Id ?? "none")
+                + " members=" + (Hird?.Members.Count ?? 0) + " minimum=" + MinHirdSize
+                + " founder=" + (Hird?.OwnerId ?? 0) + " invite=" + HasPendingInvite + " roster=" + Roster.Count);
 
             if (OnStateChanged != null) OnStateChanged();
         }
@@ -385,6 +389,7 @@ namespace ThorsKist
                 return;
             }
 
+            JournalConnectionDiagnostics.ClientReady(ZNet.instance, Player.m_localPlayer, _helloSent, Hird);
             if (!_helloSent && Time.realtimeSinceStartup >= _nextHello)
             {
                 _nextHello = Time.realtimeSinceStartup + 2f;
