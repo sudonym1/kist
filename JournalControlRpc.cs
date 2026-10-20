@@ -10,17 +10,26 @@ namespace ThorsKist
         private const string Reply = "ThorsKist_ControlReply_v5";
         internal static void Register(ZNetPeer peer)
         {
+            JournalConnectionDiagnostics.State("rpc-" + peer.m_rpc.GetHashCode(), "control handlers registered hosting=" + (ZNet.instance != null && ZNet.instance.IsServer()));
             peer.m_rpc.Register<ZPackage>(Request, (rpc, package) =>
             {
                 var world = ZNet.instance;
-                if (world == null || !world.IsServer() || !Current(world, peer, rpc) || package.Size() > 65536) return;
+                if (world == null || !world.IsServer() || !Current(world, peer, rpc) || package.Size() > 65536)
+                {
+                    JournalConnectionDiagnostics.State("control-ingress-" + peer.m_uid, "control ingress refused peer=" + peer.m_uid + " ready=" + peer.IsReady());
+                    return;
+                }
                 KistServer.OnMessage(peer.m_uid, package);
             });
             peer.m_rpc.Register<ZPackage>(Reply, (rpc, package) =>
             {
                 var world = ZNet.instance;
                 if (world == null || world.IsServer() || !ReferenceEquals(world.GetServerPeer(), peer)
-                    || !Current(world, peer, rpc) || package.Size() > 65536) return;
+                    || !Current(world, peer, rpc) || package.Size() > 65536)
+                {
+                    JournalConnectionDiagnostics.State("client-reply", "control reply refused peer=" + peer.m_uid + " ready=" + peer.IsReady());
+                    return;
+                }
                 KistClient.OnMessage(peer.m_uid, package);
             });
         }
@@ -39,7 +48,12 @@ namespace ThorsKist
             else
             {
                 var peer = world.GetServerPeer();
-                if (peer != null && Current(world, peer, peer.m_rpc)) peer.m_rpc.Invoke(Request, package);
+                if (peer != null && Current(world, peer, peer.m_rpc))
+                {
+                    JournalConnectionDiagnostics.State("client-control", "control sending to server=" + peer.m_uid);
+                    peer.m_rpc.Invoke(Request, package);
+                }
+                else JournalConnectionDiagnostics.State("client-control", "control waiting for ready server peer");
             }
         }
         internal static void SendReply(long uid, ZPackage package)
