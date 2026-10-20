@@ -1,3 +1,7 @@
+### FORKED FOR PERFORMANCE REASONS FROM https://gitlab.phospher.com/brianmiller/thorskist ####
+
+I am going to try and upstream these changes. Don't bother the original guy if this fork is broken. Also don't bother me. Just uninstall it. <3
+
 # Thor's Kist
 
 ### One chest. Every viking. Anywhere in the world.
