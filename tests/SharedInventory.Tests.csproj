@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../src/CountDatabase.cs" Link="CountDatabase.cs" />
+    <Compile Include="../src/Client.cs" Link="Client.cs" />
+    <Compile Include="../src/Items.cs" Link="Items.cs" />
+    <Compile Include="../src/Replies.cs" Link="Replies.cs" />
+    <Compile Include="../src/Worker.cs" Link="Worker.cs" />
+  </ItemGroup>
+</Project>

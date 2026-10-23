@@ -1,0 +1,12 @@
+bin/
+obj/
+*.user
+*.local.props
+dist/
+__pycache__/
+*.pyc
+
+# Local work files and generated test installations
+/.work/
+/SharedInventory-Test-*/
+
