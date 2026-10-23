@@ -4,6 +4,20 @@ internal static partial class Program
 {
     private static void WindowInputTests()
     {
+        Test("Search keystrokes are blocked while open and resume after closing", () =>
+        {
+            var input = new WindowInput();
+            Equal(false, input.BlockKey(false, false, 1));
+            Equal(WindowInput.Action.Toggle, input.Update(false, true, false, 1));
+            Equal(true, input.BlockKey(true, false, 1));
+            input.Update(true, false, false, 2);
+            Equal(true, input.BlockKey(true, false, 2));
+            Equal(WindowInput.Action.Close, input.Update(true, false, true, 3));
+            Equal(false, input.BlockKey(false, false, 3));
+            Equal(true, input.BlockKey(false, true, 3));
+            input.Update(false, false, false, 4);
+            Equal(false, input.BlockKey(false, true, 4));
+        });
         Test("Toggle opens and closes once per press, even when held across input updates", () =>
         {
             var input = new WindowInput();
