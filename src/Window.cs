@@ -9,6 +9,8 @@ namespace SharedInventory;
 
 internal sealed class Window : IDisposable
 {
+    private const string SearchControlName = "SharedInventorySearch";
+
     private sealed class Row
     {
         public string Id = "";
@@ -25,6 +27,7 @@ internal sealed class Window : IDisposable
     private Rect rect;
     private Vector2 scroll;
     private string search = "";
+    private bool focusSearch;
     private int version = -1;
     private string cachedSearch = "\0";
     private GameObject? blocker;
@@ -55,6 +58,7 @@ internal sealed class Window : IDisposable
         if (Visible) { Close(); return; }
         search = "";
         scroll = Vector2.zero;
+        focusSearch = true;
         Visible = true;
         if (!positioned)
         {
@@ -79,6 +83,7 @@ internal sealed class Window : IDisposable
         SavePosition();
         search = "";
         scroll = Vector2.zero;
+        focusSearch = false;
         Visible = false;
         blocker?.SetActive(false);
     }
@@ -211,7 +216,15 @@ internal sealed class Window : IDisposable
     {
         if (GUI.Button(new Rect(rect.width - 32, 3, 26, 23), "×")) Close();
         GUI.Label(new Rect(12, 28, 55, 24), "Search");
+        GUI.SetNextControlName(SearchControlName);
         search = GUI.TextField(new Rect(68, 28, rect.width - 154, 25), search);
+        // Wait until the control exists, and focus only once per opening.
+        if (focusSearch && Event.current.type == EventType.Repaint)
+        {
+            GUI.FocusWindow(id);
+            GUI.FocusControl(SearchControlName);
+            focusSearch = false;
+        }
         GUI.enabled = client.Ready && !client.Listing;
         if (GUI.Button(new Rect(rect.width - 78, 28, 66, 25), "Refresh")) client.List();
         GUI.enabled = true;
