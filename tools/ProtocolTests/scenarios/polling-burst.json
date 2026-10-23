@@ -1,0 +1,11 @@
+{
+  "Name": "polling-burst",
+  "DurationSeconds": 5,
+  "Peers": 50,
+  "Entries": 5000,
+  "RequestsPerSecond": 200,
+  "RampSeconds": 2,
+  "BurstRequests": 500,
+  "MenuPolling": true,
+  "MaxP95Ms": 5000
+}

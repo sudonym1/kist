@@ -35,6 +35,10 @@ internal sealed class Window : IDisposable
     private GUISkin? skin;
     private readonly List<Texture2D> themeTextures = new List<Texture2D>();
     public bool Visible { get; private set; }
+#if SHAREDINVENTORY_TESTING
+    public TestPanel? TestingPanel;
+    private bool testingTab;
+#endif
     public bool IsPointerOver
     {
         get
@@ -215,6 +219,18 @@ internal sealed class Window : IDisposable
     private void DrawContents(int id)
     {
         if (GUI.Button(new Rect(rect.width - 32, 3, 26, 23), "×")) Close();
+#if SHAREDINVENTORY_TESTING
+        if (TestingPanel != null)
+        {
+            if (GUI.Button(new Rect(rect.width - 135, 3, 98, 23), testingTab ? "Inventory" : "Testing")) testingTab = !testingTab;
+            if (testingTab)
+            {
+                TestingPanel.DrawContents(rect.width, rect.height);
+                GUI.DragWindow(new Rect(0, 0, rect.width - 140, 25));
+                return;
+            }
+        }
+#endif
         GUI.Label(new Rect(12, 28, 55, 24), "Search");
         GUI.SetNextControlName(SearchControlName);
         search = GUI.TextField(new Rect(68, 28, rect.width - 154, 25), search);

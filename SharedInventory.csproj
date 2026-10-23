@@ -7,12 +7,16 @@
     <AssemblyName>SharedInventory</AssemblyName>
     <Version>0.4.1</Version>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableTestHarness Condition="'$(EnableTestHarness)' == ''">false</EnableTestHarness>
+    <DefineConstants Condition="'$(EnableTestHarness)' == 'true'">$(DefineConstants);SHAREDINVENTORY_TESTING</DefineConstants>
+    <OutputPath Condition="'$(EnableTestHarness)' == 'true'">bin/$(Configuration)/testing/</OutputPath>
     <ValheimDir Condition="'$(ValheimDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Valheim</ValheimDir>
     <ManagedDir Condition="'$(ManagedDir)' == ''">$(ValheimDir)/valheim_Data/Managed</ManagedDir>
     <BepInExDir Condition="'$(BepInExDir)' == ''">$(ValheimDir)/BepInEx</BepInExDir>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="src/**/*.cs" />
+    <Compile Remove="src/Testing/**/*.cs" Condition="'$(EnableTestHarness)' != 'true'" />
     <Reference Include="assembly_valheim" HintPath="$(ManagedDir)/assembly_valheim.dll" Private="false" />
     <Reference Include="assembly_utils" HintPath="$(ManagedDir)/assembly_utils.dll" Private="false" />
     <Reference Include="assembly_guiutils" HintPath="$(ManagedDir)/assembly_guiutils.dll" Private="false" />

@@ -1,0 +1,9 @@
+{
+  "Name": "slow-network",
+  "DurationSeconds": 5,
+  "Peers": 10,
+  "RequestsPerSecond": 100,
+  "MenuPolling": true,
+  "MaxP95Ms": 3000,
+  "Network": { "Active": true, "RequestDelayMs": 150, "ReplyDelayMs": 150, "JitterMs": 50, "BytesPerSecond": 32000 }
+}

@@ -24,50 +24,89 @@ internal sealed class RpcApi
     private DatabaseFile? file; // Accessed only on the worker.
     private Exception? loadError;
     private bool stopped;
+#if SHAREDINVENTORY_TESTING
+    public readonly TestHarness? Testing;
+    public int MainQueueDepth => main.Count;
+    public int WorkerQueueDepth => worker.QueueDepth;
+#endif
 
     public RpcApi(ZRoutedRpc router, ManualLogSource log,
         Action<ListReply> listReply, Action<TransferReply> depositReply, Action<TransferReply> withdrawalReply,
-        Action<BatchReply> batchReply)
+        Action<BatchReply> batchReply
+#if SHAREDINVENTORY_TESTING
+        , TestHarness? testing = null
+#endif
+        )
     {
         this.router = router;
         this.log = log;
+#if SHAREDINVENTORY_TESTING
+        Testing = testing;
+#endif
         server = ZNet.instance.IsServer();
         // Capture Unity/game state once here; workers never access it.
         databasePath = server ? Path.Combine(Paths.ConfigPath, "SharedInventory",
             ZNet.instance.GetWorldUID() + ".json") : null;
-        worker = new Worker(() => file?.Save(), error => log.LogError(error), previousShutdown);
+        worker = new Worker(Save, error => log.LogError(error), previousShutdown);
+#if SHAREDINVENTORY_TESTING
+        worker.Testing = testing;
+#endif
         router.Register<ZPackage>(Prefix + "List", (sender, request) =>
         {
-            if (server) worker.Post(() => OnList(sender, request));
+            if (server) Receive(sender, "List", request, () => OnList(sender, request));
         });
         router.Register<ZPackage>(Prefix + "Deposit", (sender, request) =>
         {
-            if (server) worker.Post(() => OnTransfer(sender, request, true));
+            if (server) Receive(sender, "Deposit", request, () => OnTransfer(sender, request, true));
         });
         router.Register<ZPackage>(Prefix + "Withdrawal", (sender, request) =>
         {
-            if (server) worker.Post(() => OnWithdrawal(sender, request));
+            if (server) Receive(sender, "Withdrawal", request, () => OnWithdrawal(sender, request));
         });
         router.Register<ZPackage>(Prefix + "ListReply", (sender, package) => worker.Post(() =>
         {
             var reply = DecodeList(package);
-            main.Enqueue(() => listReply(reply));
+            main.Enqueue(() =>
+            {
+#if SHAREDINVENTORY_TESTING
+                Testing?.Complete(reply.RequestId, reply.Error);
+#endif
+                listReply(reply);
+            });
         }));
         router.Register<ZPackage>(Prefix + "DepositReply", (sender, package) => worker.Post(() =>
         {
             var reply = DecodeTransfer(package);
-            main.Enqueue(() => depositReply(reply));
+            main.Enqueue(() =>
+            {
+#if SHAREDINVENTORY_TESTING
+                Testing?.Complete(reply.RequestId, reply.Error);
+#endif
+                depositReply(reply);
+            });
         }));
         router.Register<ZPackage>(Prefix + "WithdrawalReply", (sender, package) => worker.Post(() =>
         {
             if (package.ReadBool())
             {
                 var batch = DecodeBatch(package);
-                main.Enqueue(() => batchReply(batch));
+                main.Enqueue(() =>
+                {
+#if SHAREDINVENTORY_TESTING
+                    Testing?.Complete(batch.RequestId, batch.Error);
+#endif
+                    batchReply(batch);
+                });
                 return;
             }
             var reply = DecodeTransfer(new ZPackage(package.ReadByteArray()));
-            main.Enqueue(() => withdrawalReply(reply));
+            main.Enqueue(() =>
+            {
+#if SHAREDINVENTORY_TESTING
+                Testing?.Complete(reply.RequestId, reply.Error);
+#endif
+                withdrawalReply(reply);
+            });
         }));
     }
 
@@ -84,6 +123,9 @@ internal sealed class RpcApi
     {
         if (!Connected) throw new InvalidOperationException("Not connected to a server.");
         var target = ServerId;
+#if SHAREDINVENTORY_TESTING
+        Testing?.Start(requestId, "BatchWithdrawal");
+#endif
         worker.Post(() =>
         {
             var request = new ZPackage();
@@ -99,6 +141,9 @@ internal sealed class RpcApi
     {
         if (!Connected) throw new InvalidOperationException("Not connected to a server.");
         var target = ServerId; // Resolve the connection on the main thread.
+#if SHAREDINVENTORY_TESTING
+        Testing?.Start(requestId, method);
+#endif
         worker.Post(() =>
         {
             var request = new ZPackage();
@@ -115,11 +160,45 @@ internal sealed class RpcApi
     }
 
     private void Send(long target, string method, ZPackage package) =>
-        main.Enqueue(() => router.InvokeRoutedRPC(target, Prefix + method, package));
+        main.Enqueue(() =>
+        {
+#if SHAREDINVENTORY_TESTING
+            if (Testing != null && (!server || method.EndsWith("Reply", StringComparison.Ordinal)))
+            {
+                Testing.Schedule(target, method, package.Size(),
+                    () => router.InvokeRoutedRPC(target, Prefix + method, package));
+                return;
+            }
+#endif
+            router.InvokeRoutedRPC(target, Prefix + method, package);
+        });
+
+    private void Receive(long sender, string method, ZPackage request, Action action)
+    {
+#if SHAREDINVENTORY_TESTING
+        if (Testing != null)
+        {
+            Testing.Schedule(sender, method, request.Size(), () =>
+            {
+                if (Testing.AdmitServerRequest == null || Testing.AdmitServerRequest(sender, method, request.GetArray())) worker.Post(action);
+            });
+            return;
+        }
+#endif
+        worker.Post(action);
+    }
 
     // Only the plugin's Update/LateUpdate call this. Never waits on the worker.
     public void Pump()
     {
+#if SHAREDINVENTORY_TESTING
+        if (!stopped && Testing != null)
+        {
+            Testing.Metrics.Observe("mainQueueDepth", main.Count);
+            Testing.Metrics.Observe("workerQueueDepth", worker.QueueDepth);
+            Testing.Pump();
+        }
+#endif
         if (stopped || main.IsEmpty) return;
         var deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency / 1000;
         while (main.TryDequeue(out var action))
@@ -128,6 +207,33 @@ internal sealed class RpcApi
             catch (Exception error) { log.LogError(error); }
             if (Stopwatch.GetTimestamp() >= deadline) break;
         }
+    }
+
+    private void Save()
+    {
+        if (file == null) return;
+#if SHAREDINVENTORY_TESTING
+        if (Testing == null) { file.Save(); return; }
+        var timer = Stopwatch.StartNew();
+        try
+        {
+            if (Testing?.Settings.Active == true)
+            {
+                var delay = System.Threading.Volatile.Read(ref Testing.Settings.SaveDelayMs);
+                if (delay > 0) System.Threading.Thread.Sleep(delay);
+                if (System.Threading.Volatile.Read(ref Testing.Settings.SaveFailures) > 0)
+                {
+                    System.Threading.Interlocked.Decrement(ref Testing.Settings.SaveFailures);
+                    Testing.Metrics.Add("injectedSaveFailures");
+                    throw new IOException("Injected test save failure");
+                }
+            }
+            file.Save();
+        }
+        finally { Testing?.Metrics.Observe("saveMs", timer.Elapsed.TotalMilliseconds); }
+#else
+        file.Save();
+#endif
     }
 
     private CountDatabase Database
@@ -286,6 +392,9 @@ internal sealed class RpcApi
     public void Stop()
     {
         stopped = true;
+#if SHAREDINVENTORY_TESTING
+        Testing?.Cancel();
+#endif
         previousShutdown = worker.Stop();
     }
 

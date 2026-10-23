@@ -1,0 +1,8 @@
+{
+  "Name": "slow-storage",
+  "DurationSeconds": 6,
+  "Peers": 10,
+  "RequestsPerSecond": 100,
+  "Network": { "Active": true, "SaveDelayMs": 500, "SaveFailures": 1 },
+  "Steps": [ { "AtSeconds": 5, "Action": "disable" } ]
+}

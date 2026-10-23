@@ -1,0 +1,15 @@
+{
+  "Name": "scarce-stock",
+  "DurationSeconds": 3,
+  "Peers": 50,
+  "Entries": 10,
+  "BatchSize": 4,
+  "InitialStock": 5,
+  "RequestsPerSecond": 100,
+  "ListWeight": 0,
+  "DepositWeight": 0,
+  "WithdrawalWeight": 0,
+  "BatchWeight": 100,
+  "HotspotFraction": 1,
+  "Network": { "Active": true, "ReplyDelayMs": 150 }
+}

@@ -1,0 +1,12 @@
+{
+  "Name": "backlog-recovery",
+  "DurationSeconds": 15,
+  "Peers": 10,
+  "RequestsPerSecond": 200,
+  "RampSeconds": 2,
+  "Network": { "Active": true, "ProcessingDelayMs": 2 },
+  "Steps": [
+    { "AtSeconds": 1, "Action": "outage", "Value": 10 },
+    { "AtSeconds": 12, "Action": "disable" }
+  ]
+}

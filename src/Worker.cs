@@ -13,6 +13,10 @@ internal sealed class Worker
     private readonly Action<Exception> log;
     private bool stopped;
     public Task Completion { get; }
+#if SHAREDINVENTORY_TESTING
+    public TestHarness? Testing;
+    public int QueueDepth => jobs.IsAddingCompleted ? 0 : jobs.Count;
+#endif
 
     public Worker(Action save, Action<Exception> log, Task previous)
     {
@@ -24,7 +28,28 @@ internal sealed class Worker
     // Enqueued only by the main thread. Never wait for a result here.
     public void Post(Action job)
     {
-        if (!stopped) jobs.Add(job);
+        if (stopped) return;
+#if SHAREDINVENTORY_TESTING
+        var testing = Testing;
+        if (testing != null)
+        {
+            var posted = Stopwatch.GetTimestamp();
+            jobs.Add(() =>
+            {
+                testing.Metrics.Observe("workerWaitMs", (Stopwatch.GetTimestamp() - posted) * 1000.0 / Stopwatch.Frequency);
+                var timer = Stopwatch.StartNew();
+                try
+                {
+                    var delay = System.Threading.Volatile.Read(ref testing.Settings.ProcessingDelayMs);
+                    if (testing.Settings.Active && delay > 0) System.Threading.Thread.Sleep(delay);
+                    job();
+                }
+                finally { testing.Metrics.Observe("workerServiceMs", timer.Elapsed.TotalMilliseconds); }
+            });
+            return;
+        }
+#endif
+        jobs.Add(job);
     }
 
     private void Run(Action save, Task previous)

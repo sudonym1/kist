@@ -29,6 +29,7 @@ public sealed class ZNet
 // persistence are production code, including the actual game's ZPackage.
 public sealed class ZRoutedRpc
 {
+    public Action<long, string, ZPackage>? ReplyReceived;
     private readonly int mainThread = Environment.CurrentManagedThreadId;
     private readonly Dictionary<string, Action<long, ZPackage>> handlers = new Dictionary<string, Action<long, ZPackage>>();
     public void Register<T>(string name, Action<long, T> handler) =>
@@ -36,6 +37,12 @@ public sealed class ZRoutedRpc
     public void InvokeRoutedRPC(long target, string name, ZPackage package)
     {
         if (Environment.CurrentManagedThreadId != mainThread) throw new Exception("Routing left the main thread");
-        handlers[name](1, new ZPackage(package.GetArray()));
+        if (target != 1 && ReplyReceived != null) ReplyReceived(target, name, new ZPackage(package.GetArray()));
+        else handlers[name](1, new ZPackage(package.GetArray()));
+    }
+    public void Inject(long peer, string name, ZPackage package)
+    {
+        if (Environment.CurrentManagedThreadId != mainThread) throw new Exception("Injection left the main thread");
+        handlers[name](peer, new ZPackage(package.GetArray()));
     }
 }

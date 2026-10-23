@@ -6,6 +6,17 @@ using Mono.Cecil;
 
 internal static class PatchChecks
 {
+    public static int CheckHarness(string path, bool expected)
+    {
+        using var mod = AssemblyDefinition.ReadAssembly(path);
+        foreach (var name in new[] { "TestSettings", "TestHarness", "LabMetrics", "TestPanel" })
+        {
+            var present = mod.MainModule.Types.Any(type => type.FullName == "SharedInventory." + name);
+            if (present != expected) throw new Exception("Test harness inclusion mismatch: " + name);
+        }
+        System.Console.WriteLine(expected ? "PASS test harness included in explicitly opted-in build" : "PASS production DLL contains no test harness types");
+        return 0;
+    }
     // Inspect actual game IL and replacement signatures without running Unity
     // or the game's Mono-targeted Harmony inside the .NET 8 test runner.
     public static int Run(string modPath, string corePath, string managedPath)

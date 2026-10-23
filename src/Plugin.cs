@@ -18,6 +18,9 @@ public sealed class Plugin : BaseUnityPlugin
     private RpcApi? api;
     private Client? client;
     private Window? window;
+#if SHAREDINVENTORY_TESTING
+    private TestPanel? testPanel;
+#endif
     private readonly WindowInput windowInput = new WindowInput();
     internal static ResourceInventory? Resources { get; private set; }
     internal static StationInventory? StationItems { get; private set; }
@@ -28,6 +31,9 @@ public sealed class Plugin : BaseUnityPlugin
     {
         Instance = this;
         toggleKey = Config.Bind("Client", "ToggleKey", KeyCode.F3, "Open shared inventory from anywhere.");
+#if SHAREDINVENTORY_TESTING
+        testPanel = TestPanel.Create(Config, Logger);
+#endif
         windowPosition = Config.Bind("Client", "WindowPosition", new Vector2(-1, -1),
             "Window position in screen pixels. Set both coordinates to -1 to start centered.");
         harmony = new Harmony(Guid);
@@ -38,24 +44,38 @@ public sealed class Plugin : BaseUnityPlugin
     {
         if (ZRoutedRpc.instance == null || ReferenceEquals(router, ZRoutedRpc.instance)) return;
         api?.Stop();
+#if SHAREDINVENTORY_TESTING
+        testPanel?.Detach();
+#endif
         window?.Dispose();
         router = ZRoutedRpc.instance;
         api = new RpcApi(router, Logger,
             reply => client?.OnList(reply),
             reply => client?.OnDeposit(reply),
             reply => client?.OnWithdrawal(reply),
-            reply => client?.OnBatch(reply));
+            reply => client?.OnBatch(reply)
+#if SHAREDINVENTORY_TESTING
+            , testPanel?.NewSession()
+#endif
+            );
         client = new Client(api);
         Resources = new ResourceInventory(client);
         StationItems = new StationInventory(client);
         Shortcuts = new StationShortcuts(StationItems);
         window = new Window(client, windowPosition);
+#if SHAREDINVENTORY_TESTING
+        testPanel?.Attach(api, client);
+        window.TestingPanel = testPanel;
+#endif
     }
 
     private void Update()
     {
         var now = Time.realtimeSinceStartup;
         api?.Pump();
+#if SHAREDINVENTORY_TESTING
+        testPanel?.Update();
+#endif
         // Read the same input backend as Valheim. Track held-key edges so the
         // game's manual input updates cannot clear a press before our Update.
         var input = windowInput.Update(WindowOpen, ZInput.GetKey(toggleKey.Value),
@@ -74,12 +94,18 @@ public sealed class Plugin : BaseUnityPlugin
             StationTargets.IsInputTarget(Player.m_localPlayer.GetHoverObject()));
     }
 
-    private void OnGUI() => window?.Draw();
+    private void OnGUI()
+    {
+        window?.Draw();
+    }
     private void LateUpdate() => api?.Pump();
 
     private void ResetSession()
     {
         api?.Stop();
+#if SHAREDINVENTORY_TESTING
+        testPanel?.Detach();
+#endif
         window?.Close();
         window?.Dispose();
         router = null;

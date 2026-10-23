@@ -1,0 +1,10 @@
+{
+  "Name": "baseline",
+  "DurationSeconds": 5,
+  "Peers": 10,
+  "RequestsPerSecond": 100,
+  "MenuPolling": true,
+  "MaxP95Ms": 1000,
+  "MaxWorkerQueue": 1000,
+  "MaxBaselineRatio": 2
+}

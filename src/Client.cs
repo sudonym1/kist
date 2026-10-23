@@ -30,6 +30,11 @@ internal sealed class Client
     public string Status { get; private set; } = "";
     public bool Busy => pending.Count != 0;
     public bool Listing => listRequest != 0;
+#if SHAREDINVENTORY_TESTING
+    public int PendingTransfers => pending.Count;
+    public int PendingBatches => batches.Count;
+    public double LastSnapshotAt { get; private set; }
+#endif
     public bool Ready => api.Connected && Player.m_localPlayer != null && !Player.m_localPlayer.IsDead();
 
     public long Available(string item) => Counts.TryGetValue(item, out var count) ? count : 0;
@@ -165,6 +170,9 @@ internal sealed class Client
             foreach (var pair in Counts) if (pair.Value <= 0) empty.Add(pair.Key);
             foreach (var item in empty) { Counts.Remove(item); Qualities.Remove(item); }
             lastSnapshot = reply.RequestId;
+#if SHAREDINVENTORY_TESTING
+            if (api.Testing != null) LastSnapshotAt = (double)System.Diagnostics.Stopwatch.GetTimestamp() / System.Diagnostics.Stopwatch.Frequency;
+#endif
             Version++;
         }
         if (refreshAgain) { refreshAgain = false; List(); }

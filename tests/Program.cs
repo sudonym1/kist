@@ -329,6 +329,7 @@ internal static partial class Program
             finally { System.IO.Directory.Delete(directory, true); }
         });
         GameplayTests();
+        LabGameplayTests();
         StationTests();
         StationShortcutTests();
         System.Console.WriteLine($"{passed} tests passed.");

@@ -1,0 +1,16 @@
+{
+  "Name": "lost-confirmation",
+  "DurationSeconds": 1,
+  "Peers": 1,
+  "RequestsPerSecond": 0,
+  "DrainSeconds": 0.25,
+  "AllowUnresolved": true,
+  "Network": { "Active": true },
+  "Steps": [
+    { "AtSeconds": 0, "Action": "drop", "Method": "DepositReply" },
+    { "AtSeconds": 0, "Action": "deposit", "Peer": 2 },
+    { "AtSeconds": 0.3, "Action": "disconnect", "Peer": 2 },
+    { "AtSeconds": 0.6, "Action": "reconnect", "Peer": 2 },
+    { "AtSeconds": 0.7, "Action": "list", "Peer": 2 }
+  ]
+}

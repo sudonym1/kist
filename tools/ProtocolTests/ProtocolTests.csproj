@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <NoWarn>$(NoWarn);CS0436</NoWarn>
+    <DefineConstants>$(DefineConstants);SHAREDINVENTORY_TESTING</DefineConstants>
     <ValheimDir Condition="'$(ValheimDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Valheim</ValheimDir>
     <ManagedDir Condition="'$(ManagedDir)' == ''">$(ValheimDir)/valheim_Data/Managed</ManagedDir>
     <BepInExDir Condition="'$(BepInExDir)' == ''">$(ValheimDir)/BepInEx</BepInExDir>
@@ -20,5 +21,6 @@
     <Compile Include="../../src/CountDatabase.cs" Link="CountDatabase.cs" />
     <Compile Include="../../src/DatabaseFile.cs" Link="DatabaseFile.cs" />
     <Compile Include="../../src/Worker.cs" Link="Worker.cs" />
+    <Compile Include="../../src/Testing/TestHarness.cs" Link="Testing/TestHarness.cs" />
   </ItemGroup>
 </Project>
