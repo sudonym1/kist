@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace SharedInventory;
 
-[BepInPlugin(Guid, "Shared Inventory", "0.3.0")]
+[BepInPlugin(Guid, "Shared Inventory", "0.4.1")]
 public sealed class Plugin : BaseUnityPlugin
 {
     public const string Guid = "local.sharedinventory";
@@ -21,6 +21,7 @@ public sealed class Plugin : BaseUnityPlugin
     private readonly WindowInput windowInput = new WindowInput();
     internal static ResourceInventory? Resources { get; private set; }
     internal static StationInventory? StationItems { get; private set; }
+    internal static StationShortcuts? Shortcuts { get; private set; }
     internal static bool WindowOpen => Instance?.window?.Visible == true;
 
     private void Awake()
@@ -47,6 +48,7 @@ public sealed class Plugin : BaseUnityPlugin
         client = new Client(api);
         Resources = new ResourceInventory(client);
         StationItems = new StationInventory(client);
+        Shortcuts = new StationShortcuts(StationItems);
         window = new Window(client, windowPosition);
     }
 
@@ -85,6 +87,7 @@ public sealed class Plugin : BaseUnityPlugin
         client = null;
         Resources = null;
         StationItems = null;
+        Shortcuts = null;
         window = null;
     }
 

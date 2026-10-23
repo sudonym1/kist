@@ -58,6 +58,7 @@ internal static class PatchChecks
             System.Console.WriteLine($"PASS {typeName}.{methodName}: {changed} game resource calls match replacement signatures");
         }
         CheckStationHooks(mod, game);
+        CheckStationShortcuts(mod, game);
         return 0;
     }
 
@@ -116,5 +117,33 @@ internal static class PatchChecks
                 target.ReturnType.FullName != "System.Boolean") throw new Exception("Invalid station policy hook: " + target.FullName);
         }
         System.Console.WriteLine("PASS station selection and explicit-input policy prefix signatures");
+    }
+
+    private static void CheckStationShortcuts(AssemblyDefinition mod, AssemblyDefinition game)
+    {
+        var player = game.MainModule.Types.Single(type => type.Name == "Player");
+        var update = player.Methods.Single(method => method.Name == "Update");
+        var hotbar = player.Methods.Single(method => method.Name == "UseHotbarItem");
+        var input = player.Methods.Single(method => method.Name == "TakeInput");
+        var animate = game.MainModule.Types.Single(type => type.Name == "Humanoid").Methods.Single(method => method.Name == "DoInteractAnimation");
+        if (update.IsStatic || update.Parameters.Count != 0 || update.ReturnType.FullName != "System.Void" ||
+            hotbar.IsStatic || hotbar.Parameters.Count != 1 || hotbar.Parameters[0].ParameterType.FullName != "System.Int32" ||
+            input.IsStatic || input.Parameters.Count != 0 || input.ReturnType.FullName != "System.Boolean" ||
+            animate.IsStatic || animate.Parameters.Count != 1 || animate.Parameters[0].ParameterType.FullName != "UnityEngine.GameObject")
+            throw new Exception("Station shortcut input or animation signature changed");
+        foreach (var typeName in new[] { "Switch", "CookingStation", "Fermenter", "Fireplace" })
+        {
+            var target = game.MainModule.Types.Single(type => type.Name == typeName).Methods.Single(method => method.Name == "GetHoverText");
+            if (target.IsStatic || target.Parameters.Count != 0 || target.ReturnType.FullName != "System.String")
+                throw new Exception("Invalid station hover text hook: " + target.FullName);
+        }
+        var shortcutUpdate = mod.MainModule.Types.Single(type => type.FullName == "SharedInventory.StationShortcuts")
+            .Methods.Single(method => method.Name == "Update");
+        var calls = shortcutUpdate.Body.Instructions.Where(instruction => instruction.Operand is MethodReference)
+            .Select(instruction => (MethodReference)instruction.Operand).ToList();
+        if (!calls.Any(method => method.DeclaringType.FullName == "Interactable" && method.Name == "UseItem") ||
+            calls.Any(method => method.DeclaringType.FullName == "Humanoid" && method.Name == "UseItem"))
+            throw new Exception("Station shortcuts must use the station directly without personal item consumption fallback");
+        System.Console.WriteLine("PASS station shortcut input, hover text, animation, and direct station-use signatures");
     }
 }

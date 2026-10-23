@@ -19,5 +19,7 @@
     <Compile Include="../src/WindowInput.cs" Link="WindowInput.cs" />
     <Compile Include="../src/StationInventory.cs" Link="StationInventory.cs" />
     <Compile Include="../src/StationTargets.cs" Link="StationTargets.cs" />
+    <Compile Include="../src/StationInputRules.cs" Link="StationInputRules.cs" />
+    <Compile Include="../src/StationShortcutMenu.cs" Link="StationShortcutMenu.cs" />
   </ItemGroup>
 </Project>

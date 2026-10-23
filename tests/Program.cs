@@ -330,6 +330,7 @@ internal static partial class Program
         });
         GameplayTests();
         StationTests();
+        StationShortcutTests();
         System.Console.WriteLine($"{passed} tests passed.");
         return 0;
     }

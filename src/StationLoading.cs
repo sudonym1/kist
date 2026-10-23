@@ -38,8 +38,21 @@ internal static class StationLoading
         }
     }
 
-    private static ItemDrop? Fuel(Component station) => station is Smelter smelter ? smelter.m_fuelItem :
+    internal static ItemDrop? Fuel(Component station) => station is Smelter smelter ? smelter.m_fuelItem :
         station is CookingStation cooking ? cooking.m_fuelItem : station is Fireplace fire ? fire.m_fuelItem : null;
+
+    internal static IEnumerable<string> AcceptedInputs(Component station, StationInputKind kind)
+    {
+        if (kind == StationInputKind.Processing)
+        {
+            foreach (var id in ProcessingInputs(station)) yield return id;
+        }
+        else
+        {
+            var fuel = Fuel(station);
+            if (fuel != null) yield return fuel.gameObject.name;
+        }
+    }
 
     private static ItemDrop.ItemData? SelectFuel(Inventory inventory, Component station, string name)
     {

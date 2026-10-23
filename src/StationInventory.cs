@@ -22,7 +22,7 @@ internal readonly struct StationInputContext
 
 // Selection and policy are shared by automatic loading and future exact-item
 // shortcuts. Policies see the machine prefab and input kind, and apply equally
-// to carried and shared inputs. No exclusion rules are enabled in this change.
+// to carried and shared inputs.
 internal sealed class StationInventory
 {
     private sealed class SharedInput
@@ -39,11 +39,11 @@ internal sealed class StationInventory
     public StationInventory(Client client, Func<StationInputContext, string, bool>? allows = null)
     {
         this.client = client;
-        this.allows = allows ?? ((context, item) => true);
+        this.allows = allows ?? ((context, itemId) => true);
     }
 
     public bool Applies(Inventory inventory) => client.Ready && inventory == Player.m_localPlayer.GetInventory();
-    public bool Allows(StationInputContext context, string itemId) => allows(context, itemId);
+    public bool Allows(StationInputContext context, string itemId) => StationInputRules.Allows(context, itemId) && allows(context, itemId);
 
     public ItemDrop.ItemData? Select(Inventory inventory, StationInputContext context,
         IEnumerable<string> acceptedPrefabs, string? requestedPrefab = null)
@@ -53,7 +53,25 @@ internal sealed class StationInventory
         foreach (var id in acceptedPrefabs)
         {
             if ((requestedPrefab != null && requestedPrefab != id) || !Allows(context, id)) continue;
-            candidates.Add(id);
+            if (!candidates.Contains(id)) candidates.Add(id);
+        }
+        // Preserve conversion order within each priority. Each priority still
+        // tries every local candidate before any shared alternative.
+        var priorities = new SortedSet<int>();
+        foreach (var id in candidates) priorities.Add(StationInputRules.Priority(context, id));
+        foreach (var priority in priorities)
+        {
+            var selected = SelectPriority(inventory, context, candidates, priority);
+            if (selected != null) return selected;
+        }
+        return null;
+    }
+
+    private ItemDrop.ItemData? SelectPriority(Inventory inventory, StationInputContext context, List<string> candidates, int priority)
+    {
+        foreach (var id in candidates)
+        {
+            if (StationInputRules.Priority(context, id) != priority) continue;
             var local = inventory.GetItem(id, -1, true);
             if (local != null) return local;
         }
@@ -61,13 +79,45 @@ internal sealed class StationInventory
         if (Game.m_worldLevel > 0) return null; // Shared items normalize to level zero.
         foreach (var id in candidates)
         {
-            if (client.Available(id) <= 0) continue;
+            if (StationInputRules.Priority(context, id) != priority || client.Available(id) <= 0) continue;
             var item = Items.Default(id, client.Quality(id));
             if (item == null) continue;
             shared.Add(item, new SharedInput(context, id));
             return item;
         }
         return null;
+    }
+
+    // Count exact prefabs, as selection does, rather than aggregating different
+    // prefabs with the same translated item name. No RPCs or item grants here.
+    public long Count(Inventory inventory, StationInputContext context, string itemId)
+    {
+        if (!Applies(inventory) || !Allows(context, itemId)) return 0;
+        long local = 0;
+        foreach (var item in inventory.GetAllItems())
+            if (item.m_dropPrefab != null && Items.Id(item) == itemId && item.m_worldLevel >= Game.m_worldLevel)
+                local += Math.Max(0, item.m_stack);
+        var sharedCount = Game.m_worldLevel > 0 ? 0 : Math.Max(0, client.Available(itemId));
+        return local + Math.Min(sharedCount, long.MaxValue - local);
+    }
+
+    public List<StationOption> Options(Inventory inventory, StationInputContext context,
+        IEnumerable<string> acceptedPrefabs, Func<string, string> displayName)
+    {
+        var options = new List<StationOption>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var id in acceptedPrefabs)
+        {
+            if (!seen.Add(id)) continue;
+            var count = Count(inventory, context, id);
+            if (count > 0 && Items.Template(id) != null) options.Add(new StationOption(id, displayName(id), count));
+        }
+        options.Sort((a, b) =>
+        {
+            var byName = StringComparer.CurrentCultureIgnoreCase.Compare(a.Name, b.Name);
+            return byName != 0 ? byName : StringComparer.Ordinal.Compare(a.ItemId, b.ItemId);
+        });
+        return options;
     }
 
     public bool Remove(Inventory inventory, StationInputContext context, ItemDrop.ItemData item, int amount)
