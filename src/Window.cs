@@ -79,7 +79,7 @@ internal sealed class Window : IDisposable
         CreateBlocker();
         blocker!.SetActive(true);
         PositionBlocker();
-        client.List();
+        client.List(false);
     }
 
     public void Close()
@@ -248,7 +248,10 @@ internal sealed class Window : IDisposable
         GUI.Label(new Rect(rect.width - 223, 57, 95, 22), "Total");
         GUI.Label(new Rect(rect.width - 128, 57, 100, 22), "Withdraw");
         RebuildRows();
-        var viewport = new Rect(10, 81, rect.width - 20, rect.height - 91);
+        var recovery = client.RefreshStatus.Length != 0;
+        if (recovery) GUI.Label(new Rect(12, 80, rect.width - 24, 24), client.RefreshStatus);
+        var top = recovery ? 107 : 81;
+        var viewport = new Rect(10, top, rect.width - 20, rect.height - top - 10);
         const int rowHeight = 32;
         var width = viewport.width - 18;
         scroll = GUI.BeginScrollView(viewport, scroll, new Rect(0, 0, width, rows.Count * rowHeight));
@@ -267,8 +270,8 @@ internal sealed class Window : IDisposable
             GUI.enabled = true;
         }
         GUI.EndScrollView();
-        if (rows.Count == 0)
-            GUI.Label(new Rect(20, 93, width, 26), client.Listing ? "Loading…" : "No matching items.");
+        if (rows.Count == 0 && !recovery)
+            GUI.Label(new Rect(20, top + 12, width, 26), client.Listing ? "Loading…" : "No matching items.");
         GUI.DragWindow(new Rect(0, 0, rect.width - 35, 25));
     }
 

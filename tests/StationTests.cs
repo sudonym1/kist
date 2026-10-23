@@ -119,16 +119,17 @@ internal static partial class Program
         });
         Test("Hover polling shares one two-second timer with menus and stops on look-away", () =>
         {
-            var (client, api) = Setup("Wood", 10);
-            client.Refresh(false, false, false, 0, stationInput: true);
+            double time = 0;
+            var (client, api) = Setup("Wood", 10, clock: () => time);
+            client.Refresh(false, false, false, stationInput: true);
             Equal(1, api.Calls.Count); client.OnList(new ListReply { RequestId = api.Calls[0].Id });
-            client.Refresh(true, false, false, 1, stationInput: true); Equal(1, api.Calls.Count);
-            client.Refresh(false, false, false, 1.1f);
-            client.Refresh(false, false, false, 1.2f, stationInput: true); Equal(1, api.Calls.Count);
-            client.Refresh(false, false, false, 2, stationInput: true); Equal(2, api.Calls.Count);
+            time = 1; client.Refresh(true, false, false, stationInput: true); Equal(1, api.Calls.Count);
+            time = 1.1; client.Refresh(false, false, false);
+            time = 1.2; client.Refresh(false, false, false, stationInput: true); Equal(1, api.Calls.Count);
+            time = 2; client.Refresh(false, false, false, stationInput: true); Equal(2, api.Calls.Count);
             client.OnList(new ListReply { RequestId = api.Calls[1].Id });
-            client.Refresh(false, false, false, 20); Equal(2, api.Calls.Count);
-            client.Refresh(false, false, false, 21, stationInput: true); Equal(3, api.Calls.Count);
+            time = 20; client.Refresh(false, false, false); Equal(2, api.Calls.Count);
+            time = 21; client.Refresh(false, false, false, stationInput: true); Equal(3, api.Calls.Count);
         });
         Test("Smelter hover detects ore and fuel controls but excludes its output", () =>
         {

@@ -87,7 +87,8 @@ internal sealed class TestHarness
     private readonly List<Packet> held = new List<Packet>();
     private readonly Dictionary<string, double> lanes = new Dictionary<string, double>();
     private readonly Dictionary<string, double> bandwidth = new Dictionary<string, double>();
-    private readonly Dictionary<long, double> pending = new Dictionary<long, double>();
+    private readonly Dictionary<long, (double Time, string Method)> pending = new Dictionary<long, (double, string)>();
+    private const int PendingLimit = 10000;
     private readonly double started;
     private long sequence;
     private double outageUntil;
@@ -98,9 +99,11 @@ internal sealed class TestHarness
     public int Queued => scheduled.Count;
     public int Held => held.Count;
     public int Pending => pending.Count;
+    public int PendingRefreshes => pending.Values.Count(p => p.Method == "List");
+    public int PendingMutations => Pending - PendingRefreshes;
     public double Now => clock();
     public double OldestMs => scheduled.Concat(held).Select(p => (Now - p.Created) * 1000).DefaultIfEmpty(0).Max();
-    public double OldestPendingMs => pending.Values.Select(t => (Now - t) * 1000).DefaultIfEmpty(0).Max();
+    public double OldestPendingMs => pending.Values.Select(p => (Now - p.Time) * 1000).DefaultIfEmpty(0).Max();
 
     public TestHarness(TestSettings settings, Func<double>? clock = null)
     {
@@ -112,7 +115,14 @@ internal sealed class TestHarness
 
     public void Start(long id, string method)
     {
-        pending[id] = Now;
+        if (pending.Count >= PendingLimit && !pending.ContainsKey(id))
+        {
+            var oldest = pending.OrderBy(p => p.Value.Time).First();
+            pending.Remove(oldest.Key);
+            Metrics.Add("correlationEvicted");
+            Metrics.Event(new { Kind = "correlationEvicted", Id = oldest.Key, Time = Now - started });
+        }
+        pending[id] = (Now, method);
         Metrics.Add("requests." + method.ToLowerInvariant());
         Metrics.Event(new { Kind = "requestStarted", Id = id, Method = method, Time = Now - started });
     }
@@ -120,9 +130,26 @@ internal sealed class TestHarness
     {
         if (!pending.TryGetValue(id, out var start)) return;
         pending.Remove(id);
-        Metrics.Observe("roundTripMs", (Now - start) * 1000);
+        if (error.Length == 0) Metrics.Observe("roundTripMs", (Now - start.Time) * 1000);
         Metrics.Add(error.Length == 0 ? "completed" : "rejected");
         Metrics.Event(new { Kind = "requestCompleted", Id = id, Error = error, Time = Now - started });
+    }
+    public void ExpireRefresh(long id, string reason)
+    {
+        if (pending.TryGetValue(id, out var request) && request.Method == "List") pending.Remove(id);
+        Metrics.Add("refreshExpired");
+        if (reason == "timeout") Metrics.Add("refreshTimeouts");
+        Metrics.Event(new { Kind = "refreshExpired", Id = id, Outcome = reason, Time = Now - started });
+    }
+    public void RefreshRetry(long id)
+    {
+        Metrics.Add("refreshRetries");
+        Metrics.Event(new { Kind = "refreshRetry", Id = id, Time = Now - started });
+    }
+    public void IgnoreRefresh(long id)
+    {
+        Metrics.Add("ignoredRefreshReplies");
+        Metrics.Event(new { Kind = "ignoredRefreshReply", Id = id, Time = Now - started });
     }
     private static bool Matches(string filter, string method) => filter == method ||
         filter == (method.EndsWith("Reply", StringComparison.Ordinal) ? "Reply" : "Request");
@@ -204,7 +231,7 @@ internal sealed class TestHarness
             Metrics.Add("delivered");
         }
     }
-    public object Snapshot(bool includeTrace = true) => new { Settings = JObject.FromObject(Settings), ElapsedSeconds = Now - started, Queued, Held, Pending,
+    public object Snapshot(bool includeTrace = true) => new { Settings = JObject.FromObject(Settings), ElapsedSeconds = Now - started, Queued, Held, Pending, PendingRefreshes, PendingMutations, PendingLimit,
         OldestMs, OldestPendingMs, Metrics = Metrics.Snapshot(includeTrace) };
     public void Export(string path, object? context = null)
     {

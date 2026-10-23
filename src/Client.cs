@@ -15,11 +15,14 @@ internal sealed class Client
     }
 
     private readonly RpcApi api;
+    private readonly Func<double> clock;
     private readonly Dictionary<long, Pending> pending = new Dictionary<long, Pending>();
     private long nextRequest;
     private long listRequest;
     private long lastSnapshot;
-    private float nextList;
+    private double nextList, listDeadline, retryAt;
+    private int refreshFailures;
+    private bool refreshDemand;
     private bool refreshAgain;
     private readonly Dictionary<long, Dictionary<string, long>> batches = new Dictionary<long, Dictionary<string, long>>();
     private readonly Dictionary<string, long> latestTotals = new Dictionary<string, long>(StringComparer.Ordinal);
@@ -30,6 +33,7 @@ internal sealed class Client
     public string Status { get; private set; } = "";
     public bool Busy => pending.Count != 0;
     public bool Listing => listRequest != 0;
+    public string RefreshStatus { get; private set; } = "";
 #if SHAREDINVENTORY_TESTING
     public int PendingTransfers => pending.Count;
     public int PendingBatches => batches.Count;
@@ -39,29 +43,74 @@ internal sealed class Client
 
     public long Available(string item) => Counts.TryGetValue(item, out var count) ? count : 0;
 
-    public Client(RpcApi api) => this.api = api;
+    public Client(RpcApi api) : this(api, () => (double)System.Diagnostics.Stopwatch.GetTimestamp() /
+        System.Diagnostics.Stopwatch.Frequency) { }
 
-    public void Refresh(bool sharedWindow, bool craftingMenu, bool hammerMenu, float now, bool stationInput = false)
+    public Client(RpcApi api, Func<double> clock) { this.api = api; this.clock = clock; }
+
+    public void Refresh(bool sharedWindow, bool craftingMenu, bool hammerMenu, bool stationInput = false)
     {
         var active = sharedWindow || craftingMenu || hammerMenu || stationInput;
-        if (active && now >= nextList)
-        {
-            nextList = now + 2;
-            List();
-        }
+        ExpireRefresh();
+        if (active && clock() >= nextList) TryList(false);
     }
 
-    public void List()
+    // Explicit demand survives closed menus and loss of readiness. Opening a
+    // window uses the same path without bypassing automatic recovery backoff.
+    public void List(bool manual = true)
     {
-        if (!Ready || Listing) return;
+        ExpireRefresh();
+        refreshDemand = true;
+        if (Listing) return;
+        TryList(manual);
+    }
+
+    // Called every frame even with closed menus or no living local player.
+    public void MaintainRefresh()
+    {
+        ExpireRefresh();
+        if (refreshDemand) TryList(false);
+    }
+
+    private void ExpireRefresh()
+    {
+        if (Listing && (clock() >= listDeadline || !Ready))
+            RetireRefresh(clock() >= listDeadline ? "timeout" : "unready");
+    }
+
+    private void RetireRefresh(string reason)
+    {
+#if SHAREDINVENTORY_TESTING
+        api.Testing?.ExpireRefresh(listRequest, reason);
+#endif
+        listRequest = 0;
+        refreshFailures = Math.Min(refreshFailures + 1, 5);
+        retryAt = clock() + (refreshFailures == 5 ? 30 : 1 << refreshFailures);
+        RefreshStatus = reason == "timeout" ? "Refresh timed out; retrying (cached stock)." :
+            "Refresh unavailable; retrying (cached stock).";
+    }
+
+    private void TryList(bool manual)
+    {
+        if (!Ready || Listing || (!manual && clock() < retryAt)) return;
+        var now = clock();
+        nextList = now + 2;
         listRequest = ++nextRequest;
-        api.List(listRequest);
+        listDeadline = now + 10;
+        // This replacement covers every failure that preceded its dispatch.
+        refreshAgain = false;
+#if SHAREDINVENTORY_TESTING
+        if (refreshFailures != 0) api.Testing?.RefreshRetry(listRequest);
+#endif
+        try { api.List(listRequest); }
+        catch (Exception) { RetireRefresh("dispatchFailed"); }
     }
 
     private void RefreshAfterFailure()
     {
+        refreshDemand = true;
         if (Listing) refreshAgain = true;
-        else List();
+        else TryList(false);
     }
 
     // Gameplay already completed. Deduct locally before dispatch so another
@@ -141,9 +190,22 @@ internal sealed class Client
 
     public void OnList(ListReply reply)
     {
-        if (reply.RequestId != listRequest) return;
-        listRequest = 0;
-        if (reply.Error.Length != 0) Status = reply.Error;
+        ExpireRefresh();
+        if (!Listing || reply.RequestId != listRequest)
+        {
+#if SHAREDINVENTORY_TESTING
+            api.Testing?.IgnoreRefresh(reply.RequestId);
+#endif
+            return;
+        }
+        if (reply.Error.Length != 0)
+        {
+#if SHAREDINVENTORY_TESTING
+            api.Testing?.Complete(reply.RequestId, reply.Error);
+#endif
+            RetireRefresh("errorReply");
+            return;
+        }
         else
         {
             // A list includes all earlier requests. Preserve newer authoritative
@@ -171,11 +233,16 @@ internal sealed class Client
             foreach (var item in empty) { Counts.Remove(item); Qualities.Remove(item); }
             lastSnapshot = reply.RequestId;
 #if SHAREDINVENTORY_TESTING
-            if (api.Testing != null) LastSnapshotAt = (double)System.Diagnostics.Stopwatch.GetTimestamp() / System.Diagnostics.Stopwatch.Frequency;
+            if (api.Testing != null) LastSnapshotAt = clock();
 #endif
             Version++;
         }
-        if (refreshAgain) { refreshAgain = false; List(); }
+        listRequest = 0;
+        refreshFailures = 0;
+        retryAt = 0;
+        RefreshStatus = "";
+        refreshDemand = refreshAgain;
+        if (refreshDemand) TryList(false);
     }
 
     public void OnDeposit(TransferReply reply)

@@ -63,12 +63,13 @@ internal sealed class TestPanel
         nextDiagnostics = harness.Now + .5;
         diagnostics = $"Worker queue {api.WorkerQueueDepth} | Main queue {api.MainQueueDepth}\n" +
             $"Network queue {harness.Queued} | Held {harness.Held} | Oldest {harness.OldestMs:F0} ms\n" +
-            $"Pending transfers {client?.PendingTransfers} | Batches {client?.PendingBatches}\n" +
+            $"Pending refresh {harness.PendingRefreshes} | Transfers {client?.PendingTransfers} | Batches {client?.PendingBatches}\n" +
             $"Oldest request {harness.OldestPendingMs:F0} ms | Cache age " +
             (client?.LastSnapshotAt > 0 ? $"{harness.Now - client.LastSnapshotAt:F1} s" : "unknown");
         var snapshot = JObject.FromObject(harness.Snapshot(false));
         var samples = snapshot["Metrics"]!["Samples"]!;
         var counters = snapshot["Metrics"]!["Counters"]!;
+        diagnostics += $"\nRefresh timeouts {counters["refreshTimeouts"] ?? 0} | Retries {counters["refreshRetries"] ?? 0} | Ignored replies {counters["ignoredRefreshReplies"] ?? 0}";
         var elapsed = Math.Max(.001, snapshot["ElapsedSeconds"]!.Value<double>());
         double Value(string metric, string statistic) => samples[metric]?[statistic]?.Value<double>() ?? 0;
         diagnostics += $"\nRTT p50/p95/p99 {Value("roundTripMs", "P50"):F0}/{Value("roundTripMs", "P95"):F0}/{Value("roundTripMs", "P99"):F0} ms\n" +
@@ -83,6 +84,7 @@ internal sealed class TestPanel
         {
             var path = Path.Combine(Paths.ConfigPath, "SharedInventory-TestReports", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff") + ".json");
             harness.Export(path, new { Counts = client?.Counts, Qualities = client?.Qualities,
+                PendingRefreshes = harness.PendingRefreshes, RefreshStatus = client?.RefreshStatus,
                 PendingTransfers = client?.PendingTransfers, PendingBatches = client?.PendingBatches });
             status = "Report exported; path is in the BepInEx log.";
             log.LogInfo("Test report: " + path);
@@ -98,7 +100,7 @@ internal sealed class TestPanel
     {
         if (harness == null) return;
         var settings = harness.Settings;
-        scroll = GUI.BeginScrollView(new Rect(10, 30, width - 20, height - 40), scroll, new Rect(0, 0, width - 42, 650));
+        scroll = GUI.BeginScrollView(new Rect(10, 30, width - 20, height - 40), scroll, new Rect(0, 0, width - 42, 690));
         var w = width - 44;
         GUI.Label(new Rect(0, 0, w, 25), "ISOLATED TEST HARNESS - " + (settings.Active ? "FAULTS ACTIVE" : "faults off"));
         if (GUI.Button(new Rect(0, 28, w, 25), "Disable faults and release queued packets")) harness.DisableFaults();
@@ -117,9 +119,9 @@ internal sealed class TestPanel
         if (GUI.Button(new Rect(0, 208, w / 2 - 3, 25), "Fail next save")) { settings.Active = true; settings.SaveFailures = 1; }
         if (GUI.Button(new Rect(w / 2, 208, w / 2, 25), "Export report")) Export();
         GUI.Label(new Rect(0, 242, w, 44), $"Request {settings.RequestDelayMs} ms | Reply {settings.ReplyDelayMs} ms\nJitter {settings.JitterMs} ms | Rate {settings.BytesPerSecond} B/s (0 unlimited)");
-        GUI.Label(new Rect(0, 290, w, 175), diagnostics);
-        GUI.Label(new Rect(0, 470, w, 75), "These faults affect Shared Inventory RPCs.\nDiscarding a reply can leave a transfer uncertain.\nNo automatic retry or item restoration is performed.");
-        GUI.Label(new Rect(0, 550, w, 100), status);
+        GUI.Label(new Rect(0, 290, w, 200), diagnostics);
+        GUI.Label(new Rect(0, 500, w, 75), "These faults affect Shared Inventory RPCs.\nDiscarding a reply can leave a transfer uncertain.\nItem mutations are never automatically retried or restored.");
+        GUI.Label(new Rect(0, 580, w, 100), status);
         GUI.EndScrollView();
     }
 }

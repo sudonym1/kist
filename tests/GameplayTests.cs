@@ -170,24 +170,25 @@ internal static partial class Program
         Test("Placing with every menu closed never polls the inventory", () =>
         {
             var (client, api) = Setup("Wood", 10);
-            for (var time = 0; time < 60; time++) client.Refresh(false, false, false, time);
+            for (var time = 0; time < 60; time++) client.Refresh(false, false, false);
             client.Consume(new Dictionary<string, long> { ["Wood"] = 4 });
             client.OnBatch(Batch(api.Calls[0].Id, "Wood", 6));
-            for (var time = 60; time < 120; time++) client.Refresh(false, false, false, time);
+            for (var time = 60; time < 120; time++) client.Refresh(false, false, false);
             Equal(1, api.Calls.Count); Equal("Withdrawal", api.Calls[0].Method);
         });
         Test("Open menus poll every two seconds and stop when closed", () =>
         {
             foreach (var menu in new[] { 0, 1, 2 })
             {
-                var (client, api) = Setup("Wood" + menu, 10);
-                client.Refresh(menu == 0, menu == 1, menu == 2, 0);
+                double time = 0;
+                var (client, api) = Setup("Wood" + menu, 10, clock: () => time);
+                client.Refresh(menu == 0, menu == 1, menu == 2);
                 Equal(1, api.Calls.Count); client.OnList(new ListReply { RequestId = api.Calls[0].Id });
-                client.Refresh(menu == 0, menu == 1, menu == 2, 1); Equal(1, api.Calls.Count);
-                client.Refresh(menu == 0, menu == 1, menu == 2, 2); Equal(2, api.Calls.Count);
+                time = 1; client.Refresh(menu == 0, menu == 1, menu == 2); Equal(1, api.Calls.Count);
+                time = 2; client.Refresh(menu == 0, menu == 1, menu == 2); Equal(2, api.Calls.Count);
                 client.OnList(new ListReply { RequestId = api.Calls[1].Id });
-                client.Refresh(false, false, false, 20); Equal(2, api.Calls.Count);
-                client.Refresh(menu == 0, menu == 1, menu == 2, 20.1f); Equal(3, api.Calls.Count);
+                time = 20; client.Refresh(false, false, false); Equal(2, api.Calls.Count);
+                time = 20.1; client.Refresh(menu == 0, menu == 1, menu == 2); Equal(3, api.Calls.Count);
             }
         });
         Test("Empty or partial backpack withdrawals also refresh after stock races", () =>

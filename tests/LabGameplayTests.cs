@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Newtonsoft.Json.Linq;
 using SharedInventory;
 
 internal static partial class Program
@@ -17,7 +18,8 @@ internal static partial class Program
         { Active = true, RequestDelayMs = 100, ReplyDelayMs = 100 }, () => Time);
         public (Client, RpcApi) AddClient(string item, long amount)
         {
-            var api = new RpcApi(); var client = new Client(api);
+            var api = new RpcApi { Testing = new TestHarness(new TestSettings(), () => Time) };
+            var client = new Client(api, () => Time);
             client.Counts[item] = amount; client.Qualities[item] = 1;
             clients.Add((client, api)); offsets[api] = 0;
             return (client, api);
@@ -25,6 +27,7 @@ internal static partial class Program
         public void Tick(double seconds)
         {
             Time += seconds;
+            foreach (var pair in clients) pair.Client.MaintainRefresh();
             for (var pass = 0; pass < 5; ++pass)
             {
                 foreach (var pair in clients)
@@ -45,7 +48,11 @@ internal static partial class Program
             {
                 var reply = new ListReply { RequestId = call.Id, Items = new Dictionary<string, long>(Database.List()) };
                 foreach (var item in reply.Items.Keys) reply.Qualities[item] = Database.Quality(item);
-                Network.Schedule(peer, "ListReply", 64, () => client.OnList(reply));
+                Network.Schedule(peer, "ListReply", 64, () =>
+                {
+                    client.OnList(reply);
+                    clients.Find(p => p.Client == client).Api.Testing?.Complete(reply.RequestId, reply.Error);
+                });
             }
             else if (call.Batch != null)
             {
@@ -70,6 +77,59 @@ internal static partial class Program
 
     private static void LabGameplayTests()
     {
+        Test("Lost ListReply expires and recovers without reconnecting", () =>
+        {
+            Prefab("Wood"); var lab = new GameplayLab(); lab.Database.Deposit("Wood", 20, 3);
+            var (client, api) = lab.AddClient("Wood", 10);
+            lab.Network.DropNext = "ListReply";
+            client.List(); lab.Tick(0); lab.Tick(.11); lab.Tick(.11);
+            lab.Network.DisableFaults(); lab.Tick(10); lab.Tick(2);
+            client.Refresh(true, false, false);
+            lab.Tick(0); lab.Tick(.11); lab.Tick(.11);
+            Equal(2, api.Calls.Count); Equal(false, client.Listing);
+            Equal(20L, client.Available("Wood")); Equal(3, client.Quality("Wood"));
+        });
+        Test("Lost List request recovers after faults are disabled", () =>
+        {
+            var lab = new GameplayLab(); lab.Database.Deposit("Wood", 9, 4);
+            var (client, api) = lab.AddClient("Wood", 3);
+            lab.Network.DropNext = "List"; client.List(); lab.Tick(0);
+            lab.Tick(10); Equal(false, client.Listing); Equal(3L, client.Available("Wood"));
+            lab.Network.DisableFaults(); lab.Tick(2);
+            Equal(9L, client.Available("Wood")); Equal(4, client.Quality("Wood"));
+            Equal(false, client.Listing); Equal(2, api.Calls.Count);
+        });
+        Test("Held old snapshot cannot overwrite replacement or optimistic consumption", () =>
+        {
+            var lab = new GameplayLab(); lab.Database.Deposit("Wood", 10, 4);
+            var (client, api) = lab.AddClient("Wood", 10);
+            lab.Network.HoldNext = "ListReply";
+            client.List(); lab.Tick(0); lab.Tick(.11);
+            client.Consume(new Dictionary<string, long> { ["Wood"] = 4 });
+            lab.Tick(0); lab.Tick(.11); lab.Tick(.11);
+            lab.Tick(10); lab.Tick(2); lab.Tick(.11); lab.Tick(.11);
+            Equal(6L, client.Available("Wood")); Equal(4, client.Quality("Wood"));
+            lab.Network.Release(); lab.Tick(0);
+            Equal(6L, client.Available("Wood")); Equal(4, client.Quality("Wood"));
+            Equal(false, client.Listing); Equal(3, api.Calls.Count);
+            var report = Newtonsoft.Json.Linq.JObject.FromObject(api.Testing!.Snapshot());
+            Equal(0, report["PendingRefreshes"]!.Value<int>());
+            var metrics = report["Metrics"]!;
+            Equal(1L, metrics["Counters"]!["refreshTimeouts"]!.Value<long>());
+            Equal(1L, metrics["Counters"]!["refreshRetries"]!.Value<long>());
+            Equal(1L, metrics["Counters"]!["ignoredRefreshReplies"]!.Value<long>());
+            Equal(1, metrics["Samples"]!["roundTripMs"]!["Count"]!.Value<int>());
+        });
+        Test("Ten-second outage crossing deadline recovers and ignores the expired reply", () =>
+        {
+            var lab = new GameplayLab(); lab.Database.Deposit("Wood", 7);
+            var (client, api) = lab.AddClient("Wood", 1);
+            client.List(); lab.Tick(0); lab.Tick(.11);
+            lab.Network.Outage(10); lab.Tick(10);
+            Equal(false, client.Listing); Equal(1L, client.Available("Wood"));
+            lab.Tick(2); lab.Tick(.11); lab.Tick(.11);
+            Equal(false, client.Listing); Equal(7L, client.Available("Wood")); Equal(2, api.Calls.Count);
+        });
         Test("Delayed withdrawal after death returns awarded items exactly once", () =>
         {
             Prefab("Wood"); var lab = new GameplayLab(); lab.Database.Deposit("Wood", 20, 3);
