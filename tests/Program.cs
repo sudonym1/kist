@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using SharedInventory;
 
-internal static class Program
+internal static partial class Program
 {
     private static int passed;
     private static void Equal<T>(T expected, T actual)
@@ -15,6 +15,7 @@ internal static class Program
         ObjectDB.instance = new ObjectDB();
         Player.m_localPlayer = new Player();
         ItemDrop.Dropped.Clear();
+        Game.m_worldLevel = 0;
         action();
         passed++;
         System.Console.WriteLine("PASS " + name);
@@ -29,6 +30,7 @@ internal static class Program
         };
         prefab.Drop = new ItemDrop { m_itemData = item };
         ObjectDB.instance.Prefabs.Add(id, prefab);
+        ObjectDB.instance.m_items.Add(prefab);
         return item;
     }
     private static (Client, RpcApi) Setup(string item, long total, int maximum = 50)
@@ -44,6 +46,7 @@ internal static class Program
 
     private static int Main()
     {
+        WindowInputTests();
         Test("Database aggregates unstackable and stackable items without game rules", () =>
         {
             var db = new CountDatabase();
@@ -325,6 +328,8 @@ internal static class Program
             }
             finally { System.IO.Directory.Delete(directory, true); }
         });
+        GameplayTests();
+        StationTests();
         System.Console.WriteLine($"{passed} tests passed.");
         return 0;
     }

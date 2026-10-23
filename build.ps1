@@ -10,11 +10,20 @@ if (-not $BepInExDir) { $BepInExDir = Join-Path $ValheimDir "BepInEx" }
 if (-not $SkipTests) {
     & dotnet run --project (Join-Path $PSScriptRoot "tests/SharedInventory.Tests.csproj") -c Release "-p:ValheimDir=$ValheimDir"
     if ($LASTEXITCODE -ne 0) { throw "Regression tests failed." }
+    & dotnet run --project (Join-Path $PSScriptRoot "tools/ProtocolTests/ProtocolTests.csproj") -c Release "-p:ValheimDir=$ValheimDir" "-p:BepInExDir=$BepInExDir"
+    if ($LASTEXITCODE -ne 0) { throw "Protocol tests failed." }
 }
 
 & dotnet build (Join-Path $PSScriptRoot "SharedInventory.csproj") -c Release `
     "-p:ValheimDir=$ValheimDir" "-p:BepInExDir=$BepInExDir"
 if ($LASTEXITCODE -ne 0) { throw "Mod build failed." }
+
+if (-not $SkipTests) {
+    & dotnet run --project (Join-Path $PSScriptRoot "tools/ProtocolTests/ProtocolTests.csproj") -c Release "-p:ValheimDir=$ValheimDir" "-p:BepInExDir=$BepInExDir" -- `
+        (Join-Path $PSScriptRoot "bin/Release/netstandard2.1/SharedInventory.dll") `
+        (Join-Path $BepInExDir "core") (Join-Path $ValheimDir "valheim_Data/Managed")
+    if ($LASTEXITCODE -ne 0) { throw "Game resource hook checks failed." }
+}
 
 $package = Join-Path $PSScriptRoot "dist/SharedInventory"
 New-Item -ItemType Directory -Force -Path $package | Out-Null

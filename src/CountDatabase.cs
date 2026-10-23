@@ -54,6 +54,17 @@ internal sealed class CountDatabase
 
     public void MarkSaved() => Dirty = false;
 
+    // Exact batches are validated in full before any count or quality changes.
+    public bool Withdrawal(IReadOnlyDictionary<string, long> amounts)
+    {
+        if (amounts.Count == 0) throw new ArgumentException("A withdrawal must contain items.");
+        foreach (var pair in amounts) Validate(pair.Key, pair.Value);
+        foreach (var pair in amounts)
+            if (Total(pair.Key) < pair.Value) return false;
+        foreach (var pair in amounts) Withdrawal(pair.Key, pair.Value);
+        return true;
+    }
+
     private static void Validate(string itemId, long amount)
     {
         if (string.IsNullOrEmpty(itemId)) throw new ArgumentException("Item ID is required.");

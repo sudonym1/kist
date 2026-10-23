@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <NoWarn>$(NoWarn);CS0436</NoWarn>
+    <ValheimDir Condition="'$(ValheimDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Valheim</ValheimDir>
+    <ManagedDir Condition="'$(ManagedDir)' == ''">$(ValheimDir)/valheim_Data/Managed</ManagedDir>
+    <BepInExDir Condition="'$(BepInExDir)' == ''">$(ValheimDir)/BepInEx</BepInExDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="assembly_valheim" HintPath="$(ManagedDir)/assembly_valheim.dll" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(ManagedDir)/UnityEngine.CoreModule.dll" />
+    <Reference Include="Mono.Cecil" HintPath="$(BepInExDir)/core/Mono.Cecil.dll" />
+    <Reference Include="assembly_utils" HintPath="$(ManagedDir)/assembly_utils.dll" />
+    <Reference Include="Newtonsoft.Json" HintPath="$(ManagedDir)/Newtonsoft.Json.dll" />
+    <Compile Include="../../src/RpcApi.cs" Link="RpcApi.cs" />
+    <Compile Include="../../src/Replies.cs" Link="Replies.cs" />
+    <Compile Include="../../src/CountDatabase.cs" Link="CountDatabase.cs" />
+    <Compile Include="../../src/DatabaseFile.cs" Link="DatabaseFile.cs" />
+    <Compile Include="../../src/Worker.cs" Link="Worker.cs" />
+  </ItemGroup>
+</Project>

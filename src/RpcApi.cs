@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
@@ -12,7 +13,7 @@ namespace SharedInventory;
 // database operations, and persistence run on the endpoint's ordered worker.
 internal sealed class RpcApi
 {
-    private const string Prefix = "SharedInventory.v2.";
+    private const string Prefix = "SharedInventory.v3.";
     private static Task previousShutdown = Task.CompletedTask;
     private readonly ZRoutedRpc router;
     private readonly ManualLogSource log;
@@ -25,7 +26,8 @@ internal sealed class RpcApi
     private bool stopped;
 
     public RpcApi(ZRoutedRpc router, ManualLogSource log,
-        Action<ListReply> listReply, Action<TransferReply> depositReply, Action<TransferReply> withdrawalReply)
+        Action<ListReply> listReply, Action<TransferReply> depositReply, Action<TransferReply> withdrawalReply,
+        Action<BatchReply> batchReply)
     {
         this.router = router;
         this.log = log;
@@ -44,7 +46,7 @@ internal sealed class RpcApi
         });
         router.Register<ZPackage>(Prefix + "Withdrawal", (sender, request) =>
         {
-            if (server) worker.Post(() => OnTransfer(sender, request, false));
+            if (server) worker.Post(() => OnWithdrawal(sender, request));
         });
         router.Register<ZPackage>(Prefix + "ListReply", (sender, package) => worker.Post(() =>
         {
@@ -58,7 +60,13 @@ internal sealed class RpcApi
         }));
         router.Register<ZPackage>(Prefix + "WithdrawalReply", (sender, package) => worker.Post(() =>
         {
-            var reply = DecodeTransfer(package);
+            if (package.ReadBool())
+            {
+                var batch = DecodeBatch(package);
+                main.Enqueue(() => batchReply(batch));
+                return;
+            }
+            var reply = DecodeTransfer(new ZPackage(package.ReadByteArray()));
             main.Enqueue(() => withdrawalReply(reply));
         }));
     }
@@ -72,6 +80,21 @@ internal sealed class RpcApi
     public void Deposit(long requestId, string itemId, long amount, int quality) => SendRequest("Deposit", requestId, itemId, amount, quality);
     public void Withdrawal(long requestId, string itemId, long amount) => SendRequest("Withdrawal", requestId, itemId, amount);
 
+    public void Withdrawal(long requestId, IReadOnlyDictionary<string, long> amounts)
+    {
+        if (!Connected) throw new InvalidOperationException("Not connected to a server.");
+        var target = ServerId;
+        worker.Post(() =>
+        {
+            var request = new ZPackage();
+            request.Write(true); // Exact batch, rather than a backpack withdrawal.
+            request.Write(requestId);
+            request.Write(amounts.Count);
+            foreach (var pair in amounts) { request.Write(pair.Key); request.Write(pair.Value); }
+            Send(target, "Withdrawal", request);
+        });
+    }
+
     private void SendRequest(string method, long requestId, string itemId, long amount, int quality = 1)
     {
         if (!Connected) throw new InvalidOperationException("Not connected to a server.");
@@ -79,6 +102,7 @@ internal sealed class RpcApi
         worker.Post(() =>
         {
             var request = new ZPackage();
+            if (method == "Withdrawal") request.Write(false);
             request.Write(requestId);
             if (method != "List")
             {
@@ -162,7 +186,65 @@ internal sealed class RpcApi
             reply.Write(quality);
         }
         catch (Exception error) { reply = ErrorReply(id, error); }
-        Send(sender, deposit ? "DepositReply" : "WithdrawalReply", reply);
+        if (!deposit)
+        {
+            var envelope = new ZPackage();
+            envelope.Write(false);
+            envelope.Write(reply.GetArray());
+            Send(sender, "WithdrawalReply", envelope);
+        }
+        else Send(sender, "DepositReply", reply);
+    }
+
+    private void OnWithdrawal(long sender, ZPackage request)
+    {
+        if (!request.ReadBool()) { OnTransfer(sender, request, false); return; }
+        var id = request.ReadLong();
+        var reply = new ZPackage();
+        try
+        {
+            var count = request.ReadInt();
+            if (count <= 0) throw new ArgumentException("A withdrawal must contain items.");
+            var amounts = new Dictionary<string, long>(StringComparer.Ordinal);
+            for (var i = 0; i < count; ++i)
+            {
+                var item = request.ReadString();
+                var amount = request.ReadLong();
+                if (amount <= 0) throw new ArgumentOutOfRangeException("amount");
+                amounts[item] = checked((amounts.TryGetValue(item, out var previous) ? previous : 0) + amount);
+            }
+            var db = Database;
+            if (!db.Withdrawal(amounts)) throw new InvalidOperationException("Shared materials are no longer available.");
+            reply.Write(id);
+            reply.Write("");
+            reply.Write(amounts.Count);
+            foreach (var pair in amounts)
+            {
+                reply.Write(pair.Key);
+                reply.Write(db.Total(pair.Key));
+                reply.Write(db.Quality(pair.Key));
+            }
+        }
+        catch (Exception error) { reply = ErrorReply(id, error); }
+        var envelope = new ZPackage();
+        envelope.Write(true);
+        envelope.Write(reply.GetArray());
+        Send(sender, "WithdrawalReply", envelope);
+    }
+
+    private static BatchReply DecodeBatch(ZPackage envelope)
+    {
+        var package = new ZPackage(envelope.ReadByteArray());
+        var reply = new BatchReply { RequestId = package.ReadLong(), Error = package.ReadString() };
+        if (reply.Error.Length != 0) return reply;
+        var count = package.ReadInt();
+        for (var i = 0; i < count; ++i)
+        {
+            var item = package.ReadString();
+            reply.Totals[item] = package.ReadLong();
+            reply.Qualities[item] = package.ReadInt();
+        }
+        return reply;
     }
 
     private ZPackage ErrorReply(long id, Exception error)

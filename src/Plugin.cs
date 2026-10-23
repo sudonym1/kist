@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace SharedInventory;
 
-[BepInPlugin(Guid, "Shared Inventory", "0.1.0")]
+[BepInPlugin(Guid, "Shared Inventory", "0.3.0")]
 public sealed class Plugin : BaseUnityPlugin
 {
     public const string Guid = "local.sharedinventory";
@@ -18,7 +18,9 @@ public sealed class Plugin : BaseUnityPlugin
     private RpcApi? api;
     private Client? client;
     private Window? window;
-    private float nextList;
+    private readonly WindowInput windowInput = new WindowInput();
+    internal static ResourceInventory? Resources { get; private set; }
+    internal static StationInventory? StationItems { get; private set; }
     internal static bool WindowOpen => Instance?.window?.Visible == true;
 
     private void Awake()
@@ -40,28 +42,34 @@ public sealed class Plugin : BaseUnityPlugin
         api = new RpcApi(router, Logger,
             reply => client?.OnList(reply),
             reply => client?.OnDeposit(reply),
-            reply => client?.OnWithdrawal(reply));
+            reply => client?.OnWithdrawal(reply),
+            reply => client?.OnBatch(reply));
         client = new Client(api);
+        Resources = new ResourceInventory(client);
+        StationItems = new StationInventory(client);
         window = new Window(client, windowPosition);
-        nextList = 0;
     }
 
     private void Update()
     {
         var now = Time.realtimeSinceStartup;
         api?.Pump();
+        // Read the same input backend as Valheim. Track held-key edges so the
+        // game's manual input updates cannot clear a press before our Update.
+        var input = windowInput.Update(WindowOpen, ZInput.GetKey(toggleKey.Value),
+            ZInput.GetKey(KeyCode.Escape), Time.frameCount);
         if (Player.m_localPlayer == null || Player.m_localPlayer.IsDead())
         {
             window?.Close();
             return;
         }
-        if (Input.GetKeyDown(toggleKey.Value)) window?.Toggle();
-        if (WindowOpen && Input.GetKeyDown(KeyCode.Escape)) window?.Close();
-        if (WindowOpen && now >= nextList && client != null)
+        switch (input)
         {
-            nextList = now + 2;
-            client.List();
+            case WindowInput.Action.Toggle: window?.Toggle(); break;
+            case WindowInput.Action.Close: window?.Close(); break;
         }
+        client?.Refresh(WindowOpen, InventoryGui.IsVisible(), Hud.IsPieceSelectionVisible(), now,
+            StationTargets.IsInputTarget(Player.m_localPlayer.GetHoverObject()));
     }
 
     private void OnGUI() => window?.Draw();
@@ -75,6 +83,8 @@ public sealed class Plugin : BaseUnityPlugin
         router = null;
         api = null;
         client = null;
+        Resources = null;
+        StationItems = null;
         window = null;
     }
 
@@ -123,6 +133,20 @@ public sealed class Plugin : BaseUnityPlugin
         private static void Postfix(ref bool __result) { if (WindowOpen) __result = false; }
     }
 
+    [HarmonyPatch(typeof(ZInput), "GetKeyDown")]
+    private static class ConsumeWindowEscape
+    {
+        private static bool Prefix(KeyCode key, ref bool __result)
+        {
+            if (key != KeyCode.Escape || Instance == null ||
+                !Instance.windowInput.BlockEscape(WindowOpen, Time.frameCount)) return true;
+            // Cover readers both before and after Plugin.Update closes the
+            // window, including the pause menu and the UI underneath us.
+            __result = false;
+            return false;
+        }
+    }
+
     [HarmonyPatch(typeof(PlayerController), "TakeInput")]
     private static class BlockMovementInput
     {
@@ -148,9 +172,9 @@ public sealed class Plugin : BaseUnityPlugin
     {
         private static bool Prefix(ref float __result)
         {
-            if (!WindowOpen) return true;
+            if (Instance?.window?.IsPointerOver != true) return true;
             // IMGUI reads Event.current directly, so the list still scrolls.
-            // Camera zoom and other gameplay wheel actions read ZInput.
+            // Only block gameplay wheel actions while hovering this window.
             __result = 0f;
             return false;
         }

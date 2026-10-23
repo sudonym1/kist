@@ -32,6 +32,17 @@ internal sealed class Window : IDisposable
     private GUISkin? skin;
     private readonly List<Texture2D> themeTextures = new List<Texture2D>();
     public bool Visible { get; private set; }
+    public bool IsPointerOver
+    {
+        get
+        {
+            if (!Visible) return false;
+            ClampToScreen();
+            var pointer = ZInput.pointerPosition;
+            // Screen input starts at the bottom left; IMGUI starts at the top left.
+            return rect.Contains(new Vector2(pointer.x, Screen.height - pointer.y));
+        }
+    }
 
     public Window(Client client, ConfigEntry<Vector2> savedPosition)
     {
@@ -42,6 +53,8 @@ internal sealed class Window : IDisposable
     public void Toggle()
     {
         if (Visible) { Close(); return; }
+        search = "";
+        scroll = Vector2.zero;
         Visible = true;
         if (!positioned)
         {
@@ -64,6 +77,8 @@ internal sealed class Window : IDisposable
     public void Close()
     {
         SavePosition();
+        search = "";
+        scroll = Vector2.zero;
         Visible = false;
         blocker?.SetActive(false);
     }

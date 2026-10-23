@@ -5,6 +5,11 @@ using SharedInventory;
 // Small game/transport doubles. Tests compile the actual database, client and item rules.
 namespace UnityEngine
 {
+    public class Component
+    {
+        public GameObject gameObject = null!;
+        public T? GetComponentInParent<T>() where T : class => gameObject.GetComponentInParent<T>();
+    }
     public struct Vector3
     {
         public static Vector3 up => default;
@@ -18,7 +23,40 @@ public sealed class GameObject
 {
     public string name = "";
     public ItemDrop Drop = null!;
-    public T GetComponent<T>() where T : class => (Drop as T)!;
+    public GameObject? Parent;
+    private readonly List<object> components = new List<object>();
+    public T GetComponent<T>() where T : class
+    {
+        if (Drop is T drop) return drop;
+        foreach (var component in components) if (component is T found) return found;
+        return null!;
+    }
+    public T? GetComponentInParent<T>() where T : class => GetComponent<T>() ?? Parent?.GetComponentInParent<T>();
+    public T Attach<T>(T component) where T : UnityEngine.Component
+    {
+        component.gameObject = this;
+        components.Add(component);
+        return component;
+    }
+}
+
+public interface Interactable { }
+public sealed class Switch : UnityEngine.Component, Interactable { }
+public sealed class Smelter : UnityEngine.Component
+{
+    public Switch? m_addOreSwitch, m_addWoodSwitch, m_emptyOreSwitch;
+}
+public sealed class CookingStation : UnityEngine.Component, Interactable
+{
+    public Switch? m_addFoodSwitch, m_addFuelSwitch;
+}
+public sealed class Fermenter : UnityEngine.Component, Interactable
+{
+    public Switch? m_addSwitch;
+}
+public sealed class Fireplace : UnityEngine.Component, Interactable
+{
+    public bool m_canRefill = true, m_infiniteFuel;
 }
 
 public sealed class ItemDrop
@@ -57,6 +95,7 @@ public sealed class ObjectDB
 {
     public static ObjectDB instance = new ObjectDB();
     public readonly Dictionary<string, GameObject> Prefabs = new Dictionary<string, GameObject>();
+    public readonly List<GameObject> m_items = new List<GameObject>();
     public GameObject? GetItemPrefab(string id) => Prefabs.TryGetValue(id, out var p) ? p : null;
 }
 
@@ -69,6 +108,41 @@ public sealed class Inventory
     public int GetEmptySlots() => Math.Max(0, Slots - items.Count);
     public bool ContainsItem(ItemDrop.ItemData item) => items.Contains(item);
     public bool RemoveItem(ItemDrop.ItemData item) => items.Remove(item);
+    public bool RemoveItem(ItemDrop.ItemData item, int amount)
+    {
+        if (!items.Contains(item)) return false;
+        if (amount >= item.m_stack) return items.Remove(item);
+        item.m_stack -= amount;
+        return true;
+    }
+    public int CountItems(string name, int quality = -1, bool matchWorldLevel = true)
+    {
+        var count = 0;
+        foreach (var item in items)
+            if (item.m_shared.m_name == name && (quality < 0 || quality == item.m_quality) &&
+                (!matchWorldLevel || item.m_worldLevel >= Game.m_worldLevel)) count += item.m_stack;
+        return count;
+    }
+    public ItemDrop.ItemData? GetItem(string name, int quality = -1, bool isPrefabName = false)
+    {
+        foreach (var item in items)
+            if ((isPrefabName ? item.m_dropPrefab.name : item.m_shared.m_name) == name &&
+                (quality < 0 || quality == item.m_quality) && item.m_worldLevel >= Game.m_worldLevel) return item;
+        return null;
+    }
+    public void RemoveItem(string name, int amount, int quality = -1, bool worldLevelBased = true)
+    {
+        foreach (var item in items)
+        {
+            if (item.m_shared.m_name != name || (quality >= 0 && quality != item.m_quality) ||
+                (worldLevelBased && item.m_worldLevel < Game.m_worldLevel)) continue;
+            var take = Math.Min(amount, item.m_stack);
+            item.m_stack -= take;
+            amount -= take;
+            if (amount <= 0) break;
+        }
+        items.RemoveAll(item => item.m_stack <= 0);
+    }
     public bool CanAddItem(ItemDrop.ItemData item, int amount) => Items.Room(this, item) >= amount;
     public bool AddItem(ItemDrop.ItemData item)
     {
@@ -106,6 +180,8 @@ public sealed class Player
     public void UnequipItem(ItemDrop.ItemData item, bool effects) => item.m_equipped = false;
 }
 
+public static class Game { public static int m_worldLevel; }
+
 namespace SharedInventory
 {
     internal sealed class RpcApi
@@ -115,6 +191,7 @@ namespace SharedInventory
             public string Method = "", Item = "";
             public long Id, Amount;
             public int Quality = 1;
+            public Dictionary<string, long>? Batch;
         }
         public bool Connected = true;
         public readonly List<Call> Calls = new List<Call>();
@@ -123,5 +200,7 @@ namespace SharedInventory
             => Calls.Add(new Call { Method = "Deposit", Id = id, Item = item, Amount = amount, Quality = quality });
         public void Withdrawal(long id, string item, long amount)
             => Calls.Add(new Call { Method = "Withdrawal", Id = id, Item = item, Amount = amount });
+        public void Withdrawal(long id, IReadOnlyDictionary<string, long> amounts)
+            => Calls.Add(new Call { Method = "Withdrawal", Id = id, Batch = new Dictionary<string, long>(amounts) });
     }
 }

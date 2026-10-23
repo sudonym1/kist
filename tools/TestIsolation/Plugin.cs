@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using BepInEx;
+using BepInEx.Configuration;
 using HarmonyLib;
 using UnityEngine;
 
@@ -14,6 +15,7 @@ public sealed class Plugin : BaseUnityPlugin
 {
     private static string saveRoot = "";
     private static Plugin instance = null!;
+    private ConfigEntry<bool> freeBuild = null!;
 
     private void Awake()
     {
@@ -43,6 +45,8 @@ public sealed class Plugin : BaseUnityPlugin
                 || Utils.GetSaveDataPath(FileHelpers.FileSource.Local) != saveRoot)
                 throw new InvalidOperationException("Local-only save isolation did not install");
             Logger.LogInfo("SHARED INVENTORY LOCAL-ONLY TEST ISOLATION: " + saveRoot);
+            freeBuild = Config.Bind("Testing", "FreeBuild", true,
+                "Enable free building in the isolated test game. Disable to test real shared resource consumption.");
         }
         catch (Exception error)
         {
@@ -56,7 +60,7 @@ public sealed class Plugin : BaseUnityPlugin
     private void Update()
     {
         var player = Player.m_localPlayer;
-        if (player != null) player.SetNoPlacementCost(true);
+        if (player != null) player.SetNoPlacementCost(freeBuild.Value);
     }
 
     [HarmonyPatch(typeof(Game), "Start")]
