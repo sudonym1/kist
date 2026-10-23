@@ -27,4 +27,7 @@ internal sealed class WindowInput
     }
 
     internal bool BlockEscape(bool visible, int frame) => visible || escapeConsumed || consumedEscapeFrame == frame;
+
+    internal bool BlockKey(bool visible, bool escape, int frame) =>
+        escape ? BlockEscape(visible, frame) : visible;
 }

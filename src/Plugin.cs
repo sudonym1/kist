@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Reflection;
 using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
@@ -136,15 +138,42 @@ public sealed class Plugin : BaseUnityPlugin
         private static void Postfix(ref bool __result) { if (WindowOpen) __result = false; }
     }
 
-    [HarmonyPatch(typeof(ZInput), "GetKeyDown")]
-    private static class ConsumeWindowEscape
+    [HarmonyPatch]
+    private static class BlockWindowKeys
     {
+        private static IEnumerable<MethodBase> TargetMethods() => new[]
+        {
+            AccessTools.Method(typeof(ZInput), "GetKeyDown"),
+            AccessTools.Method(typeof(ZInput), "GetKeyUp")
+        };
+
         private static bool Prefix(KeyCode key, ref bool __result)
         {
-            if (key != KeyCode.Escape || Instance == null ||
-                !Instance.windowInput.BlockEscape(WindowOpen, Time.frameCount)) return true;
-            // Cover readers both before and after Plugin.Update closes the
-            // window, including the pause menu and the UI underneath us.
+            if (Instance == null || !Instance.windowInput.BlockKey(WindowOpen,
+                key == KeyCode.Escape, Time.frameCount)) return true;
+            // Suppress raw shortcuts while open, and keep consuming Escape
+            // after Plugin.Update closes the window so it cannot open a menu.
+            __result = false;
+            return false;
+        }
+    }
+
+    [HarmonyPatch]
+    private static class BlockWindowShortcuts
+    {
+        private static IEnumerable<MethodBase> TargetMethods() => new[]
+        {
+            AccessTools.Method(typeof(ZInput), "GetButton"),
+            AccessTools.Method(typeof(ZInput), "GetButtonDown"),
+            AccessTools.Method(typeof(ZInput), "GetButtonUp")
+        };
+
+        private static bool Prefix(ref bool __result)
+        {
+            if (!WindowOpen) return true;
+            // Map, inventory, and chat read named bindings independently of
+            // Player.TakeInput. IMGUI still receives text and mouse events;
+            // Plugin.Update reads held keys directly for toggle and Escape.
             __result = false;
             return false;
         }

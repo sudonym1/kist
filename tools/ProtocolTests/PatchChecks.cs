@@ -13,18 +13,7 @@ internal static class PatchChecks
         using var mod = AssemblyDefinition.ReadAssembly(modPath);
         using var game = AssemblyDefinition.ReadAssembly(Path.Combine(managedPath, "assembly_valheim.dll"));
         using var utils = AssemblyDefinition.ReadAssembly(Path.Combine(managedPath, "assembly_utils.dll"));
-        var escapeTarget = utils.MainModule.Types.Single(type => type.Name == "ZInput")
-            .Methods.Single(method => method.Name == "GetKeyDown");
-        var escapePrefix = mod.MainModule.Types.Single(type => type.Name == "Plugin")
-            .NestedTypes.Single(type => type.Name == "ConsumeWindowEscape")
-            .Methods.Single(method => method.Name == "Prefix");
-        if (!escapeTarget.IsStatic || escapeTarget.ReturnType.FullName != "System.Boolean" ||
-            escapeTarget.Parameters[0].Name != escapePrefix.Parameters[0].Name ||
-            escapeTarget.Parameters[0].ParameterType.FullName != escapePrefix.Parameters[0].ParameterType.FullName ||
-            escapePrefix.Parameters[1].Name != "__result" ||
-            escapePrefix.Parameters[1].ParameterType.FullName != "System.Boolean&")
-            throw new Exception("Invalid Escape input hook signature");
-        System.Console.WriteLine("PASS ZInput.GetKeyDown: Escape hook matches game input signature");
+        CheckWindowInput(mod, utils);
         var hooks = mod.MainModule.Types.Single(type => type.FullName == "SharedInventory.Crafting");
         var replacements = new Dictionary<string, string>
         {
@@ -60,6 +49,32 @@ internal static class PatchChecks
         CheckStationHooks(mod, game);
         CheckStationShortcuts(mod, game);
         return 0;
+    }
+
+    private static void CheckWindowInput(AssemblyDefinition mod, AssemblyDefinition utils)
+    {
+        var input = utils.MainModule.Types.Single(type => type.Name == "ZInput");
+        var plugin = mod.MainModule.Types.Single(type => type.Name == "Plugin");
+        foreach (var name in new[] { "GetKeyDown", "GetKeyUp", "GetButton", "GetButtonDown", "GetButtonUp" })
+        {
+            var target = input.Methods.Single(method => method.Name == name);
+            var hook = plugin.NestedTypes.Single(type => type.Name ==
+                (name.StartsWith("GetKey", StringComparison.Ordinal) ? "BlockWindowKeys" : "BlockWindowShortcuts"));
+            var prefix = hook.Methods.Single(method => method.Name == "Prefix");
+            if (!target.IsStatic || target.ReturnType.FullName != "System.Boolean" ||
+                prefix.ReturnType.FullName != "System.Boolean" ||
+                prefix.Parameters.Last().Name != "__result" ||
+                prefix.Parameters.Last().ParameterType.FullName != "System.Boolean&" ||
+                !hook.CustomAttributes.Any(attribute => attribute.AttributeType.FullName == "HarmonyLib.HarmonyPatch") ||
+                !hook.Methods.Single(method => method.Name == "TargetMethods").Body.Instructions
+                    .Any(instruction => instruction.Operand is string methodName && methodName == name))
+                throw new Exception("Invalid window input hook: " + name);
+            if (name.StartsWith("GetKey", StringComparison.Ordinal) &&
+                (target.Parameters[0].Name != prefix.Parameters[0].Name ||
+                 target.Parameters[0].ParameterType.FullName != prefix.Parameters[0].ParameterType.FullName))
+                throw new Exception("Invalid window key hook signature: " + name);
+            System.Console.WriteLine($"PASS ZInput.{name}: window input hook matches game input signature");
+        }
     }
 
     private static void CheckStationHooks(AssemblyDefinition mod, AssemblyDefinition game)
