@@ -12,7 +12,7 @@ internal static class Items
         return prefab != null ? prefab.GetComponent<ItemDrop>()?.m_itemData : null;
     }
 
-    public static ItemDrop.ItemData? Default(string itemId)
+    public static ItemDrop.ItemData? Default(string itemId, int quality = 1)
     {
         var prefab = ObjectDB.instance?.GetItemPrefab(itemId);
         var drop = prefab != null ? prefab.GetComponent<ItemDrop>() : null;
@@ -20,7 +20,7 @@ internal static class Items
         var item = drop.m_itemData.Clone();
         item.m_dropPrefab = prefab;
         item.m_stack = 1;
-        item.m_quality = 1;
+        item.m_quality = Math.Max(1, quality);
         item.m_variant = 0;
         item.m_worldLevel = 0;
         item.m_crafterID = 0;

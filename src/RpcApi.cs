@@ -12,7 +12,7 @@ namespace SharedInventory;
 // database operations, and persistence run on the endpoint's ordered worker.
 internal sealed class RpcApi
 {
-    private const string Prefix = "SharedInventory.v1.";
+    private const string Prefix = "SharedInventory.v2.";
     private static Task previousShutdown = Task.CompletedTask;
     private readonly ZRoutedRpc router;
     private readonly ManualLogSource log;
@@ -69,10 +69,10 @@ internal sealed class RpcApi
     private long ServerId => server ? ZNet.GetUID() : ZNet.instance.GetServerPeer().m_uid;
 
     public void List(long requestId) => SendRequest("List", requestId, "", 0);
-    public void Deposit(long requestId, string itemId, long amount) => SendRequest("Deposit", requestId, itemId, amount);
+    public void Deposit(long requestId, string itemId, long amount, int quality) => SendRequest("Deposit", requestId, itemId, amount, quality);
     public void Withdrawal(long requestId, string itemId, long amount) => SendRequest("Withdrawal", requestId, itemId, amount);
 
-    private void SendRequest(string method, long requestId, string itemId, long amount)
+    private void SendRequest(string method, long requestId, string itemId, long amount, int quality = 1)
     {
         if (!Connected) throw new InvalidOperationException("Not connected to a server.");
         var target = ServerId; // Resolve the connection on the main thread.
@@ -84,6 +84,7 @@ internal sealed class RpcApi
             {
                 request.Write(itemId);
                 request.Write(amount);
+                if (method == "Deposit") request.Write(quality);
             }
             Send(target, method, request);
         });
@@ -133,6 +134,7 @@ internal sealed class RpcApi
             {
                 reply.Write(item.Key);
                 reply.Write(item.Value);
+                reply.Write(Database.Quality(item.Key));
             }
         }
         catch (Exception error) { reply = ErrorReply(id, error); }
@@ -150,12 +152,14 @@ internal sealed class RpcApi
             var amount = request.ReadLong();
             var db = Database;
             long transferred;
-            if (deposit) { db.Deposit(item, amount); transferred = amount; }
+            var quality = deposit ? request.ReadInt() : db.Quality(item);
+            if (deposit) { db.Deposit(item, amount, quality); quality = db.Quality(item); transferred = amount; }
             else transferred = db.Withdrawal(item, amount);
             reply.Write("");
             reply.Write(item);
             reply.Write(transferred);
             reply.Write(db.Total(item));
+            reply.Write(quality);
         }
         catch (Exception error) { reply = ErrorReply(id, error); }
         Send(sender, deposit ? "DepositReply" : "WithdrawalReply", reply);
@@ -175,7 +179,12 @@ internal sealed class RpcApi
         var reply = new ListReply { RequestId = package.ReadLong(), Error = package.ReadString() };
         if (reply.Error.Length != 0) return reply;
         var count = package.ReadInt();
-        for (var i = 0; i < count; ++i) reply.Items[package.ReadString()] = package.ReadLong();
+        for (var i = 0; i < count; ++i)
+        {
+            var item = package.ReadString();
+            reply.Items[item] = package.ReadLong();
+            reply.Qualities[item] = package.ReadInt();
+        }
         return reply;
     }
 
@@ -187,6 +196,7 @@ internal sealed class RpcApi
             reply.ItemId = package.ReadString();
             reply.Amount = package.ReadLong();
             reply.Total = package.ReadLong();
+            reply.Quality = package.ReadInt();
         }
         return reply;
     }

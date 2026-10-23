@@ -258,7 +258,7 @@ internal sealed class Window : IDisposable
                 pair.Key.IndexOf(search, StringComparison.OrdinalIgnoreCase) < 0) continue;
             rows.Add(new Row
             {
-                Id = pair.Key, Name = name, Count = pair.Value.ToString("N0", CultureInfo.CurrentCulture),
+                Id = pair.Key, Name = name + (client.Quality(pair.Key) > 1 ? " (Quality " + client.Quality(pair.Key) + ")" : ""), Count = pair.Value.ToString("N0", CultureInfo.CurrentCulture),
                 Stack = item == null ? 0 : Math.Max(1, item.m_shared.m_maxStackSize),
                 Icon = item?.m_shared.m_icons != null && item.m_shared.m_icons.Length > 0
                     ? item.m_shared.m_icons[0] : null

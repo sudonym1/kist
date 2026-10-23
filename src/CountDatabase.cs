@@ -7,9 +7,10 @@ namespace SharedInventory;
 internal sealed class CountDatabase
 {
     private readonly Dictionary<string, long> counts;
+    private readonly Dictionary<string, int> qualities = new Dictionary<string, int>(StringComparer.Ordinal);
     public bool Dirty { get; private set; }
 
-    public CountDatabase(Dictionary<string, long>? initial = null)
+    public CountDatabase(Dictionary<string, long>? initial = null, Dictionary<string, int>? initialQualities = null)
     {
         counts = new Dictionary<string, long>(StringComparer.Ordinal);
         if (initial == null) return;
@@ -17,17 +18,23 @@ internal sealed class CountDatabase
         {
             if (string.IsNullOrEmpty(pair.Key) || pair.Value < 0)
                 throw new InvalidOperationException("Invalid shared inventory save.");
-            if (pair.Value > 0) counts.Add(pair.Key, pair.Value);
+            var quality = initialQualities != null && initialQualities.TryGetValue(pair.Key, out var q) ? q : 1;
+            if (quality < 1) throw new InvalidOperationException("Invalid item quality.");
+            if (pair.Value > 0) { counts.Add(pair.Key, pair.Value); qualities.Add(pair.Key, quality); }
         }
     }
 
     public IReadOnlyDictionary<string, long> List() => counts;
     public long Total(string itemId) => counts.TryGetValue(itemId, out var count) ? count : 0;
 
-    public long Deposit(string itemId, long amount)
+    public int Quality(string itemId) => qualities.TryGetValue(itemId, out var quality) ? quality : 1;
+
+    public long Deposit(string itemId, long amount, int quality = 1)
     {
         Validate(itemId, amount);
+        if (quality < 1) throw new ArgumentOutOfRangeException(nameof(quality));
         var total = checked(Total(itemId) + amount);
+        qualities[itemId] = Math.Max(Quality(itemId), quality);
         counts[itemId] = total;
         Dirty = true;
         return total;
@@ -39,7 +46,7 @@ internal sealed class CountDatabase
         var total = Total(itemId);
         var taken = Math.Min(total, amount);
         if (taken == 0) return 0;
-        if (taken == total) counts.Remove(itemId);
+        if (taken == total) { counts.Remove(itemId); qualities.Remove(itemId); }
         else counts[itemId] = total - taken;
         Dirty = true;
         return taken;

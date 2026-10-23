@@ -3,9 +3,13 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
+    <ValheimDir Condition="'$(ValheimDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Valheim</ValheimDir>
+    <ManagedDir Condition="'$(ManagedDir)' == ''">$(ValheimDir)/valheim_Data/Managed</ManagedDir>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Newtonsoft.Json" HintPath="$(ManagedDir)/Newtonsoft.Json.dll" />
+    <Compile Include="../src/DatabaseFile.cs" Link="DatabaseFile.cs" />
     <Compile Include="../src/CountDatabase.cs" Link="CountDatabase.cs" />
     <Compile Include="../src/Client.cs" Link="Client.cs" />
     <Compile Include="../src/Items.cs" Link="Items.cs" />

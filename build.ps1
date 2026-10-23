@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 if (-not $BepInExDir) { $BepInExDir = Join-Path $ValheimDir "BepInEx" }
 
 if (-not $SkipTests) {
-    & dotnet run --project (Join-Path $PSScriptRoot "tests/SharedInventory.Tests.csproj") -c Release
+    & dotnet run --project (Join-Path $PSScriptRoot "tests/SharedInventory.Tests.csproj") -c Release "-p:ValheimDir=$ValheimDir"
     if ($LASTEXITCODE -ne 0) { throw "Regression tests failed." }
 }
 

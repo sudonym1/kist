@@ -114,12 +114,13 @@ namespace SharedInventory
         {
             public string Method = "", Item = "";
             public long Id, Amount;
+            public int Quality = 1;
         }
         public bool Connected = true;
         public readonly List<Call> Calls = new List<Call>();
         public void List(long id) => Calls.Add(new Call { Method = "List", Id = id });
-        public void Deposit(long id, string item, long amount)
-            => Calls.Add(new Call { Method = "Deposit", Id = id, Item = item, Amount = amount });
+        public void Deposit(long id, string item, long amount, int quality = 1)
+            => Calls.Add(new Call { Method = "Deposit", Id = id, Item = item, Amount = amount, Quality = quality });
         public void Withdrawal(long id, string item, long amount)
             => Calls.Add(new Call { Method = "Withdrawal", Id = id, Item = item, Amount = amount });
     }

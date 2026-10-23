@@ -242,6 +242,89 @@ internal static class Program
             client.OnDeposit(new TransferReply { RequestId = api.Calls[0].Id, Error = "Database unavailable" });
             Equal(1, ItemDrop.Dropped.Count); Equal(4, ItemDrop.Dropped[0].m_quality);
         });
+        Test("Highest deposited quality applies to the whole shared stack", () =>
+        {
+            var db = new CountDatabase();
+            db.Deposit("SwordIron", 10, 1);
+            db.Deposit("SwordIron", 1, 4);
+            Equal(11L, db.Total("SwordIron")); Equal(4, db.Quality("SwordIron"));
+            db.Deposit("SwordIron", 2, 2);
+            db.Withdrawal("SwordIron", 12);
+            Equal(1L, db.Total("SwordIron")); Equal(4, db.Quality("SwordIron"));
+            db.Withdrawal("SwordIron", 1);
+            db.Deposit("SwordIron", 1, 2);
+            Equal(2, db.Quality("SwordIron"));
+        });
+        Test("Invalid and overflowing deposits cannot upgrade stock", () =>
+        {
+            var db = new CountDatabase();
+            db.Deposit("Coal", long.MaxValue, 2);
+            try { db.Deposit("Coal", 1, 4); throw new Exception("Overflow accepted"); }
+            catch (OverflowException) { }
+            try { db.Deposit("Coal", 1, 0); throw new Exception("Invalid quality accepted"); }
+            catch (ArgumentOutOfRangeException) { }
+            Equal(2, db.Quality("Coal")); Equal(long.MaxValue, db.Total("Coal"));
+        });
+        Test("Deposits send the selected item's upgrade level", () =>
+        {
+            var (client, api) = Setup("SwordIron", 10, 1);
+            var item = Items.Default("SwordIron", 4)!;
+            Player.m_localPlayer.Inventory.GetAllItems().Add(item);
+            client.Deposit(item);
+            Equal(4, api.Calls[0].Quality);
+        });
+        Test("Last withdrawal uses server quality even when cache is stale", () =>
+        {
+            var (client, api) = Setup("SwordIron", 1, 1);
+            client.Withdrawal("SwordIron", false);
+            var reply = Reply(api.Calls[0].Id, "SwordIron", 1, 0); reply.Quality = 4;
+            client.OnWithdrawal(reply);
+            Equal(4, Player.m_localPlayer.Inventory.GetAllItems()[0].m_quality);
+            Equal(false, client.Counts.ContainsKey("SwordIron"));
+        });
+        Test("Quality changes in flight return incompatible grants at their awarded quality", () =>
+        {
+            var (client, api) = Setup("Coal", 50);
+            var inventory = Player.m_localPlayer.Inventory;
+            inventory.Slots = 1;
+            inventory.GetAllItems().Add(Items.Default("Coal")!);
+            client.Withdrawal("Coal", false);
+            var reply = Reply(api.Calls[0].Id, "Coal", 1, 49); reply.Quality = 3;
+            client.OnWithdrawal(reply);
+            Equal("Deposit", api.Calls[1].Method); Equal(3, api.Calls[1].Quality);
+            Equal(1L, Items.Count(inventory, "Coal"));
+        });
+        Test("Capacity checks use listed quality", () =>
+        {
+            var (client, api) = Setup("Coal", 50);
+            client.Qualities["Coal"] = 3;
+            var inventory = Player.m_localPlayer.Inventory;
+            inventory.Slots = 1;
+            inventory.GetAllItems().Add(Items.Default("Coal", 3)!);
+            client.Withdrawal("Coal", false);
+            Equal(1, api.Calls.Count);
+        });
+        Test("Legacy saves migrate and quality survives save and reload", () =>
+        {
+            var directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "sharedinventory-" + Guid.NewGuid());
+            System.IO.Directory.CreateDirectory(directory);
+            var path = System.IO.Path.Combine(directory, "world.json");
+            try
+            {
+                System.IO.File.WriteAllText(path, "{\"SwordIron\":10,\"Coal\":5000000000}");
+                var file = new DatabaseFile(path);
+                Equal(1, file.Database.Quality("SwordIron"));
+                file.Database.Deposit("SwordIron", 1, 4); file.Save();
+                var loaded = new DatabaseFile(path);
+                Equal(11L, loaded.Database.Total("SwordIron")); Equal(4, loaded.Database.Quality("SwordIron"));
+                Equal(5000000000L, loaded.Database.Total("Coal"));
+                Equal(true, System.IO.File.Exists(path + ".bak"));
+                System.IO.File.WriteAllText(path, "{\"SwordIron\":{\"Count\":11,\"Quality\":0}}");
+                try { new DatabaseFile(path); throw new Exception("Invalid save accepted"); }
+                catch (InvalidOperationException) { }
+            }
+            finally { System.IO.Directory.Delete(directory, true); }
+        });
         System.Console.WriteLine($"{passed} tests passed.");
         return 0;
     }

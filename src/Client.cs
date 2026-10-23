@@ -19,6 +19,8 @@ internal sealed class Client
     private long nextRequest;
     private long listRequest;
     public Dictionary<string, long> Counts { get; private set; } = new Dictionary<string, long>(StringComparer.Ordinal);
+    public Dictionary<string, int> Qualities { get; private set; } = new Dictionary<string, int>();
+    public int Quality(string item) => Qualities.TryGetValue(item, out var quality) ? quality : 1;
     public int Version { get; private set; }
     public string Status { get; private set; } = "";
     public bool Busy => pending.Count != 0;
@@ -52,13 +54,13 @@ internal sealed class Client
             Position = player.transform.position + UnityEngine.Vector3.up
         });
         Status = "Depositing…";
-        api.Deposit(id, Items.Id(original), amount);
+        api.Deposit(id, Items.Id(original), amount, original.m_quality);
     }
 
     public void Withdrawal(string itemId, bool stack)
     {
         if (!Ready || Busy) return;
-        var item = Items.Default(itemId);
+        var item = Items.Default(itemId, Quality(itemId));
         if (item == null)
         {
             Status = "This client does not have the item: " + itemId;
@@ -84,6 +86,7 @@ internal sealed class Client
         if (reply.RequestId != listRequest) return;
         listRequest = 0;
         if (reply.Error.Length != 0) { Status = reply.Error; return; }
+        Qualities = reply.Qualities;
         Counts = reply.Items; // Parsing and allocation already happened on the worker.
         Version++;
     }
@@ -116,7 +119,7 @@ internal sealed class Client
         }
         var item = reply.ItemId;
         var deposited = reply.Amount;
-        SetTotal(item, reply.Total);
+        SetTotal(item, reply.Total, reply.Quality);
         Status = "Deposited " + deposited + ".";
     }
 
@@ -129,9 +132,9 @@ internal sealed class Client
         if (error.Length != 0) { Status = "Withdrawal failed: " + error; return; }
         var itemId = reply.ItemId;
         var amount = checked((int)reply.Amount);
-        SetTotal(itemId, reply.Total);
+        SetTotal(itemId, reply.Total, reply.Quality);
         if (amount == 0) { Status = "That item is no longer available."; return; }
-        var item = Items.Default(itemId);
+        var item = Items.Default(itemId, reply.Quality);
         var added = 0;
         // Capacity may have changed during the RPC. Never add to a dead player's
         // detached inventory; return the grant to the database instead.
@@ -151,14 +154,14 @@ internal sealed class Client
             });
             Status = "Returning " + unused + " that did not fit…";
             // Returns are ordinary deposits. No grant token or server-side cap.
-            api.Deposit(returnId, itemId, unused);
+            api.Deposit(returnId, itemId, unused, reply.Quality);
         }
     }
 
-    private void SetTotal(string item, long count)
+    private void SetTotal(string item, long count, int quality)
     {
-        if (count == 0) Counts.Remove(item);
-        else Counts[item] = count;
+        if (count == 0) { Counts.Remove(item); Qualities.Remove(item); }
+        else { Counts[item] = count; Qualities[item] = quality; }
         Version++;
     }
 }

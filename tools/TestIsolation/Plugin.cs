@@ -52,6 +52,13 @@ public sealed class Plugin : BaseUnityPlugin
         }
     }
 
+    // Enabled only inside the guarded test game. Uses Valheim's own free-build mode.
+    private void Update()
+    {
+        var player = Player.m_localPlayer;
+        if (player != null) player.SetNoPlacementCost(true);
+    }
+
     [HarmonyPatch(typeof(Game), "Start")]
     private static class ReportTestWorld
     {
