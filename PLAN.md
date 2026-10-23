@@ -1,6 +1,6 @@
 # Handoff plan: recover from lost inventory refresh replies
 
-Status: recovery fix implemented; automated validation passed; isolated installation and live acceptance pending.
+Status: recovery fix implemented; automated validation and isolated host refresh acceptance passed. Crafting-failure overlap and remote multiplayer remain untested in-game.
 Prepared: 2026-10-23.
 Repository: `C:\Users\seamu\source\repos\SharedInventory`.
 
@@ -11,9 +11,25 @@ Repository: `C:\Users\seamu\source\repos\SharedInventory`.
 - Preserved cached stock, transfer semantics, optimistic batch deductions, and quality reconciliation. Added refresh recovery UI and test-only terminal expiry events, separate pending categories, counters, and bounded correlation storage.
 - Production and testing builds passed 102 regression tests, production protocol checks, 11 deterministic harness checks, game-hook signature checks, and harness inclusion/exclusion checks using standalone .NET SDK 8.0.318.
 - All seven load presets passed with zero violations. Only the intentional lost-deposit-confirmation preset retained an unresolved mutation (one deposit).
-- Build logs and load reports are local artifacts under this worktree's `.work` directory. Packages are under `dist`.
-- The user stopped Computer Use before installation. No new DLL was installed, no install backup was created, and no live recovery acceptance result is claimed. Genuine remote multiplayer also remains untested.
-- Before resuming installation, inspect the isolated launcher's current behavior: it was observed rebuilding the original checkout before applying staged DLLs, which could overwrite this worktree's recovery build. Preserve its current version and ensure the next launch retains the intended validated binary.
+- Build logs and load reports are archived in the main checkout under `.work/worktree-archive/d251/.work`. Packages are archived under `.work/worktree-archive/d251/dist`.
+- Computer Use stopped before agent installation. The user subsequently merged the fix and completed the manual test through the existing launcher, then exited normally. No agent-created pre-install backup is claimed.
+- The launcher rebuilds the original checkout before applying staged DLLs. After the user's test, the original checkout's build, staged DLL, and installed DLL had matching SHA-256 `01CE7174B0D858B0A49A063387D76A5432039C0ABBE73B1BB685AA94DFCAC96E`.
+
+## Isolated host acceptance evidence (2026-10-23)
+
+Seven cumulative exports from one approximately five-minute session are retained under `SharedInventory-Test-20261023/game/BepInEx/config/SharedInventory-TestReports`, from `20261023-231436-341.json` through the shutdown export `20261023-231831-049.json`. Copies of those reports, the final database, and shutdown logs are archived in the main checkout under `.work/worktree-archive/d251/.work/live-acceptance-20261023`. These local artifacts are Git-ignored.
+
+| Case | Observed evidence |
+| --- | --- |
+| Discarded ListReply, automatic recovery | Request 35 started at 96.536 s; its ListReply was discarded. It expired at 106.540 s, retried as request 36 at 108.545 s, and completed at 108.555 s. Ordinary polling resumed. |
+| Discarded ListReply, manual override | Request 53 started at 142.574 s and expired at 152.575 s. Replacement 54 began at 153.091 s, before automatic backoff eligibility, and completed at 153.102 s. This timing confirms the manual bypass path. |
+| Held reply after replacement and mutation | Request 67 expired at 188.488 s. Replacement 68 completed at 190.497 s. Withdrawal 78 followed at 208.971 s; exported Wood stock changed from 1,063 to 1,062. The old reply for 67 was explicitly ignored at 226.241 s. Final Wood remained 1,062. |
+| Outage-delayed refresh | Request 100 completed after 8.254 s; polling continued afterward. The trace shows delayed delivery, but does not separately record the button's outage duration. |
+| Terminal diagnostics | 119 requests started: 116 Lists, two deposits, one withdrawal. 116 completed and three refreshes expired; expired IDs never appeared as successful completions. Three timeouts, three retries, and one ignored refresh reply were recorded. Successful RTT sample count was 116. |
+| Final state | Pending refreshes, mutations, transfers, batches, queued packets, and held packets were all zero. Faults were off. All 385 exported counts and qualities matched the persisted shared database, totaling 32,151 units. |
+| Shutdown and logs | Normal application quit and completed world save were logged at 16:18:31 local. No error/exception entries were found in the retained session logs. |
+
+The reports confirm the original refresh freeze is resolved in this isolated host run. They do not capture the brief recovery-status/button visuals or an intermediate export during expiration; those UI steps were performed by the user. No ingredient-batch requests occurred in this session, so a rejected crafting batch overlapping recovery remains covered only by automated tests. Persistent-loss backoff, readiness transitions, and dispatch errors also retain automated coverage rather than new live evidence. Remote multiplayer and conservation across the character inventory remain separate validation tasks. These cumulative exports are one run, not seven independent tests.
 
 The original handoff below records the implementation requirements and the remaining isolated-install/live-test procedure. Its planning-only authorization has been superseded by the user's request to execute it.
 
