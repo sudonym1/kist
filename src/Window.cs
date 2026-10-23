@@ -234,7 +234,6 @@ internal sealed class Window : IDisposable
             GUI.Label(new Rect(width - 195, y, 95, 28), row.Count);
             GUI.enabled = client.Ready && !client.Busy && row.Stack > 0;
             if (GUI.Button(new Rect(width - 100, y, 35, 27), "1")) client.Withdrawal(row.Id, false);
-            GUI.enabled = GUI.enabled && row.Stack > 1;
             if (GUI.Button(new Rect(width - 60, y, 60, 27), "Stack")) client.Withdrawal(row.Id, true);
             GUI.enabled = true;
         }
