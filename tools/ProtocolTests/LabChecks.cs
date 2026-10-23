@@ -92,6 +92,25 @@ internal static class LabChecks
         });
         Test("Real RPC reply loss after mutation stays uncertain; late held reply completes once", RpcFaults);
         Test("Save failures retry and shutdown persists acknowledged operations", SaveFailure);
+        Test("Expired refresh is terminal while lost mutations stay pending", () =>
+        {
+            double time = 0;
+            var lab = new TestHarness(new TestSettings(), () => time);
+            lab.Start(1, "List"); lab.Start(2, "Deposit"); time = 10;
+            lab.ExpireRefresh(1, "timeout"); lab.IgnoreRefresh(1); lab.Complete(1, "");
+            Check(lab.Pending == 1 && lab.PendingRefreshes == 0 && lab.PendingMutations == 1,
+                "Refresh timeout changed uncertain mutation state");
+            lab.RefreshRetry(3); lab.Start(3, "List"); time = 12; lab.Complete(3, "");
+            var report = JObject.FromObject(lab.Snapshot());
+            Check(report["Metrics"]!["Counters"]!["completed"]!.Value<int>() == 1 &&
+                report["Metrics"]!["Samples"]!["roundTripMs"]!["Count"]!.Value<int>() == 1,
+                "Late expired reply became a successful RTT");
+            Check(report["Metrics"]!["Trace"]!.Any(e => e["Kind"]?.Value<string>() == "refreshExpired" &&
+                e["Outcome"]?.Value<string>() == "timeout"), "Terminal timeout history missing");
+            for (var i = 4; i < 11000; i++) lab.Start(i, "List");
+            Check(lab.Pending == 10000 && JObject.FromObject(lab.Snapshot())["Metrics"]!["Counters"]!["correlationEvicted"] != null,
+                "Correlation storage grew without bound or silently evicted history");
+        });
         Test("Report retains settings and bounded telemetry", () =>
         {
             var lab = new TestHarness(new TestSettings { Active = true }, () => 1);
@@ -106,7 +125,7 @@ internal static class LabChecks
             var metrics = JObject.FromObject(lab.Metrics.Snapshot());
             Check(metrics["Trace"]!.Count() == 10000 && metrics["Samples"]!["latency"]!["Count"]!.Value<int>() == 8192, "Telemetry grew without bound");
         });
-        System.Console.WriteLine("10 lab checks passed.");
+        System.Console.WriteLine("11 lab checks passed.");
         return 0;
     }
 

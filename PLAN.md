@@ -1,8 +1,21 @@
 # Handoff plan: recover from lost inventory refresh replies
 
-Status: planned; recovery fix not implemented.
+Status: recovery fix implemented; automated validation passed; isolated installation and live acceptance pending.
 Prepared: 2026-10-23.
 Repository: `C:\Users\seamu\source\repos\SharedInventory`.
+
+## Execution record (2026-10-23)
+
+- Reproduced the original freeze through the production Client: a discarded ListReply left the later refresh at one request instead of the expected two.
+- Implemented the injectable monotonic clock, ten-second deadlines, capped retry backoff, persistent explicit/failure demand, manual override, retired-reply rejection, and per-frame maintenance before player/menu early exits.
+- Preserved cached stock, transfer semantics, optimistic batch deductions, and quality reconciliation. Added refresh recovery UI and test-only terminal expiry events, separate pending categories, counters, and bounded correlation storage.
+- Production and testing builds passed 102 regression tests, production protocol checks, 11 deterministic harness checks, game-hook signature checks, and harness inclusion/exclusion checks using standalone .NET SDK 8.0.318.
+- All seven load presets passed with zero violations. Only the intentional lost-deposit-confirmation preset retained an unresolved mutation (one deposit).
+- Build logs and load reports are local artifacts under this worktree's `.work` directory. Packages are under `dist`.
+- The user stopped Computer Use before installation. No new DLL was installed, no install backup was created, and no live recovery acceptance result is claimed. Genuine remote multiplayer also remains untested.
+- Before resuming installation, inspect the isolated launcher's current behavior: it was observed rebuilding the original checkout before applying staged DLLs, which could overwrite this worktree's recovery build. Preserve its current version and ensure the next launch retains the intended validated binary.
+
+The original handoff below records the implementation requirements and the remaining isolated-install/live-test procedure. Its planning-only authorization has been superseded by the user's request to execute it.
 
 ## Objective
 

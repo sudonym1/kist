@@ -68,10 +68,10 @@ internal sealed class RpcApi
             var reply = DecodeList(package);
             main.Enqueue(() =>
             {
+                listReply(reply);
 #if SHAREDINVENTORY_TESTING
                 Testing?.Complete(reply.RequestId, reply.Error);
 #endif
-                listReply(reply);
             });
         }));
         router.Register<ZPackage>(Prefix + "DepositReply", (sender, package) => worker.Post(() =>

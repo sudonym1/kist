@@ -71,8 +71,8 @@ public sealed class Plugin : BaseUnityPlugin
 
     private void Update()
     {
-        var now = Time.realtimeSinceStartup;
         api?.Pump();
+        client?.MaintainRefresh();
 #if SHAREDINVENTORY_TESTING
         testPanel?.Update();
 #endif
@@ -90,7 +90,7 @@ public sealed class Plugin : BaseUnityPlugin
             case WindowInput.Action.Toggle: window?.Toggle(); break;
             case WindowInput.Action.Close: window?.Close(); break;
         }
-        client?.Refresh(WindowOpen, InventoryGui.IsVisible(), Hud.IsPieceSelectionVisible(), now,
+        client?.Refresh(WindowOpen, InventoryGui.IsVisible(), Hud.IsPieceSelectionVisible(),
             StationTargets.IsInputTarget(Player.m_localPlayer.GetHoverObject()));
     }
 

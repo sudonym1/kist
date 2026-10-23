@@ -33,11 +33,11 @@ internal static partial class Program
         ObjectDB.instance.m_items.Add(prefab);
         return item;
     }
-    private static (Client, RpcApi) Setup(string item, long total, int maximum = 50)
+    private static (Client, RpcApi) Setup(string item, long total, int maximum = 50, Func<double>? clock = null)
     {
         Prefab(item, maximum);
         var api = new RpcApi();
-        var client = new Client(api);
+        var client = clock == null ? new Client(api) : new Client(api, clock);
         client.Counts.Add(item, total);
         return (client, api);
     }
@@ -330,6 +330,7 @@ internal static partial class Program
         });
         GameplayTests();
         LabGameplayTests();
+        RefreshTests();
         StationTests();
         StationShortcutTests();
         System.Console.WriteLine($"{passed} tests passed.");
