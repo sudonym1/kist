@@ -1,7 +1,7 @@
 # Einherjar Chest implementation handoff
 
 Prepared: 2026-10-24.
-Status: mod renamed to Einherjar Chest; ritual and chest gameplay changes are not implemented.
+Status: phase 1 complete (defaults and visual direction confirmed on 2026-10-24); phase 2 asset prototype is next. Ritual and chest gameplay changes are not implemented.
 Repository: `C:\Users\seamu\source\repos\SharedInventory`.
 
 ## Objective
@@ -34,11 +34,11 @@ This document is the gameplay handoff. `PLAN.md` contains an earlier inventory-r
 
   > Odin is enraged by your avarice
 
-## Proposed defaults and unresolved design choices
+## Phase 1 decisions: gameplay defaults
 
-These details make the plan implementable but are recommendations, not additional user-confirmed requirements. Resolve changes before coding dependent behavior.
+On 2026-10-24, the user selected **Adopt all recommended rules** while executing phase 1. The recommended gameplay defaults below are adopted for implementation. In particular, the timer is world-wide, counts offline time, restarts after punishment, and essence is unrecoverable under every chest destruction cause.
 
-| Detail | Proposed default |
+| Detail | Adopted rule |
 | --- | --- |
 | Timer scope | One timer per world, shared by all players and all ritual initiators. |
 | Timer starts | After a confirmed successful ritual sacrifice. |
@@ -50,10 +50,14 @@ These details make the plan implementable but are recommendations, not additiona
 | Gathering boundary implementation | Match the original stone circle's physical gathering area; calibrate and verify the boundary in-game. Do not use the former proposed 20-metre radius or the 100-metre chest access radius. |
 | Eikthyr progression | No mounted-trophy requirement unless requested. Using the plaque alone must not silently introduce a boss-progression gate. |
 | Solo play | Allowed; the only player is sacrificed on success and killed on punishment. No hidden two-player minimum. |
-| Chest destroyed by damage | Recommend essence is unrecoverable for every destruction cause, preventing dismantling rules being bypassed by attacking the chest. |
+| Chest destroyed by damage | Essence is unrecoverable for every destruction cause, including enemy damage, player damage, and hammer removal. This prevents bypassing permanent essence consumption by attacking the chest. |
 | Ordinary death consequences | Use the game's current death, tombstone, and respawn rules. Do not silently add permanent death, forced teleportation to a new realm, or extra skill penalties. |
 
 The punishment text accompanies the all-player death.
+
+The timer's world scope keeps the same rule for every initiator. Persisting an absolute UTC deadline lets real time pass during shutdown; while running, use the monotonic-clock behavior specified below. A successful sacrifice starts the interval only after its ritual death is confirmed. Punishment restarts it at commitment, with persistence completed before death commands are dispatched. Invalid or cancelled attempts never change it. At the exact expiry boundary the ritual is eligible, evaluated at countdown commitment rather than initiation. Changing the configured interval affects future timer starts, leaving an existing deadline unchanged.
+
+Chest destruction never deletes or refunds shared contents: the stock remains in the existing world database and becomes accessible again through another chest. Only the essence used for construction is permanently consumed. Ordinary death, tombstone, and respawn rules still apply to ritual participants.
 
 ## Player experience
 
@@ -91,18 +95,22 @@ Measure chest access as a three-dimensional distance from the player to any vali
 
 ### Models, icons, and asset production
 
-Create and ship a dedicated chest mesh/model with its own recognizable silhouette. Reusing vanilla interaction/building components is acceptable; substituting only a vanilla mesh, tint, name, or particle effect is not. The essence also needs a dropped-world model and an inventory/recipe icon. Its visual design is open; a distinct original model is recommended, although only the chest's unique model is an explicit user requirement.
+Create and ship a dedicated chest mesh/model with its own recognizable silhouette. Reusing vanilla interaction/building components is acceptable; substituting only a vanilla mesh, tint, name, or particle effect is not. The essence also needs a dropped-world model and an inventory/recipe icon. Phase 1 adopts a distinct original crystal model for the essence as well as an original chest model.
 
 Revalidation on 2026-10-24 found no existing model, texture, prefab, or icon assets in the source repository. Valheim's installed UnityPlayer reports **6000.0.75f1**. The installed Unity editor is **6000.5.0f1**, and Blender was not found in PATH or its standard installation directory. The newer editor's presence does not establish asset-bundle compatibility with the older game runtime. Do not silently use that editor to build release bundles.
 
-Recommended first-version approach: author original low-poly meshes deterministically in C# using Unity's Mesh API. This produces real original geometry without requiring Blender or a Unity asset-bundle build. Generate each mesh/material set once during prefab setup and share it across instances; do not rebuild geometry per chest or frame. Version-controlled generator code and parameters are the editable model source. Keep visual direction proposed until reviewed:
+### Phase 1 decisions: visual direction
 
-| Asset | Proposed original geometry | Icon |
+On 2026-10-24, the user selected **Adopt the proposed artwork**. The following visual direction is confirmed for the phase 2 prototype; the actual models, icons, materials, and game appearance still require creation and in-game review.
+
+Use the handoff's preferred first-version asset path: author original low-poly meshes deterministically in C# using Unity's Mesh API. This produces real original geometry without requiring Blender or a Unity asset-bundle build. Generate each mesh/material set once during prefab setup and share it across instances; do not rebuild geometry per chest or frame. Version-controlled generator code and parameters are the editable model source.
+
+| Asset | Adopted original geometry | Icon |
 | --- | --- | --- |
 | Einherjar Essence | Small faceted, rune-marked amber/gold soul crystal, visibly distinct from existing resources; restrained emission rather than a permanently running effect. | Transparent-background render of the actual final crystal, readable at inventory size. |
 | Einherjar Chest | Low-poly Nordic reliquary with an angular lid, distinct carved end profiles, dark bands, and a matching inset crystal/rune motif. | Three-quarter transparent-background render of the actual final chest for the hammer menu. |
 
-Create both icons from the approved models with consistent lighting, angle, framing, and scale. Recommended workflow: a development-only capture tool renders each model to a texture in the isolated game, exports transparent PNGs, and those PNGs are checked in and embedded for release. Use 256 x 256 PNGs initially, then inspect at actual UI size. Release clients load sprites once; the dedicated server performs no camera rendering. Wire the essence sprite to its item icon list and the chest sprite to its Piece/hammer icon. The placement ghost uses the chest's actual model.
+Create both icons from the actual models after their in-game review, with consistent lighting, angle, framing, and scale. Use a development-only capture tool to render each model to a texture in the isolated game, export transparent PNGs, and check in and embed those PNGs for release. Use 256 x 256 PNGs initially, then inspect at actual UI size. Release clients load sprites once; the dedicated server performs no camera rendering. Wire the essence sprite to its item icon list and the chest sprite to its Piece/hammer icon. The placement ghost uses the chest's actual model.
 
 Jotunn's RenderManager can render a GameObject to a Sprite if that dependency is adopted; a small development-only camera capture can do the same without adding it. Do not add Jotunn solely to obtain two icons. Image generation is useful for concept art or texture exploration, but a raster picture is not a 3D model. Purchased/downloaded or image-to-3D assets are optional alternatives, not an assumed dependency; they still require geometry/material cleanup and integration.
 
@@ -152,7 +160,7 @@ Suggested server-owned configuration:
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `SharedChestRadiusMeters` | `100` | Radius used consistently by every client. |
-| `RitualAngerMinutes` | `30` | Hidden minimum interval between successful/committed punishment outcomes under the proposed reset rule. |
+| `RitualAngerMinutes` | `30` | Hidden interval started by a confirmed successful sacrifice or restarted by committed punishment. |
 
 Validate finite, positive values. Synchronize gameplay settings from the server; clients cannot choose larger access radii or shorter intervals. The anger interval may be visible to server administrators in configuration, but never send its deadline or remaining time to ordinary clients. A runtime interval change applies to future timer starts; leave an already established deadline unchanged unless explicitly designed otherwise.
 
@@ -188,12 +196,20 @@ The current optimistic shared crafting behavior is unchanged for ordinary ingred
 
 ## Implementation sequence
 
-1. **Confirm unresolved defaults and visual direction.** In particular: timer restart after punishment, timer counting offline time, essence loss under enemy destruction, and chest artwork. Retain confirmed hidden punishment, five-second countdown, lethal lightning, unique chest model, and 100-metre default.
+1. **Complete: confirm defaults and visual direction (2026-10-24).** The user adopted all recommended rules and the proposed artwork. The gameplay and visual decision sections above are the implementation baseline. Confirmed hidden punishment, five-second countdown, lethal lightning, unique chest model, and 100-metre default remain requirements.
 2. **Prove the asset path first.** Produce a recognizable chest/essence model prototype, load them in the isolated game, capture both icons, and verify material/ghost/headless behavior before building the whole feature around the asset pipeline. Prefer original scripted meshes; use a compatible asset-bundle toolchain if visual review requires it. Then establish stable IDs, hammer recipe, discovery/localization, carried-only essence consumption, shared-storage/portal exclusions, and refund behavior.
 3. **Implement access coverage.** Server registry including unloaded chests, configuration synchronization, action gating across all shared paths, radius visuals, and safe handling of pending operations.
 4. **Implement the original-plaque trigger.** Verify the actual Eikthyr plaque object in an isolated game, preserve normal interactions, add visible missing-player errors, synchronized five-second countdown, and server roster validation.
 5. **Implement outcomes, persistence, and test controls.** Random sacrifice with a lethal lightning strike, lightning strikes on every player during punishment, exact message, hidden deadline, death/effect correlation, reward ownership and deduplication, restart handling, and the test-only cooldown-reset/essence-spawn controls.
 6. **Validate and document.** Run relevant regressions, real-game hook checks, and isolated host plus remote multiplayer acceptance. Update player/admin documentation without exposing timer state in ordinary player UI. Ship the same compatible version to server and every client.
+
+### Phase 1 completion record
+
+- Gameplay defaults confirmed, including punishment restart, elapsed offline time, and permanent essence loss under enemy destruction.
+- Chest and essence artwork direction confirmed, with original procedural geometry and matching model-rendered icons selected for the initial prototype.
+- Existing confirmed requirements retained; no additional mundane chest ingredients, progression gate, readiness confirmation, or extra death penalty added.
+- Reviewed this handoff for consistency with the adopted decisions. This phase changes documentation only; no gameplay implementation, build, or in-game acceptance result is claimed.
+- Next work is phase 2: create the actual models, load them in the guarded isolated game, capture and inspect their icons, and verify materials, placement ghost, and headless registration. Prototype visual acceptance and original-circle boundary calibration remain real-game checks in their respective implementation phases.
 
 ## Acceptance checks
 
@@ -221,7 +237,7 @@ Revalidated on 2026-10-24 against the repository, installed game/editor, and off
 - This deliberately makes the repeat rule a hidden punishment. A thematic warning can make the danger legible, but players cannot know precisely when it becomes safe from in-game feedback. That is an intentional exception to the original goal that mechanisms be obvious.
 - Gathering at spawn plus physical, nonportal essence restores travel to establish access. Once bases have chests, goods still move instantly between them. The design preserves expansion travel rather than routine hauling between established bases.
 - A 100-metre radius covers a substantial base or resource site and can reach outside its walls. This is the requested default, but radius visualization matters so players understand that coverage is positional, not based on buildings or ownership.
-- Players can log out to reduce the required group, wait offline for the proposed real-time interval, stockpile essences across eligible rituals, or use low-investment characters. These follow from connected-player membership and an ordinary physical reward; do not add account tracking or unrequested penalties to counter them.
+- Players can log out to reduce the required group, wait offline for the adopted real-time interval, stockpile essences across eligible rituals, or use low-investment characters. These follow from connected-player membership and an ordinary physical reward; do not add account tracking or unrequested penalties to counter them.
 - All-player punishment enables griefing because one player can deliberately trigger it when everyone is gathered. The required deliberate plaque action, thematic warning, and visible five-second countdown make initiation apparent; leaving the circle before commitment cancels the attempt. There is no separate individual readiness-confirmation step.
 - The ritual's steady-state cost is tiny: one stored deadline and an idle coordinator. Roster checks and effect messages occur only during attempts; chest access uses cached positions and local arithmetic.
 - Five seconds gives little time to notice a malicious trigger or leave the circle, especially while reading UI or under latency. Gathering is still required, but this design does not eliminate griefing. Lightning is only presentation; the reliable death path and unrelated-death rejection still need real multiplayer tests.
