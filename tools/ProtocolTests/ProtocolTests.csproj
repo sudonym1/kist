@@ -14,12 +14,9 @@
     <Reference Include="assembly_valheim" HintPath="$(ManagedDir)/assembly_valheim.dll" />
     <Reference Include="UnityEngine.CoreModule" HintPath="$(ManagedDir)/UnityEngine.CoreModule.dll" />
     <Reference Include="Mono.Cecil" HintPath="$(BepInExDir)/core/Mono.Cecil.dll" />
-    <Reference Include="0Harmony" HintPath="$(BepInExDir)/core/0Harmony.dll" />
     <Reference Include="assembly_utils" HintPath="$(ManagedDir)/assembly_utils.dll" />
     <Reference Include="Newtonsoft.Json" HintPath="$(ManagedDir)/Newtonsoft.Json.dll" />
     <Compile Include="../../src/RpcApi.cs" Link="RpcApi.cs" />
-    <Compile Include="../../src/ChestAccess.cs" Link="ChestAccess.cs" />
-    <Compile Include="../../src/ChestCoverage.cs" Link="ChestCoverage.cs" />
     <Compile Include="../../src/ContentIds.cs" Link="ContentIds.cs" />
     <Compile Include="../../src/Replies.cs" Link="Replies.cs" />
     <Compile Include="../../src/CountDatabase.cs" Link="CountDatabase.cs" />

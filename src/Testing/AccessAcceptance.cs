@@ -18,7 +18,7 @@ internal static class AccessAcceptance
     internal static void Update(Plugin plugin)
     {
         if (started || Array.IndexOf(Environment.GetCommandLineArgs(), "-einherjar-access-tests") < 0 ||
-            ZNetScene.instance == null || Game.instance == null || ChestAccess.Current?.Ready != true) return;
+            ZNetScene.instance == null || Game.instance == null) return;
         if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null && Player.m_localPlayer == null) return;
         started = true;
         plugin.StartCoroutine(Run(plugin));
@@ -54,70 +54,67 @@ internal static class AccessAcceptance
     }
     private static IEnumerator Checks(Plugin plugin)
     {
-        var access = ChestAccess.Current!;
-        var all = new List<ZDO>(); var index = 0;
-        while (!ZDOMan.instance.GetAllZDOsWithPrefabIterative(ContentIds.Chest, all, ref index)) yield return null;
-        Check(access.Count == all.Select(z => z.m_uid).Distinct().Count(), "Initial server registry matches all placed chest ZDOs");
-        var fixture = all.FirstOrDefault(z => z.GetBool("einherjar_access_fixture"));
-        if (fixture != null)
-            Check(ZNetScene.instance.FindInstance(fixture) == null && access.Covers(fixture.GetPosition()),
-                "Restart restores coverage for persisted unloaded chest fixture");
-        else
-        {
-            fixture = ZDOMan.instance.CreateNewZDO(new Vector3(4500, 500, 4500), ContentIds.Chest.GetStableHashCode());
-            fixture.SetPrefab(ContentIds.Chest.GetStableHashCode()); fixture.Persistent = true;
-            fixture.Set("einherjar_access_fixture", true);
-        }
+        var graphical = SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null;
+        var player = Player.m_localPlayer;
+        if (graphical)
+            while (player.InIntro() || player.IsTeleporting()) yield return null;
         var anchor = new Vector3(5500, 500, 5500);
+        Check(!ChestAccess.Covers(anchor), "Unloaded world locations provide no access");
         var instance = UnityEngine.Object.Instantiate(Content.Chest!, anchor, Quaternion.identity);
         var record = instance.GetComponent<ZNetView>().GetZDO();
         var id = record.m_uid;
+        Check(ChestAccess.Covers(anchor), "Loaded prefab immediately provides local access");
+        Check(ChestAccess.Covers(anchor + Vector3.up * 100) && !ChestAccess.Covers(anchor + Vector3.up * 100.01f),
+            "Fixed 100-metre 3D boundary is inclusive");
         yield return new WaitForSeconds(1);
-        Check(access.Covers(anchor), "Real prefab placement hook adds authoritative coverage");
         Check(instance == null && ZNetScene.instance.FindInstance(record) == null && ZDOMan.instance.GetZDO(id) != null,
-            "Natural scene unloading retains the persistent chest network record");
-        Check(access.Covers(anchor), "Unloaded chest continues to provide coverage");
-        access.Configure(25); yield return null;
-        Check(access.Covers(anchor + Vector3.up * 25) && !access.Covers(anchor + Vector3.up * 25.01f),
-            "Live configured radius includes 3D boundary and excludes just outside");
+            "Natural scene unloading retains the chest world record");
+        Check(!ChestAccess.Covers(anchor), "Unloaded chest loses access even though its ZDO remains");
         var moved = anchor + Vector3.right * 300;
-        record.SetPosition(moved); yield return null;
-        Check(!access.Covers(anchor) && access.Covers(moved), "Unloaded record position hook updates coverage");
-        var remote = ZDOMan.instance.CreateNewZDO(anchor, 0);
-        var serialized = new ZPackage(); record.Serialize(serialized);
-        remote.Deserialize(new ZPackage(serialized.GetArray()));
-        yield return null;
-        Check(access.Covers(anchor), "Remote-style ZDO deserialization hook registers a new chest");
-        ZDOMan.instance.DestroyZDO(remote);
+        record.SetPosition(moved);
+        Check(!ChestAccess.Covers(moved), "Moving an unloaded ZDO cannot grant local access");
+        var reloaded = (GameObject)AccessTools.Method(typeof(ZNetScene), "CreateObject").Invoke(ZNetScene.instance, new object[] { record });
+        Check(ChestAccess.Covers(moved), "Reloading the actual chest restores access immediately");
+        reloaded.SetActive(false);
+        Check(!ChestAccess.Covers(moved), "Disabling a chest immediately removes local coverage");
+        reloaded.SetActive(true);
+        Check(ChestAccess.Covers(moved), "Re-enabling a valid chest restores local coverage");
+        if (graphical)
+        {
+            var client = (Client)AccessTools.Field(typeof(Plugin), "client").GetValue(plugin);
+            var savedPosition = player.transform.position;
+            var old = client.Counts.TryGetValue("Wood", out var count) ? count : 0;
+            client.Counts["Wood"] = 10;
+            try
+            {
+                var carried = player.GetInventory().CountItems("$item_wood");
+                player.transform.position = moved;
+                Check(client.CanAccessSharedInventory && Plugin.Resources!.Count(player.GetInventory(), "$item_wood", -1, true) == carried + 10,
+                    "Live resource path includes shared stock near a loaded chest");
+                reloaded.SetActive(false);
+                Check(!client.CanAccessSharedInventory && Plugin.Resources!.Count(player.GetInventory(), "$item_wood", -1, true) == carried,
+                    "Unloading blocks shared stock while retaining carried resources");
+                reloaded.SetActive(true);
+                Check(client.CanAccessSharedInventory, "Local player access resumes immediately on reload");
+            }
+            finally
+            {
+                player.transform.position = savedPosition;
+                if (old > 0) client.Counts["Wood"] = old; else client.Counts.Remove("Wood");
+            }
+        }
+        ZNetScene.instance.Destroy(reloaded);
+        Check(!ChestAccess.Covers(moved), "Destroyed or detached scene instances grant no access");
         yield return new WaitForSeconds(1);
-        Check(!access.Covers(anchor), "Actual ZDO destruction revokes remote chest coverage");
-        ZDOMan.instance.DestroyZDO(record);
-        yield return new WaitForSeconds(1);
-        Check(!access.Covers(moved), "Final covering chest destruction revokes access without deleting world stock");
-        access.Configure(100);
-        Check(access.Covers(fixture.GetPosition()), "Independent fixture coverage remains after other chest destruction");
-        if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
+        Check(ZDOMan.instance.GetZDO(id) == null, "Normal chest destruction removes its world record");
+        if (!graphical)
         {
             Check(Content.Models == null && !UnityEngine.Object.FindObjectsByType<LineRenderer>(FindObjectsSortMode.None)
-                .Any(line => line.transform.parent?.name == "Einherjar access sphere"), "Headless registry creates no preview render resources");
+                .Any(line => line.transform.parent?.name == "Einherjar access sphere"), "Headless execution creates no preview render resources");
             yield break;
         }
-        var player = Player.m_localPlayer;
-        while (player.InIntro() || player.IsTeleporting()) yield return null;
-        var client = (Client)AccessTools.Field(typeof(Plugin), "client").GetValue(plugin);
         var origin = player.transform.position;
-        var old = client.Counts.TryGetValue("Wood", out var count) ? count : 0;
-        client.Counts["Wood"] = 10;
         var inventory = player.GetInventory();
-        var local = inventory.CountItems("$item_wood");
-        player.transform.position = fixture.GetPosition();
-        Check(client.CanAccessSharedInventory && Plugin.Resources!.Count(inventory, "$item_wood", -1, true) == local + 10,
-            "Live shared resource path includes stock inside unloaded-chest coverage");
-        player.transform.position = fixture.GetPosition() + Vector3.up * 101;
-        Check(!client.CanAccessSharedInventory && Plugin.Resources!.Count(inventory, "$item_wood", -1, true) == local,
-            "Live shared resource path keeps only carried stock outside coverage");
-        player.transform.position = origin;
-        if (old > 0) client.Counts["Wood"] = old; else client.Counts.Remove("Wood");
         EnvMan.instance.m_debugTimeOfDay = true; EnvMan.instance.m_debugTime = .4f; EnvMan.instance.m_debugEnv = "Clear";
         if (inventory.GetItem("$item_hammer") == null) inventory.AddItem(Items.Default("Hammer")!);
         player.EquipItem(inventory.GetItem("$item_hammer"), false);
@@ -125,6 +122,11 @@ internal static class AccessAcceptance
         AccessTools.Method(typeof(Player), "SetupPlacementGhost").Invoke(player, null);
         var ghost = (GameObject)AccessTools.Field(typeof(Player), "m_placementGhost").GetValue(player);
         var visual = (ChestRadiusVisual)AccessTools.Field(typeof(Plugin), "radiusVisual").GetValue(plugin);
+        var savedGhostPosition = ghost.transform.position;
+        ghost.transform.position = anchor; ghost.SetActive(true);
+        Check(!ChestAccess.Covers(anchor), "Actual hammer ghost never provides shared access");
+        ghost.transform.position = savedGhostPosition;
+
         // Drive one real placement update before the camera controller advances
         // again. Saved look direction must not make this test miss the ground.
         for (var candidate = 0; candidate < 16 && !visual.Visible; candidate++)
@@ -140,7 +142,7 @@ internal static class AccessAcceptance
             .Count(line => line.transform.parent?.name == "Einherjar access sphere" && line.positionCount == 96) == 3,
             "One three-circle spherical radius preview appears for the actual placement ghost (active=" + ghost.activeInHierarchy +
             ", shader=" + (Shader.Find("Sprites/Default") != null) + ")");
-        Check(Content.Chest.GetComponent<SharedChest>().GetHoverText().Contains("100"), "Chest inspection displays synchronized numeric radius");
+        Check(Content.Chest.GetComponent<SharedChest>().GetHoverText().Contains("100"), "Chest inspection displays fixed loaded-only radius");
         CapturePreview(ghost.transform.position);
         // Leave the hammer ghost available for visual review; no new paid chest.
     }

@@ -14,15 +14,13 @@ internal sealed class ChestRadiusVisual : IDisposable
     private GameObject? root;
     private Material? material;
     private LineRenderer[]? rings;
-    private float radius;
     internal bool Visible => root != null && root.activeSelf;
 
     internal void Update()
     {
         var player = Player.m_localPlayer;
         Transform? target = null;
-        var access = ChestAccess.Current;
-        if (access?.Ready == true && player != null && !player.IsDead())
+        if (player != null && !player.IsDead())
         {
             var placement = ghost(player);
             if (placement != null && placement.activeInHierarchy && placement.GetComponent<SharedChest>() != null)
@@ -36,18 +34,6 @@ internal sealed class ChestRadiusVisual : IDisposable
         if (root == null) return;
         root.SetActive(true);
         root.transform.position = target.position;
-        if (radius == access!.Radius) return;
-        radius = access.Radius;
-        const int segments = 96;
-        for (var axis = 0; axis < 3; axis++)
-            for (var i = 0; i < segments; i++)
-            {
-                var angle = i * Mathf.PI * 2 / segments;
-                var a = Mathf.Cos(angle) * radius;
-                var b = Mathf.Sin(angle) * radius;
-                rings![axis].SetPosition(i, axis == 0 ? new Vector3(a, 0, b) :
-                    axis == 1 ? new Vector3(a, b, 0) : new Vector3(0, a, b));
-            }
     }
 
     private void Create()
@@ -67,6 +53,14 @@ internal sealed class ChestRadiusVisual : IDisposable
             line.startWidth = line.endWidth = .12f;
             line.startColor = line.endColor = new Color(1, .65f, .17f, .65f);
             line.shadowCastingMode = ShadowCastingMode.Off; line.receiveShadows = false;
+            for (var i = 0; i < line.positionCount; i++)
+            {
+                var angle = i * Mathf.PI * 2 / line.positionCount;
+                var a = Mathf.Cos(angle) * ChestAccess.Radius;
+                var b = Mathf.Sin(angle) * ChestAccess.Radius;
+                line.SetPosition(i, axis == 0 ? new Vector3(a, 0, b) :
+                    axis == 1 ? new Vector3(a, b, 0) : new Vector3(0, a, b));
+            }
         }
     }
 

@@ -1,14 +1,14 @@
 # Einherjar Chest implementation handoff
 
 Prepared: 2026-10-24.
-Status: phases 1 through 3 complete (2026-10-24). Original content and chest access coverage are implemented and verified in the isolated game. Phase 4 original-plaque trigger is next; ritual gameplay is not implemented. See EINHERJAR-PHASE3-RESULTS.md for access evidence and validation limits.
+Status: phases 1 through 3 complete (2026-10-24). Original content and client-side loaded-chest access are implemented. The current user-approved access policy is fixed at 100 metres and may be reduced by client loading settings. Phase 4 original-plaque trigger is next; ritual gameplay is not implemented. See EINHERJAR-PHASE3-RESULTS.md for access evidence and validation limits.
 Repository: `C:\Users\seamu\source\repos\SharedInventory`.
 
 ## Objective
 
 Replace unrestricted shared-inventory access with permanent, earned access points. Keep the mechanism understandable and inexpensive to run. Establishing a remote access point should require travel with a physical resource.
 
-This document is the gameplay handoff. `PLAN.md` contains an earlier inventory-refresh recovery handoff and its verification evidence; preserve it. Its historical restriction against adding RPCs applied to that recovery task. This feature requires additional ritual, configuration, and chest-registry messages.
+This document is the gameplay handoff. `PLAN.md` contains an earlier inventory-refresh recovery handoff and its verification evidence; preserve it. Its historical restriction against adding RPCs applied to that recovery task. Ritual coordination will require additional messages in later phases. Chest access uses no server registry, configuration, or access messages.
 
 ## Implemented visual foundation
 
@@ -29,7 +29,7 @@ The inventory window now uses the planned reliquary palette: dark charcoal timbe
 - The built chest must have a **unique model**, visibly distinct from vanilla chests. A renamed or recoloured vanilla chest model alone does not satisfy this requirement.
 - Multiple chests access the same existing world-wide shared inventory.
 - Shared deposit and withdrawal are available only within a chest's radius. Apply the same restriction to all other shared-stock use.
-- Chest access radius is server-configurable, default **100 metres**.
+- Chest access radius is fixed at **100 metres**, checked entirely on the client against loaded Einherjar Chests. Unloaded chests grant no access. Reduced usable range from client simulation/loading settings is explicitly accepted. No radius setting, server chest registry, or access RPCs.
 - Dismantling a chest with the hammer does not return its essence.
 - There is a **hidden, server-configurable 30-minute timer** governing repeated rituals. An early repeat strikes every participating player with lightning, kills them all, and produces **no essence**.
 - The existing **Testing** tab must have buttons to **reset the cooldown** and **spawn one Einherjar Essence**. Keep these in the isolated, explicitly enabled test harness, excluded from normal production builds.
@@ -159,39 +159,36 @@ Keep ritual state separate from the item-count database, keyed by world UID. Per
 
 During a running process, use a monotonic clock for countdowns and elapsed intervals; restore remaining time from the persisted UTC deadline at startup. Document the effect of manual server-clock changes. Do not perform disk work synchronously in a frame: await completion through the existing worker/main-thread pattern, advancing the ritual only after required writes complete.
 
-Suggested server-owned configuration:
+Suggested server-owned ritual configuration (phase 5; not yet implemented):
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `SharedChestRadiusMeters` | `100` | Radius used consistently by every client. |
 | `RitualAngerMinutes` | `30` | Hidden interval started by a confirmed successful sacrifice or restarted by committed punishment. |
 
-Validate finite, positive values. Synchronize gameplay settings from the server; clients cannot choose larger access radii or shorter intervals. The anger interval may be visible to server administrators in configuration, but never send its deadline or remaining time to ordinary clients. A runtime interval change applies to future timer starts; leave an already established deadline unchanged unless explicitly designed otherwise.
+Validate a finite, positive ritual interval. The server owns the ritual interval; chest access has no configuration or synchronization. The anger interval may be visible to server administrators in configuration, but never send its deadline or remaining time to ordinary clients. A runtime interval change applies to future timer starts; leave an already established deadline unchanged unless explicitly designed otherwise.
 
 Ordinary deduplication does not provide an atomic transaction across character death, world-item spawning, and server files. On restart, do not replay unfinished death commands or automatically reissue an uncertain reward. Preserve diagnostic state for manual recovery. A crash around death or spawning can still lose an essence or leave an uncertain outcome; stronger crash guarantees are separate work and must not be claimed without implementation and tests. Fail ritual initiation safely if its state cannot be loaded or persisted.
 
-## Efficient chest access at a 100-metre default
+## Client-side access through loaded chests
 
-Do not assume every chest within 100 metres has a loaded Unity GameObject on the client. Determine coverage from authoritative placed-chest positions, including unloaded network objects.
+User revision on 2026-10-24 supersedes the original phase 3 registry/radius-setting design: use a fixed 100-metre inclusive 3D check against loaded local Einherjar Chests only. An unloaded chest grants no access even if its persistent ZDO is nearby. Lower client simulation/loading settings may reduce effective range; this is intended. Loading restores access; unloading removes it. There is no server chest registry, world scan, access handshake/snapshot, or radius setting.
 
-Recommended implementation: build a server registry from chest ZDOs once during world initialization, using an incremental scan if necessary. Update it on actual placement/destruction, and synchronize a snapshot plus changes to clients. A GameObject unloading is not chest destruction. Delay access until the initial registry is ready; do not temporarily grant unrestricted access.
+`SharedChest.OnEnable` and `OnDisable` maintain a local set of chest components. Check current positions and valid live ZNetViews at each shared action; exclude ghosts, prefab-library objects, inactive pieces, and detached network objects. Complexity is O(number of loaded Einherjar chests), not O(all world entities). The user explicitly accepts that small linear check; do not add a spatial index or access cache. Refresh the HUD indication a few times a second. No per-chest Update or per-frame networking is needed.
 
-For typical chest counts, cached squared-distance comparisons are sufficient. Refresh the HUD/access indication a few times a second, and recheck current position at the start of every shared action. Do not scan all world objects, allocate physics overlap results each frame, or issue per-frame RPCs. Add a spatial index only if measured chest counts warrant it.
-
-On leaving coverage or losing the last covering chest, block new shared actions immediately on the next action check. Complete or reconcile transfers already initiated; range loss must not strand removed items, bypass returns, or replay mutations. Preserve the existing inventory worker, reliable game transport, and shared refresh/backoff behavior. Stop ordinary access-driven polling outside coverage while preserving required error recovery and completion work.
+On leaving range or unloading/destroying the last covering chest, block new shared actions on the next check. Complete or reconcile transfers already initiated; access loss must not strand removed items, bypass returns, or replay mutations. Preserve the inventory worker, reliable count transport, and shared refresh/backoff behavior. Stop ordinary access-driven polling while unavailable, retaining required recovery and completion work. Reconnect restores access only when a valid covering chest loads on that client.
 
 ## Integration map
 
 | Existing code | Planned integration |
 | --- | --- |
-| `src/Plugin.cs` | Configuration, session lifecycle, shared access service, F3/Alt-click gating, access display. |
+| `src/Plugin.cs` | Session lifecycle, local loaded-chest access, F3/Alt-click gating, access display. No chest-access configuration. |
 | `src/Client.cs` | New-action access checks, essence transfer exclusions, range-safe completion/recovery. Keep `Ready` separate from `CanAccessSharedInventory`; existing callbacks use `Ready` for item recovery. |
 | `src/ResourceInventory.cs` / `src/Crafting.cs` | Gate only the shared portion of requirements/consumption; require carried essence for chest placement. Preserve ordinary carried-resource behavior. |
 | `src/StationInventory.cs` and station shortcut paths | Gate shared selection/counts/consumption while retaining carried selection, existing machine rules, and shortcut identity guarantees. |
 | `src/Window.cs` | Chest-open interaction and understandable unavailable status; expose no anger state. |
-| `src/RpcApi.cs` / `src/Worker.cs` | Preserve count protocol and worker guarantees; add distinct ritual/configuration/registry handling without routing Unity operations onto the database worker. |
+| `src/RpcApi.cs` / `src/Worker.cs` | Preserve count protocol and worker guarantees; add distinct ritual handling in later phases without routing Unity operations onto the database worker. |
 | New content-registration module and asset resources | Stable essence/chest prefab IDs, original mesh generators or authored models, embedded icons, optional asset bundle, hammer ghost, localization, portal restriction, nonrecoverable essence requirement. Register on server and every client. |
-| New ritual/access modules | Plaque targeting, original-location verification, visible gathering errors, synchronized five-second countdown, correlated lightning/death effects, server state machine, per-world persistence, chest registry and local access checks. |
+| New ritual/access modules | Plaque targeting, original-location verification, visible gathering errors, synchronized five-second countdown, correlated lightning/death effects, server state machine, per-world persistence, local loaded-chest access checks. |
 | `src/Testing/TestPanel.cs` and test-only server handlers | Reset the persisted cooldown, spawn one essence, and expose the test panel without a chest. Preserve production exclusion and isolated-launch guards. |
 
 Registering custom items/pieces with Jotunn is an established option, but the project currently has no Jotunn dependency. Choose direct registration versus that dependency explicitly during implementation. The preferred asset plan supplies original geometry and matching icons for both objects; the chest's unique model is mandatory. Avoid accidentally retaining a cloned chest's ordinary container storage or vanilla storage interaction alongside the shared window.
@@ -200,9 +197,9 @@ The current optimistic shared crafting behavior is unchanged for ordinary ingred
 
 ## Implementation sequence
 
-1. **Complete: confirm defaults and visual direction (2026-10-24).** The user adopted all recommended rules and the proposed artwork. The gameplay and visual decision sections above are the implementation baseline. Confirmed hidden punishment, five-second countdown, lethal lightning, unique chest model, and 100-metre default remain requirements.
+1. **Complete: confirm defaults and visual direction (2026-10-24).** The user adopted all recommended rules and the proposed artwork. The gameplay and visual decision sections above are the implementation baseline. Confirmed hidden punishment, five-second countdown, lethal lightning, unique chest model, and fixed 100-metre maximum remain requirements (subject to client chest loading).
 2. **Complete: prove the asset path first (2026-10-24).** Original scripted chest/essence meshes were loaded and visually inspected in the isolated game, and both matching transparent PNG icons were captured and embedded. Direct prefab registration, ghost/material/headless checks, stable IDs, hammer recipe, discovery/localization, carried-only essence consumption, shared-storage/portal exclusions, and refund behavior are implemented. See the phase 2 completion record and evidence below.
-3. **Complete: implement access coverage (2026-10-24).** Server ZDO registry including unloaded chests, synchronized server-owned radius, action gating across every shared-stock path, placement/inspection sphere and HUD status, and range-safe transfer reconciliation. See the phase 3 completion record and EINHERJAR-PHASE3-RESULTS.md.
+3. **Complete: implement access coverage (2026-10-24).** Fixed 100-metre client-only checks against loaded chests, action gating across every shared-stock path, placement/inspection sphere and HUD status, and range-safe transfer reconciliation. The original registry and setting were removed at the user's request. See the phase 3 completion record and EINHERJAR-PHASE3-RESULTS.md.
 4. **Implement the original-plaque trigger.** Verify the actual Eikthyr plaque object in an isolated game, preserve normal interactions, add visible missing-player errors, synchronized five-second countdown, and server roster validation.
 5. **Implement outcomes, persistence, and test controls.** Random sacrifice with a lethal lightning strike, lightning strikes on every player during punishment, exact message, hidden deadline, death/effect correlation, reward ownership and deduplication, restart handling, and the test-only cooldown-reset/essence-spawn controls.
 6. **Validate and document.** Run relevant regressions, real-game hook checks, and isolated host plus remote multiplayer acceptance. Update player/admin documentation without exposing timer state in ordinary player UI. Ship the same compatible version to server and every client.
@@ -225,17 +222,17 @@ The current optimistic shared crafting behavior is unchanged for ordinary ingred
 - Guarded real-engine acceptance passed: registration, pickup, discovery, normal/unrestricted portal eligibility, hammer selection, original placement ghost, invalid placement preserving essence, valid terrain placement, exact local consumption, placed-chest shared interaction, and no refund through either WearNTear removal or damage. Both icon alpha masks are checked. The headless server-role run passed and generates no model/material/icon/camera resources. These checks use Valheim 1.0.20 / Unity 6000.0.75f1 in a separate local test copy, not a production save.
 - Production/testing builds pass 106 regressions, production protocol checks including legacy essence preservation and atomic batch rejection, eleven fault-harness checks, real game hook checks, and test-type inclusion/exclusion checks. Development capture/acceptance types and entry points are excluded from production.
 - The test copy remains at `SharedInventory-Test-Phase2` beneath this worktree, with its normal guarded `Launch-Test.cmd`, local `EinherjarAssets` character/world (UID `4232492362`), and detailed reports. Reproducible guarded testing is in `tools/Test-Assets.ps1`; complete evidence and limits are in `EINHERJAR-PHASE2-RESULTS.md`.
-- Next work is phase 3. Shared access remains unrestricted outside chests until coverage is implemented. No original-plaque trigger, ritual outcome, hidden timer, or phase 5 Testing buttons are claimed. Dedicated-executable and remote multiplayer acceptance remains in phase 6; the phase 2 headless proof uses the installed game runtime with `-batchmode -nographics` and server role enabled.
+- At phase 2 completion, phase 3 was next and access was unrestricted. Phase 3 is now complete with the loaded-only behavior below. No original-plaque trigger, ritual outcome, hidden timer, or phase 5 Testing buttons are claimed. Dedicated-executable and remote multiplayer acceptance remains in phase 6; the phase 2 headless proof uses the installed game runtime with `-batchmode -nographics` and server role enabled.
 
-### Phase 3 completion record
+### Phase 3 completion record (updated for the user revision)
 
-- Added an incremental server startup scan of chest ZDOs, then event-driven updates on prefab assignment, remote deserialization, movement, and actual destruction. Scene unloading retains coverage. Initial client access waits for a complete snapshot. Session teardown discards coverage; restart/reconnect rebuilds it from server state.
-- Added a separate `SharedInventory.Access.v1` snapshot/change stream with world/revision checks, server-sender validation, recovery after gaps/malformed packets, and server-owned finite/positive `Server / SharedChestRadiusMeters` (default 100). Existing count RPCs, saves, worker, plugin ID, namespace, and DLL name are unchanged.
-- Gated F3, Alt-click, shared availability, crafting/upgrades/building, station input/fuel selection, shortcut counts, and shared consumption. Carried actions continue outside coverage. Machine access checks the player only. Boundaries use inclusive 3D distance and overlaps do not multiply stock.
-- Kept `Client.Ready` separate from access readiness. Pending deposit/grant/batch callbacks still reconcile after range loss; dead/detached/capacity-limited withdrawal grants return through the unchanged deposit path. Cached authoritative totals survive access loss and late snapshots. Ordinary polling pauses outside coverage while recovery demand continues. No mutation replay or durable receipts were added.
-- Added a single local three-circle spherical preview for chest placement/inspection, numeric inspection/placement radius, and a small shared-access HUD status. The guarded Testing tab remains reachable without a chest, with inventory actions still gated. Preview resources are absent on headless servers.
-- Production and testing builds pass 116 regressions, production count and registry protocol checks, eleven fault-harness checks, game hook checks, and test-type isolation checks. Guarded real-game access acceptance passed with natural unloading, movement, deserialization, destruction, exact boundaries, persisted unloaded coverage after restart, live resource gating, and actual placement preview. The rendered 100-metre sphere was visually inspected. See the phase 3 evidence file for reproduction and raw paths.
-- Version 0.4.2 requires the same DLL on server and clients. The trusted-client scope is retained: gameplay checks are local, and the raw count API is not an anti-cheat boundary. Separate dedicated-executable and host-plus-remote acceptance remain phase 6. Original-circle calibration and plaque/countdown behavior remain phase 4; outcomes, timer, and new test controls remain phase 5.
+- The current implementation is client-side loaded-chest access with a fixed 100-metre inclusive 3D maximum. Lower effective range due to client loading settings is accepted. The earlier server registry, access messages, startup scan, synchronized radius, and radius setting have been removed.
+- A local set maintained by chest enable/disable callbacks supplies O(number of loaded Einherjar chests) checks. Only valid active scene instances count; ghosts and stored/unloaded ZDOs grant nothing. There is no spatial index or access cache. Session shutdown clears the set.
+- F3, Alt-click, shared availability, crafting/upgrades/building, station input/fuel selection, shortcut counts, and shared consumption remain gated. Carried actions continue outside coverage. Machine access checks the player only, and overlaps do not multiply stock.
+- `Client.Ready` remains separate from access. Pending callbacks still reconcile after range loss or unloading; dead/detached/capacity-limited grants return through the unchanged deposit path. Cached authoritative inventory totals survive access loss. Ordinary polling pauses while required recovery continues. No mutation replay or durable receipts were added.
+- The single local three-circle preview, fixed numeric radius, HUD status, and guarded Testing entry without a chest remain. Preview resources are absent on headless servers.
+- Current verification and reproduction are in EINHERJAR-PHASE3-RESULTS.md. Earlier registry verification belongs to version 0.4.2/commit a59c854 and does not describe current behavior. Version 0.4.3 implements the loaded-only revision.
+- Count RPCs, saves, worker guarantees, plugin ID, namespace, and DLL name are preserved. Separate dedicated-executable and host-plus-remote acceptance remain phase 6. Phase 4 plaque/gathering/countdown and phase 5 outcomes/timer/test controls remain pending.
 
 ## Acceptance checks
 
@@ -252,7 +249,7 @@ The current optimistic shared crafting behavior is unchanged for ordinary ingred
 - Shared chest costs exactly one carried essence. Invalid placement does not consume it. No-cost/debug settings are explicitly tested and documented as administrative overrides where appropriate.
 - Chest uses a unique model and matching icon/placement ghost; essence has a working dropped model and matching inventory/recipe icon. Check in generator/model sources and PNGs, plus bundle instructions if bundles are used. Inspect in-game for recognizable silhouette, correct scale, collisions, interaction/removal, materials, radius origin, pickup, legible small icons, and acceptable rendering cost. Verify a headless server can register both without rendering errors or icon rendering.
 - In an enabled isolated test build, the Testing tab is reachable without any chest. Reset cooldown affects server state, persists across restart, and is rejected during an active ritual. Spawn essence creates one pickup per deliberate press without touching the timer or shared stock. Test delayed/duplicate messages and dead players. Production assemblies contain neither control UI nor registered test endpoints, and unauthorized/non-isolated requests cannot activate them.
-- Every shared-stock action works inside coverage and is unavailable outside; carried-item actions continue. Exercise radius boundaries, overlaps, 100-metre coverage with unloaded chest objects, reconnect snapshots, and actual chest destruction versus unloading.
+- Every shared-stock action works inside coverage and is unavailable outside; carried-item actions continue. Exercise fixed 100-metre 3D boundaries, overlaps, loss of coverage on scene unloading, restoration on reload/reconnect, reduced effective range with lower client settings, and actual chest destruction. Verify that stored ZDOs and hammer ghosts grant no access.
 - Entering/leaving coverage during transfers, death during withdrawal, deposit rejection, and capacity-return paths do not introduce item loss or extra grants. Existing quality/count and refresh-recovery regressions pass.
 - Final-chest destruction preserves shared stock. Multiple chests never duplicate or partition it. Profiling confirms no ongoing world scans or per-frame networking.
 
@@ -262,10 +259,10 @@ Revalidated on 2026-10-24 against the repository, installed game/editor, and off
 
 - This deliberately makes the repeat rule a hidden punishment. A thematic warning can make the danger legible, but players cannot know precisely when it becomes safe from in-game feedback. That is an intentional exception to the original goal that mechanisms be obvious.
 - Gathering at spawn plus physical, nonportal essence restores travel to establish access. Once bases have chests, goods still move instantly between them. The design preserves expansion travel rather than routine hauling between established bases.
-- A 100-metre radius covers a substantial base or resource site and can reach outside its walls. This is the requested default, but radius visualization matters so players understand that coverage is positional, not based on buildings or ownership.
+- A 100-metre radius covers a substantial base or resource site and can reach outside its walls. This is the fixed maximum; client chest loading may reduce usable range. Radius visualization matters so players understand that coverage is positional, not based on buildings or ownership.
 - Players can log out to reduce the required group, wait offline for the adopted real-time interval, stockpile essences across eligible rituals, or use low-investment characters. These follow from connected-player membership and an ordinary physical reward; do not add account tracking or unrequested penalties to counter them.
 - All-player punishment enables griefing because one player can deliberately trigger it when everyone is gathered. The required deliberate plaque action, thematic warning, and visible five-second countdown make initiation apparent; leaving the circle before commitment cancels the attempt. There is no separate individual readiness-confirmation step.
-- The ritual's steady-state cost is tiny: one stored deadline and an idle coordinator. Roster checks and effect messages occur only during attempts; chest access uses cached positions and local arithmetic.
+- The ritual's steady-state cost is tiny: one stored deadline and an idle coordinator. Roster checks and effect messages occur only during attempts; chest access iterates only loaded Einherjar Chests with local arithmetic.
 - Five seconds gives little time to notice a malicious trigger or leave the circle, especially while reading UI or under latency. Gathering is still required, but this design does not eliminate griefing. Lightning is only presentation; the reliable death path and unrelated-death rejection still need real multiplayer tests.
 - One server schedule can keep countdown displays close, but packet latency prevents a guarantee that every remote screen shows the strike on exactly the same frame. Correctness means one committed outcome and one death per targeted life, with coherent visual timing.
 - A cheap faceted essence and authored low-poly chest are practical to generate from code, but recognizable art needs a visual iteration loop. Original geometry satisfies uniqueness; it does not automatically guarantee a polished Valheim-style result. Prove this first instead of assuming a full asset workflow exists.

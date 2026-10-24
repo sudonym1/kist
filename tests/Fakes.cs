@@ -8,12 +8,17 @@ namespace UnityEngine
     public class Component
     {
         public GameObject gameObject = null!;
+        public bool isActiveAndEnabled = true;
+        public Transform transform = new Transform();
+        public T? GetComponent<T>() where T : class => gameObject.GetComponent<T>();
         public T? GetComponentInParent<T>() where T : class => gameObject.GetComponentInParent<T>();
     }
     public struct Vector3
     {
-        public static Vector3 up => default;
-        public static Vector3 operator +(Vector3 a, Vector3 b) => default;
+        public float x, y, z;
+        public Vector3(float x, float y, float z) { this.x = x; this.y = y; this.z = z; }
+        public static Vector3 up => new Vector3(0, 1, 0);
+        public static Vector3 operator +(Vector3 a, Vector3 b) => new Vector3(a.x + b.x, a.y + b.y, a.z + b.z);
     }
     public struct Quaternion { public static Quaternion identity => default; }
     public sealed class Transform { public Vector3 position; }
@@ -22,6 +27,7 @@ namespace UnityEngine
 public sealed class GameObject
 {
     public string name = "";
+    public bool activeInHierarchy = true;
     public ItemDrop Drop = null!;
     public GameObject? Parent;
     private readonly List<object> components = new List<object>();
@@ -184,14 +190,15 @@ public sealed class Player
 
 public static class Game { public static int m_worldLevel; }
 public static class MessageHud { public enum MessageType { Center } }
+public sealed class ZNetView : UnityEngine.Component
+{
+    public bool Valid = true;
+    public bool IsValid() => Valid;
+}
 
 namespace SharedInventory
 {
-    internal static class ChestAccess
-    {
-        internal static bool CanAccess = true;
-        internal const string Unavailable = "A nearby Einherjar Chest is required for shared access.";
-    }
+    public sealed class SharedChest : UnityEngine.Component { }
     internal sealed class RpcApi
     {
         internal sealed class Call

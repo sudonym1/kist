@@ -210,10 +210,12 @@ internal static class Content
 // No Update, duplicate inventory, or vanilla Container on these pieces.
 public sealed class SharedChest : MonoBehaviour, Hoverable, Interactable
 {
+    private void OnEnable() => ChestAccess.Register(this);
+    private void OnDisable() => ChestAccess.Unregister(this);
     public float GetHoverOffset() => .7f;
     public string GetHoverName() => Localization.instance.Localize("$piece_einherjarchest");
     public string GetHoverText() => Localization.instance.Localize("$piece_einherjarchest\n[<color=yellow><b>$KEY_Use</b></color>] $einherjar_open") +
-        "\nShared access radius: " + (ChestAccess.Current?.Radius ?? 100).ToString("0.##") + " m (sphere)";
+        "\nShared access radius: 100 m (loaded chests only)";
     public bool Interact(Humanoid user, bool hold, bool alt)
     {
         if (hold || user != Player.m_localPlayer || GetComponent<ZNetView>()?.IsValid() != true) return false;
