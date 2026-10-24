@@ -68,7 +68,7 @@ internal static partial class Program
                 if (change == "character") roster[1].Life = "new-life";
                 if (change == "unavailable") roster[1].Unavailable = "confirmation unavailable";
                 Equal(false, ritual.Advance(5, roster, out var error));
-                Equal(true, error.StartsWith("Ritual cancelled")); Equal(false, ritual.Active);
+                Equal("Ritual Cancelled", error); Equal(false, ritual.Active);
                 Equal(false, ritual.Advance(6, GatheringRoster(), out _));
             });
         }

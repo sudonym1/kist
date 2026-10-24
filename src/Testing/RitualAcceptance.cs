@@ -65,8 +65,8 @@ internal static class RitualAcceptance
     private static IEnumerator Checks(Plugin plugin)
     {
         var graphical = SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null;
-        var ritual = plugin.Ritual!;
-        Check(ritual != null && ZNet.instance.IsServer(), "Ritual endpoint attaches to the actual world router");
+        var ritual = plugin.Ritual ?? throw new InvalidOperationException("Ritual endpoint is not attached");
+        Check(ZNet.instance.IsServer(), "Ritual endpoint attaches to the actual world router");
         Check(ZoneSystem.instance.FindClosestLocation("StartTemple", Vector3.zero, out var original), "Server resolves the original StartTemple world identity");
         var player = Player.m_localPlayer;
         if (graphical)
@@ -79,14 +79,35 @@ internal static class RitualAcceptance
         var timeout = TimeNow + 40;
         while (!RitualSite.TryGet(out _) && TimeNow < timeout) yield return null;
         Check(RitualSite.TryGet(out var site), "Original location streams in through the real scene lifecycle");
+        var stones = Array.Empty<BossStone>();
+        timeout = TimeNow + 10;
+        while (TimeNow < timeout)
+        {
+            stones = UnityEngine.Object.FindObjectsByType<BossStone>(FindObjectsSortMode.None).Where(site.IsStone).ToArray();
+            if (stones.Length == 7) break;
+            yield return null; // Location proxies can stream before their networked stones.
+        }
+        Check(stones.Length == 7, "All seven original sacrificial stones qualify; found " + stones.Length + "; " +
+            string.Join("; ", UnityEngine.Object.FindObjectsByType<BossStone>(FindObjectsSortMode.None).Select(s =>
+                s.name + " local=" + (Quaternion.Inverse(site.Rotation) * (s.transform.position - site.Center)) +
+                " valid=" + s.GetComponent<ZNetView>()?.IsValid())));
         var runes = UnityEngine.Object.FindObjectsByType<RuneStone>(FindObjectsSortMode.None);
-        var rune = runes.Single(r => site.IsPlaque(r));
+        var rune = stones.Select(s => s.GetComponent<RuneStone>()).Single(r => r.m_text == "$guardianstone_eikthyr_desc");
         Check(rune.name == "BossStone_Eikthyr(Clone)" && rune.m_text == "$guardianstone_eikthyr_desc",
             "Actual plaque is RuneStone on BossStone_Eikthyr, not the altar or vegvisir");
-        Check(runes.Where(r => r != rune).All(r => !site.IsPlaque(r)), "Other boss plaques and runestones do not qualify");
-        var copy = UnityEngine.Object.Instantiate(ZNetScene.instance.GetPrefab("BossStone_Eikthyr"), site.Center + Vector3.right * 35, Quaternion.identity);
-        Check(!RitualSite.IsOriginal(copy.GetComponent<RuneStone>()), "An Eikthyr stone copied elsewhere cannot trigger the ritual");
-        ZNetScene.instance.Destroy(copy);
+        Check(runes.Where(r => r.GetComponent<BossStone>() == null).All(r => !RitualSite.IsOriginal(r.GetComponent<BossStone>())),
+            "Unrelated runestones do not qualify");
+        foreach (var originalStone in stones)
+        {
+            var prefab = ZNetScene.instance.GetPrefab(originalStone.GetComponent<ZNetView>().GetZDO().GetPrefab());
+            foreach (var position in new[] { site.Center, site.Center + Vector3.right * 35 })
+            {
+                var copy = UnityEngine.Object.Instantiate(prefab, position, Quaternion.identity);
+                Check(!RitualSite.IsOriginal(copy.GetComponent<BossStone>()),
+                    "Copied " + prefab.name + " outside an original stone position cannot trigger the ritual");
+                ZNetScene.instance.Destroy(copy);
+            }
+        }
         Check(site.Contains(site.Center) && !site.Contains(site.Center + Vector3.up * 4) && !site.Contains(site.Center - Vector3.up * 2),
             "Ground-level interior rejects above/below-site positions");
         foreach (var vertex in RitualSite.Perimeter)
@@ -106,8 +127,47 @@ internal static class RitualAcceptance
                 "Headless ritual validation creates no cameras");
             yield break;
         }
-        var stand = rune.GetComponent<BossStone>().m_itemStand;
-        Check(stand != null, "Vanilla trophy and guardian-power ItemStand remains attached");
+        var stand = rune.GetComponent<BossStone>().m_itemStand ?? throw new InvalidOperationException("Missing trophy stand");
+        Check(rune.GetComponent<BossStone>().m_itemStand != null, "Vanilla trophy and guardian-power ItemStand remains attached");
+        Move(player, site.Center + Vector3.up * .1f);
+        var playerData = player.GetComponent<ZNetView>().GetZDO();
+        player.SetHealth(player.GetMaxHealth());
+        playerData.RemoveFloat(ZDOVars.s_health);
+        Check(ritual.Roster(false).Single().Unavailable.Length == 0,
+            "A fully healthy player with the game's omitted health field remains available");
+        playerData.Set(ZDOVars.s_health, 0f);
+        try
+        {
+            Check(ritual.Roster(false).Single().Unavailable == "dead/unavailable", "Explicit zero health still blocks the ritual");
+        }
+        finally { playerData.RemoveFloat(ZDOVars.s_health); }
+        foreach (var originalStone in stones)
+        {
+            var reading = originalStone.GetComponent<RuneStone>() ?? throw new InvalidOperationException("Missing reading surface");
+            var trophyStand = originalStone.m_itemStand ?? throw new InvalidOperationException("Missing trophy control");
+            Move(player, originalStone.transform.position + (site.Center - originalStone.transform.position).normalized * 1.4f + Vector3.up * .25f);
+            yield return new WaitForSeconds(.8f);
+            Check(reading.GetHoverText().Contains("Begin Einherjar ritual") && trophyStand.GetHoverText().Contains("Begin Einherjar ritual"),
+                originalStone.name + " offers the ritual on both reading and trophy surfaces");
+            reading.Interact(player, false, false);
+            Check(TextViewer.instance.IsVisible() && !ritual.Active, originalStone.name + " preserves normal reading");
+            TextViewer.instance.Hide();
+            foreach (var control in new Interactable[] { reading, trophyStand })
+            {
+                control.Interact(player, false, true);
+                timeout = TimeNow + 3;
+                while (ritual.Gathering.State != RitualGathering.Stage.Countdown && TimeNow < timeout) yield return null;
+                Check(ritual.Gathering.State == RitualGathering.Stage.Countdown,
+                    originalStone.name + " starts through " + control.GetType().Name + " alternate use");
+                Move(player, site.Center + Vector3.right * 20);
+                timeout = TimeNow + 2;
+                while (ritual.Active && TimeNow < timeout) yield return null;
+                Check(!ritual.Active && Number(ritual) == 0 && messages.Last() == "Ritual Cancelled",
+                    "Leaving " + originalStone.name + " shows only Ritual Cancelled");
+                Move(player, originalStone.transform.position + (site.Center - originalStone.transform.position).normalized * 1.4f + Vector3.up * .25f);
+                yield return new WaitForSeconds(.8f);
+            }
+        }
         Move(player, rune.transform.position + (site.Center - rune.transform.position).normalized * 1.4f + Vector3.up * .25f);
         yield return new WaitForSeconds(1);
         rune.Interact(player, false, false);
@@ -117,6 +177,16 @@ internal static class RitualAcceptance
         var hover = rune.GetHoverText();
         Check(hover.Contains("Begin Einherjar ritual") && hover.Contains("chosen at random") && !hover.Contains("30"),
             "Hover shows deliberate alternate use and a thematic warning without timer data");
+        yield return new WaitForSeconds(.8f);
+        rune.Interact(player, false, true);
+        Check(ritual.Active, "A valid request begins presence validation");
+        Move(player, site.Center + Vector3.right * 20);
+        timeout = TimeNow + 3;
+        while (ritual.Active && TimeNow < timeout) yield return null;
+        Check(!ritual.Active && Number(ritual) == 0 && messages.Last() == "Ritual Cancelled",
+            "Leaving during initial presence validation also shows only Ritual Cancelled");
+        Move(player, rune.transform.position + (site.Center - rune.transform.position).normalized * 1.4f + Vector3.up * .25f);
+        yield return new WaitForSeconds(.8f);
         ZNet.instance.SetPublicReferencePosition(false);
         Check(ritual.Roster(false).Count == 1 && ritual.Roster(false)[0].Peer == ZNet.GetUID(), "Private-map host remains in the connected roster");
         yield return new WaitForSeconds(.8f);
@@ -157,8 +227,8 @@ internal static class RitualAcceptance
         var id = ritual.Gathering.Id;
         Move(player, site.Center + site.Rotation * new Vector3(-8.2f, .1f, 6.5f));
         yield return null; ritual.Update();
-        Check(!ritual.Active && Number(ritual) == 0 && messages.Last().Contains("Ritual cancelled"),
-            "Leaving the circle cancels and clears the countdown with a visible reason");
+        Check(!ritual.Active && Number(ritual) == 0 && messages.Last() == "Ritual Cancelled",
+            "Leaving the circle cancels and clears the countdown with the short message");
         yield return new WaitForSeconds(.8f);
         rune.Interact(player, false, true);
         Check(!ritual.Active && Number(ritual) == 0 && messages.Last().Contains("EinherjarAssets (outside the circle)"),
@@ -174,7 +244,7 @@ internal static class RitualAcceptance
         try
         {
             ritual.Update();
-            Check(!ritual.Active && Number(ritual) == 0 && messages.Last().Contains("connected players or characters changed"),
+            Check(!ritual.Active && Number(ritual) == 0 && messages.Last() == "Ritual Cancelled",
                 "Joining peer cancels a live countdown before commitment");
         }
         finally { ZNet.instance.GetPeers().Remove(fake); }

@@ -16,6 +16,7 @@ internal sealed class RitualMember
 internal sealed class RitualGathering
 {
     public const double Duration = 5;
+    public const string Cancelled = "Ritual Cancelled";
     public const string MissingPrefix = "All connected players must be at the original stone circle. Missing: ";
     public enum Stage { Idle, Countdown, Committed }
     public Stage State { get; private set; }
@@ -50,11 +51,11 @@ internal sealed class RitualGathering
         cancellation = "";
         if (State != Stage.Countdown) return false;
         if (roster.Count != Members.Count || Members.Any(p => !roster.Any(q => q.Peer == p.Peer && q.Life == p.Life)))
-            cancellation = "Ritual cancelled: the connected players or characters changed.";
+            cancellation = Cancelled;
         else
         {
             var missing = Missing(roster);
-            if (missing.Length != 0) cancellation = "Ritual cancelled. " + missing;
+            if (missing.Length != 0) cancellation = Cancelled;
         }
         if (cancellation.Length != 0) { State = Stage.Idle; return false; }
         if (now < StartedAt + Duration) return false;

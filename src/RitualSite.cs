@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
 
@@ -19,7 +20,6 @@ internal sealed class RitualSite
     private readonly Location location;
     public Vector3 Center => location.transform.position;
     public Quaternion Rotation => location.transform.rotation;
-    public Vector3 PlaquePosition => location.transform.TransformPoint(new Vector3(-6.4f, -.144f, 5.04f));
     private RitualSite(Location location) { this.location = location; }
 
     public static bool TryGet(out RitualSite site)
@@ -49,16 +49,25 @@ internal sealed class RitualSite
         return true;
     }
 
-    public bool IsPlaque(RuneStone rune)
+    public bool IsStone(BossStone stone)
     {
-        if (rune == null || !rune.gameObject.activeInHierarchy || rune.GetComponent<BossStone>() == null ||
-            rune.m_text != "$guardianstone_eikthyr_desc") return false;
-        var view = rune.GetComponent<ZNetView>();
-        return view != null && view.IsValid() && view.GetZDO().GetPrefab() == "BossStone_Eikthyr".GetStableHashCode() &&
-            (rune.transform.position - PlaquePosition).sqrMagnitude < .09f;
+        if (stone == null || !stone.gameObject.activeInHierarchy) return false;
+        var view = stone.GetComponent<ZNetView>();
+        if (view == null || !view.IsValid()) return false;
+        var prefab = ZNetScene.instance?.GetPrefab(view.GetZDO().GetPrefab());
+        if (prefab == null || prefab.GetComponent<BossStone>() == null) return false;
+        var local = location.transform.InverseTransformPoint(stone.transform.position);
+        if (!Finite(local.x) || !Finite(local.y) || !Finite(local.z) || local.y < -1 || local.y > 1) return false;
+        foreach (var origin in Perimeter)
+        {
+            var x = local.x - origin.x;
+            var z = local.z - origin.y;
+            if (x * x + z * z < .09f) return true;
+        }
+        return false;
     }
 
-    public static bool IsOriginal(RuneStone rune) => TryGet(out var site) && site.IsPlaque(rune);
+    public static bool IsOriginal(BossStone stone) => stone != null && TryGet(out var site) && site.IsStone(stone);
     private static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
     public static void Clear() => loaded.Clear();
 
@@ -76,27 +85,42 @@ internal sealed class RitualSite
         private static void Prefix(Location __instance) => loaded.Remove(__instance);
     }
 
-    [HarmonyPatch(typeof(RuneStone), nameof(RuneStone.GetHoverText))]
+    // Both the reading surface and trophy/power control offer the same action.
+    // Normal use and UseItem still belong to Valheim.
+    [HarmonyPatch]
     private static class Hover
     {
-        private static void Postfix(RuneStone __instance, ref string __result)
+        private static IEnumerable<MethodBase> TargetMethods()
         {
-            if (!IsOriginal(__instance)) return;
+            yield return AccessTools.Method(typeof(RuneStone), nameof(RuneStone.GetHoverText));
+            yield return AccessTools.Method(typeof(ItemStand), nameof(ItemStand.GetHoverText));
+        }
+        private static void Postfix(Component __instance, ref string __result)
+        {
+            var stone = __instance.GetComponentInParent<BossStone>();
+            if (!IsOriginal(stone)) return;
             var ritual = Plugin.Instance?.Ritual;
-            ritual?.Inspect(__instance);
+            ritual?.Inspect(stone);
             __result += Localization.instance.Localize("\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] Begin Einherjar ritual") +
                 "\nGather every connected player inside the stones.\nOne will be chosen at random. Odin punishes avarice.";
             if (ritual != null && ritual.Presence.Length != 0) __result += "\n" + ritual.Presence;
         }
     }
-    [HarmonyPatch(typeof(RuneStone), nameof(RuneStone.Interact))]
+    [HarmonyPatch]
     private static class Trigger
     {
-        private static bool Prefix(RuneStone __instance, Humanoid character, bool hold, bool alt, ref bool __result)
+        private static IEnumerable<MethodBase> TargetMethods()
         {
-            if (!alt || !IsOriginal(__instance)) return true;
+            yield return AccessTools.Method(typeof(RuneStone), nameof(RuneStone.Interact));
+            yield return AccessTools.Method(typeof(ItemStand), nameof(ItemStand.Interact));
+        }
+        private static bool Prefix(Component __instance, Humanoid __0, bool __1, bool __2, ref bool __result)
+        {
+            if (!__2) return true;
+            var stone = __instance.GetComponentInParent<BossStone>();
+            if (!IsOriginal(stone)) return true;
             __result = false;
-            if (!hold && character == Player.m_localPlayer) Plugin.Instance?.Ritual?.Begin(__instance);
+            if (!__1 && __0 == Player.m_localPlayer) Plugin.Instance?.Ritual?.Begin(stone);
             return false;
         }
     }

@@ -85,12 +85,12 @@ These separate `ZRoutedRpc` endpoints run entirely on the main thread, each with
 
 | Suffix | Fields after world UID, in order |
 | --- | --- |
-| `Request` | `begin: Bool, plaque: ZDOID` |
+| `Request` | `begin: Bool, stone: ZDOID` |
 | `Probe` | `serverSession: String, ritualId: String, nonce: String, serverSent: Double` |
 | `Presence` | `serverSession: String, ritualId: String, nonce: String, serverSent: Double, clientTime: Double, character: ZDOID, unavailableReason: String, position: Vector3` |
 | `Display` | `serverSession: String, revision: Int64, ritualId: String, message: String, presence: String, serverTime: Double, echoedClientTime: Double, countdown: Bool, serverStart: Double` |
 
-Clients send requests to the world server. The server resolves the plaque's actual scene instance, stable Eikthyr prefab ID, expected authored position in the original loaded StartTemple, and the initiating character's reach. Location callbacks maintain the original-site candidates; no entity scan runs in the ritual's idle loop. Hover inspection is limited to once per second. Begin and inspect requests are rate limited independently.
+Clients send requests to the world server. All seven original sacrificial stones offer the same alternate-use action through their RuneStone reading and ItemStand trophy/power controls. Both controls send the parent BossStone's ZDOID; the wire layout is unchanged. The server resolves that stone's actual scene instance, validates its BossStone prefab and authored stone position in the original loaded StartTemple, and checks the initiating character's reach. Copied stones outside those original positions and unrelated runestones cannot trigger it. Location callbacks maintain the original-site candidates; no entity scan runs in the ritual's idle loop. Hover inspection is limited to once per second. Begin and inspect requests are rate limited independently. Countdown cancellation displays only `Ritual Cancelled`; initial gathering failures still identify missing players.
 
 The server builds membership from connected peers plus a graphical hosting player, including unready/dead/loading players, without using map publicity. Character ZDO ownership, health/death, player identity, and position are checked. During validation/countdown, targeted probes at most four times per second also require the owning client's current character, spawn state, and position. Responses require the current world/session/ritual, an issued nonce, the current peer/character, and a monotonic age no greater than 1.25 seconds. Initial confirmations time out after 1.5 seconds. The captured peer/life roster must remain unchanged, and server validation runs again at commitment.
 

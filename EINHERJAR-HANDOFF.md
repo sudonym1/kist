@@ -18,7 +18,7 @@ The inventory window now uses the planned reliquary palette: dark charcoal timbe
 
 - The mod is named **Einherjar Chest**. The plugin display name, inventory-window title, assembly title/product metadata, package names, and current documentation use this name. Preserve `SharedInventory.dll`, the `local.sharedinventory` plugin ID, existing configuration/save paths, namespaces, and RPC identifiers for compatibility with installed versions and test launchers.
 - The ritual takes place only at the original sacrificial stones where boss trophies are hung.
-- Use the Eikthyr plaque to trigger the ritual.
+- Offer the ritual action when hovering any of the seven original sacrificial stones, including their reading and trophy/power surfaces. Alternate use starts it; merely hovering does not.
 - **Every currently connected player must be physically inside the original stone circle before the ritual can start.** Being elsewhere in the starting area or near a different circle does not qualify. The dedicated server process is not a player; a hosting player is.
 - If any connected player is absent from the circle, print a visible error message and do not start the ritual.
 - When all connected players are present and the ritual is triggered, show a **five-second countdown: `5... 4... 3... 2... 1...`**. At the end, strike the randomly selected player with lightning and kill them. The hidden early-repeat punishment still kills all participants and awards no essence.
@@ -67,7 +67,7 @@ Chest destruction never deletes or refunds shared contents: the stock remains in
 
 ### Plaque and gathering
 
-Preserve the Eikthyr plaque's normal reading function. Add a clearly labelled ritual action, for example an alternate-use binding shown in hover text. Do not trigger a lethal ritual merely by reading the plaque. Preserve trophy placement and boss-power selection.
+Preserve every sacrificial stone's normal reading function. Show the same clearly labelled alternate-use ritual action on all seven original stones, including their trophy/power controls. Do not trigger a lethal ritual merely by hovering or reading. Preserve trophy placement and boss-power selection.
 
 The plaque explains that all connected players must gather and that one player will be chosen at random. It may warn thematically that Odin punishes avarice, without revealing a timer, numeric interval, or current anger state. This reconciles discoverability with the deliberately hidden rule.
 
@@ -138,7 +138,7 @@ Extend `src/Testing/TestPanel.cs` with **Reset cooldown** and **Spawn essence** 
 
 Use one server-controlled ritual coordinator per world. Suggested phases: idle, validating gathering, countdown, committed sacrifice or committed punishment, waiting for death completion, finished. Permit only one active attempt. Assign a unique ritual ID and bind all commands and acknowledgements to it.
 
-1. Validate the triggering player, the original Eikthyr plaque, the authoritative start-location identity, and the complete connected-player roster.
+1. Validate the triggering player, the selected original sacrificial stone, the authoritative start-location identity, and the complete connected-player roster.
 2. Validate that every currently connected player is alive, fully spawned, and physically inside the original stone circle's gathering boundary. Reject an incomplete gathering before starting the countdown or evaluating an outcome, including punishment, and send the initiating player a visible error naming missing/unavailable players.
 3. Start the five-second countdown for all participants. Synchronize clients to a server-owned schedule so they display `5... 4... 3... 2... 1...` and finish together; do not issue per-frame network messages. Revalidate periodically while active and immediately before commitment.
 4. Before commitment, cancel if anyone leaves the original circle, dies, connects, disconnects, or changes character. Explain the cancellation without exposing timer state.
@@ -246,7 +246,7 @@ The current optimistic shared crafting behavior is unchanged for ordinary ingred
 
 ## Acceptance checks
 
-- Trigger works only at the original Eikthyr plaque; reading, trophy placement, and boss powers still work. Copies elsewhere and Eikthyr summoning altars cannot trigger it.
+- Trigger works at all seven original sacrificial stones, on their reading and trophy/power surfaces; normal reading, trophy placement, and boss powers still work. Copies elsewhere and summoning altars cannot trigger it. Countdown cancellation displays exactly `Ritual Cancelled`.
 - Every connected player, including the host, is required and equally eligible. Missing, loading, dead, and private-map players behave as specified. Dedicated servers and solo hosts work.
 - With even one connected player outside the original circle, the ritual prints a visible error to the initiator naming missing players and cannot start: no countdown, lightning, death, reward, or timer change. Verify this both before and during the hidden anger interval. Test players near but outside the circle and at a different circle. With everyone inside and available, triggering starts the countdown without individual readiness confirmations. Leaving during the countdown cancels before commitment.
 - All participants see `5... 4... 3... 2... 1...` at one-second intervals; the outcome commits after five seconds. Verify host and remote-client timing, cancellation clearing the display, held interaction not spamming errors/restarts, and no cooldown or outcome preview.

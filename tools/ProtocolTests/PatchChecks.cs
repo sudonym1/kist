@@ -8,18 +8,21 @@ internal static class PatchChecks
 {
     private static void CheckRitualHooks(AssemblyDefinition game)
     {
-        var rune = game.MainModule.Types.Single(t => t.Name == "RuneStone");
-        var interact = rune.Methods.Single(m => m.Name == "Interact");
-        if (interact.ReturnType.FullName != "System.Boolean" ||
-            !interact.Parameters.Select(p => p.Name + ":" + p.ParameterType.Name)
-                .SequenceEqual(new[] { "character:Humanoid", "hold:Boolean", "alt:Boolean" }) ||
-            rune.Methods.Single(m => m.Name == "GetHoverText").ReturnType.FullName != "System.String")
-            throw new Exception("Ritual plaque hook signature changed");
+        foreach (var type in new[] { "RuneStone", "ItemStand" })
+        {
+            var control = game.MainModule.Types.Single(t => t.Name == type);
+            var interact = control.Methods.Single(m => m.Name == "Interact");
+            if (interact.ReturnType.FullName != "System.Boolean" ||
+                !interact.Parameters.Select(p => p.ParameterType.Name)
+                    .SequenceEqual(new[] { "Humanoid", "Boolean", "Boolean" }) ||
+                control.Methods.Single(m => m.Name == "GetHoverText").ReturnType.FullName != "System.String")
+                throw new Exception("Ritual stone hook signature changed: " + type);
+        }
         var location = game.MainModule.Types.Single(t => t.Name == "Location");
         foreach (var name in new[] { "Awake", "OnDestroy" })
             if (location.Methods.Single(m => m.Name == name).Parameters.Count != 0)
                 throw new Exception("Original-site lifecycle hook signature changed");
-        System.Console.WriteLine("PASS original-plaque and site lifecycle hook signatures");
+        System.Console.WriteLine("PASS sacrificial-stone reading/trophy and site lifecycle hook signatures");
     }
     private static void CheckChestRadius(AssemblyDefinition game)
     {

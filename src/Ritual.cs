@@ -25,7 +25,7 @@ internal sealed class Ritual
     private string probe = "";
     private double probeSent, nextProbe, localNextRequest, localNextInspect;
     private long initiator;
-    private ZDOID plaque;
+    private ZDOID stone;
     private bool pending, stopped;
     private string pendingId = "";
     private string AttemptId => pending ? pendingId : gathering.Id;
@@ -66,13 +66,13 @@ internal sealed class Ritual
         if (!stopped && peer != 0) router.InvokeRoutedRPC(peer, Prefix + method, p);
     }
 
-    public void Begin(RuneStone rune) => Request(rune, true);
-    public void Inspect(RuneStone rune) => Request(rune, false);
-    private void Request(RuneStone rune, bool begin)
+    public void Begin(BossStone target) => Request(target, true);
+    public void Inspect(BossStone target) => Request(target, false);
+    private void Request(BossStone target, bool begin)
     {
-        if (stopped || Now < (begin ? localNextRequest : localNextInspect) || !RitualSite.IsOriginal(rune)) return;
+        if (stopped || Now < (begin ? localNextRequest : localNextInspect) || !RitualSite.IsOriginal(target)) return;
         if (begin) localNextRequest = Now + .75; else localNextInspect = Now + 1;
-        var p = Package(); p.Write(begin); p.Write(rune.GetComponent<ZNetView>().GetZDO().m_uid);
+        var p = Package(); p.Write(begin); p.Write(target.GetComponent<ZNetView>().GetZDO().m_uid);
         Send(ServerId, "Request", p);
     }
 
@@ -85,11 +85,11 @@ internal sealed class Ritual
         var rateKey = (sender, begin);
         if (nextRequest.TryGetValue(rateKey, out var due) && Now < due) return;
         nextRequest[rateKey] = Now + .5;
-        if (!TryPlaque(target, out _, out var rune))
-        { Display(sender, "", "The ritual requires the original Eikthyr plaque."); return; }
+        if (!TryStone(target, out _, out var targetStone))
+        { Display(sender, "", "The ritual requires an original sacrificial stone."); return; }
         var character = Character(sender);
-        if (character == null || (character.GetPosition() - rune.transform.position).sqrMagnitude > 25)
-        { Display(sender, "", "Move closer to the original Eikthyr plaque."); return; }
+        if (character == null || (character.GetPosition() - targetStone.transform.position).sqrMagnitude > 25)
+        { Display(sender, "", "Move closer to the sacrificial stone."); return; }
         if (!begin)
         {
             Display(sender, "", "", PresenceText(roster));
@@ -98,7 +98,7 @@ internal sealed class Ritual
         if (Active) { Display(sender, "", "A ritual is already in progress."); return; }
         var error = RitualGathering.Missing(roster);
         if (error.Length != 0) { Display(sender, "", error, PresenceText(roster)); return; }
-        initiator = sender; plaque = target; pendingAt = Now; pending = true;
+        initiator = sender; stone = target; pendingAt = Now; pending = true;
         pendingId = Guid.NewGuid().ToString("N");
         // Capture membership now, not after the confirmations arrive.
         pendingRoster = roster.Select(m => m.Copy()).ToArray();
@@ -113,14 +113,14 @@ internal sealed class Ritual
         (roster.Any(m => m.Unavailable.Length != 0) ? "\nMissing: " + string.Join(", ", roster.Where(m => m.Unavailable.Length != 0)
             .Select(m => m.Name + " (" + m.Unavailable + ")")) : "\nPresent: " + string.Join(", ", roster.Select(m => m.Name)));
 
-    private bool TryPlaque(ZDOID id, out RitualSite site, out RuneStone rune)
+    private bool TryStone(ZDOID id, out RitualSite site, out BossStone target)
     {
-        rune = null!;
+        target = null!;
         if (!RitualSite.TryGet(out site)) return false;
         var instance = ZNetScene.instance.FindInstance(id);
         if (instance == null) return false;
-        rune = instance.GetComponent<RuneStone>();
-        return site.IsPlaque(rune);
+        target = instance.GetComponent<BossStone>();
+        return site.IsStone(target);
     }
 
     private ZDO? Character(long peer)
@@ -150,7 +150,10 @@ internal sealed class Ritual
             var zdo = Character(member.Peer);
             member.Life = zdo == null ? "" : zdo.m_uid.ToString();
             if (zdo == null || zdo.GetLong(ZDOVars.s_playerID) == 0) member.Unavailable = "loading/respawning";
-            else if (zdo.GetBool(ZDOVars.s_dead) || zdo.GetFloat(ZDOVars.s_health, -1) <= 0) member.Unavailable = "dead/unavailable";
+            // Character.Awake omits the health field at full health. Match the
+            // game's max-health fallback instead of treating omission as death.
+            else if (zdo.GetBool(ZDOVars.s_dead) ||
+                zdo.GetFloat(ZDOVars.s_health, zdo.GetFloat(ZDOVars.s_maxHealth, 1)) <= 0) member.Unavailable = "dead/unavailable";
             else if (zdo.GetOwner() != member.Peer) member.Unavailable = "character unavailable";
             else if (site == null || !site.Contains(zdo.GetPosition())) member.Unavailable = "outside the circle";
             if (!requireConfirmation || member.Unavailable.Length != 0) continue;
@@ -205,18 +208,18 @@ internal sealed class Ritual
         if (stopped || !server || !Active) return;
         if (Now >= nextProbe) Probe();
         var roster = Roster(true);
-        if (!TryPlaque(plaque, out _, out _)) { Cancel("Ritual cancelled: the original plaque is unavailable."); return; }
+        if (!TryStone(stone, out _, out _)) { Cancel(); return; }
         if (pending)
         {
             if (roster.Count != pendingRoster.Count || pendingRoster.Any(m => !roster.Any(p => p.Peer == m.Peer && p.Life == m.Life)))
-            { Cancel("Ritual cancelled: the connected players or characters changed."); return; }
+            { Cancel(); return; }
             var error = RitualGathering.Missing(roster);
             if (error.Length != 0)
             {
                 if (Now - pendingAt < 1.5 && roster.All(m => m.Unavailable.Length == 0 || m.Unavailable == "confirmation unavailable")) return;
-                Cancel(error); return;
+                Cancel(); return;
             }
-            if (!gathering.Start(Now, roster, out error, pendingId)) { Cancel(error); return; }
+            if (!gathering.Start(Now, roster, out error, pendingId)) { Cancel(); return; }
             pending = false;
             Broadcast("", true);
             return;
@@ -229,13 +232,13 @@ internal sealed class Ritual
             // Phase 5 will retain the committed state until outcomes complete.
             gathering.Reset(); confirmations.Clear(); probes.Clear();
         }
-        else if (cancellation.Length != 0) Cancel(cancellation);
+        else if (cancellation.Length != 0) Cancel();
     }
 
-    private void Cancel(string message)
+    private void Cancel()
     {
-        if (pending) Display(initiator, "", message);
-        else Broadcast(message, false);
+        if (pending) Display(initiator, "", RitualGathering.Cancelled);
+        else Broadcast(RitualGathering.Cancelled, false);
         pending = false; gathering.Reset(); confirmations.Clear(); probes.Clear();
     }
 
