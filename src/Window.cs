@@ -470,7 +470,7 @@ internal sealed class Window : IDisposable
             Fill(new Rect(5, y + 4, 33, 32), new Color(0.04f, 0.045f, 0.039f, 0.8f));
             if (row.Icon != null) DrawIcon(new Rect(6, y + 4, 32, 32), row.Icon);
             GUI.Label(new Rect(46, y + 4, countX - 51, 32), new GUIContent(row.Name, row.Name + " (" + row.Id + ")"));
-            GUI.Label(new Rect(countX, y + 4, 72, 32), new GUIContent(row.Count, row.Count), countStyle);
+            GUI.Label(new Rect(countX, y + 4, 72, 32), row.Count, countStyle);
             GUI.enabled = client.CanAccessSharedInventory && !client.Busy && row.Stack > 0;
             if (GUI.Button(new Rect(actionsX, y + 6, 30, 28), "1")) client.Withdrawal(row.Id, false);
             if (GUI.Button(new Rect(actionsX + 35, y + 6, 53, 28), "Stack")) client.Withdrawal(row.Id, true);
