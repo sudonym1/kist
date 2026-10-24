@@ -504,6 +504,7 @@ internal sealed class Window : IDisposable
         rows.Clear();
         foreach (var pair in client.Counts)
         {
+            if (!ContentIds.CanShare(pair.Key)) continue;
             var item = Items.Template(pair.Key);
             var name = item == null ? pair.Key : Localization.instance.Localize(item.m_shared.m_name);
             if (name.IndexOf(search, StringComparison.OrdinalIgnoreCase) < 0 &&

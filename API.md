@@ -2,6 +2,8 @@
 
 The database stores `itemId -> (count, quality)`. Item IDs are exact, case-sensitive prefab names, such as `Coal` and `SwordIron`. Counts and amounts are signed 64-bit integers. Stored counts are nonnegative; request amounts and quality must be positive. Quality is a signed 32-bit integer.
 
+`EinherjarEssence` is a carried-only material. The RPC handlers reject deposits, single withdrawals, and entire batches containing that exact prefab before mutating the database. `List` preserves legacy/administratively seeded entries; clients hide them and exclude them from all shared availability. The count database itself remains a general store, and no migration silently deletes essence. The wire format is unchanged.
+
 ## List()
 
 Returns all nonzero counts:

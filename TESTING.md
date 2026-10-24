@@ -99,6 +99,8 @@ The normal DLL ignores any old `[Testing]` config entries because it contains no
 
 ## Automated load runner
 
+The guarded model/content workflow is `tools/Test-Assets.ps1 -TestRoot '<isolated root>' -Mode Review|Capture|Headless`; select one mode per run. It uses a dedicated local EinherjarAssets test character/world and can reset their test essence and place/remove test pieces. See [the asset source instructions](assets/README.md) for setup, transparent icon capture, real-engine checks, and headless limits. `AssetCapture` and `ContentAcceptance` are included in the production-exclusion assembly check. No asset-test endpoints are registered.
+
 The runner needs game assemblies and a .NET 8 SDK, but does not launch Valheim, connect to a server, or modify installed game files. Every run creates a fresh temporary database and deletes it after exporting the report. Logical peers replace routing only: production server handlers, real `ZPackage` codecs, the ordered worker, and file persistence execute.
 
 ```powershell

@@ -21,7 +21,9 @@ internal static class Program
             if (args.Length > 0 && args[0] == "--load") return LoadRunner.Run(args);
             if (args.Length > 0 && args[0] == "--lab-tests") return LabChecks.Run();
             if (args.Length == 3 && args[0] == "--verify-harness") return PatchChecks.CheckHarness(args[1], bool.Parse(args[2]));
-            return args.Length == 3 ? PatchChecks.Run(args[0], args[1], args[2]) : ProtocolChecks();
+            if (args.Length == 3) return PatchChecks.Run(args[0], args[1], args[2]);
+            ProtocolChecks();
+            return EssenceChecks();
         }
         catch (Exception error)
         {
@@ -93,6 +95,51 @@ internal static class Program
         {
             api?.Stop(); RpcApi.FinishShutdown();
             if (root.StartsWith(Path.GetFullPath(Path.GetTempPath()), StringComparison.OrdinalIgnoreCase)) Directory.Delete(root, true);
+        }
+    }
+
+    private static int EssenceChecks()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "einherjar-essence-" + Guid.NewGuid());
+        Paths.ConfigPath = root;
+        var path = Path.Combine(root, "SharedInventory", "1.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var file = new DatabaseFile(path);
+        file.Database.Deposit(ContentIds.Essence, 7);
+        file.Database.Deposit("Wood", 9);
+        file.Save();
+        var deposits = new List<TransferReply>();
+        var withdrawals = new List<TransferReply>();
+        var batches = new List<BatchReply>();
+        var lists = new List<ListReply>();
+        var api = new RpcApi(new ZRoutedRpc(), new ManualLogSource(), lists.Add, deposits.Add, withdrawals.Add, batches.Add);
+        try
+        {
+            api.Deposit(1, ContentIds.Essence, 1, 1);
+            api.Withdrawal(2, ContentIds.Essence, 1);
+            api.Withdrawal(3, new Dictionary<string, long> { ["Wood"] = 2, [ContentIds.Essence] = 1 });
+            api.List(4);
+            var timer = Stopwatch.StartNew();
+            while (lists.Count == 0)
+            {
+                api.Pump();
+                if (timer.ElapsedMilliseconds > 5000) throw new Exception("Essence protocol check timed out");
+                Thread.Sleep(1);
+            }
+            Check(deposits.Count == 1 && deposits[0].Error.Length > 0, "Essence deposit must be rejected before mutation");
+            Check(withdrawals.Count == 1 && withdrawals[0].Error.Length > 0, "Legacy essence cannot be withdrawn");
+            Check(batches.Count == 1 && batches[0].Error.Length > 0, "Mixed essence batch must be rejected atomically");
+            Check(lists[0].Items[ContentIds.Essence] == 7 && lists[0].Items["Wood"] == 9, "Rejected essence operations must preserve all stock");
+            api.Stop(); RpcApi.FinishShutdown();
+            var saved = new DatabaseFile(path);
+            Check(saved.Database.Total(ContentIds.Essence) == 7 && saved.Database.Total("Wood") == 9, "Legacy essence must survive save and reload");
+            System.Console.WriteLine("PASS essence RPC exclusion, mixed-batch atomicity, and legacy stock preservation across restart");
+            return 0;
+        }
+        finally
+        {
+            api.Stop(); RpcApi.FinishShutdown();
+            Directory.Delete(root, true);
         }
     }
 }

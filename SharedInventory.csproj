@@ -20,11 +20,14 @@
   <ItemGroup>
     <Compile Include="src/**/*.cs" />
     <Compile Remove="src/Testing/**/*.cs" Condition="'$(EnableTestHarness)' != 'true'" />
+    <EmbeddedResource Include="assets/*.png" />
     <Reference Include="assembly_valheim" HintPath="$(ManagedDir)/assembly_valheim.dll" Private="false" />
     <Reference Include="assembly_utils" HintPath="$(ManagedDir)/assembly_utils.dll" Private="false" />
     <Reference Include="assembly_guiutils" HintPath="$(ManagedDir)/assembly_guiutils.dll" Private="false" />
     <Reference Include="UnityEngine" HintPath="$(ManagedDir)/UnityEngine.dll" Private="false" />
     <Reference Include="UnityEngine.CoreModule" HintPath="$(ManagedDir)/UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="UnityEngine.PhysicsModule" HintPath="$(ManagedDir)/UnityEngine.PhysicsModule.dll" Private="false" />
+    <Reference Include="UnityEngine.ImageConversionModule" HintPath="$(ManagedDir)/UnityEngine.ImageConversionModule.dll" Private="false" />
     <Reference Include="UnityEngine.InputLegacyModule" HintPath="$(ManagedDir)/UnityEngine.InputLegacyModule.dll" Private="false" />
     <Reference Include="UnityEngine.IMGUIModule" HintPath="$(ManagedDir)/UnityEngine.IMGUIModule.dll" Private="false" />
     <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(ManagedDir)/UnityEngine.TextRenderingModule.dll" Private="false" />

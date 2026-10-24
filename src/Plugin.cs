@@ -27,6 +27,7 @@ public sealed class Plugin : BaseUnityPlugin
     internal static StationInventory? StationItems { get; private set; }
     internal static StationShortcuts? Shortcuts { get; private set; }
     internal static bool WindowOpen => Instance?.window?.Visible == true;
+    internal void OpenChest() { if (!WindowOpen) window?.Toggle(); }
 
     private void Awake()
     {
@@ -74,6 +75,8 @@ public sealed class Plugin : BaseUnityPlugin
         client?.MaintainRefresh();
 #if SHAREDINVENTORY_TESTING
         testPanel?.Update();
+        if (testPanel != null) AssetCapture.Update();
+        if (testPanel != null) ContentAcceptance.Update(this);
 #endif
         // Read the same input backend as Valheim. Track held-key edges so the
         // game's manual input updates cannot clear a press before our Update.
@@ -119,6 +122,7 @@ public sealed class Plugin : BaseUnityPlugin
     private void OnDestroy()
     {
         ResetSession();
+        Content.Dispose();
         harmony.UnpatchSelf();
         Instance = null;
     }

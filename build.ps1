@@ -47,6 +47,9 @@ try {
     Copy-Item (Join-Path $PSScriptRoot "API.md") $package
     Copy-Item (Join-Path $PSScriptRoot "TESTING.md") $package
     Copy-Item (Join-Path $PSScriptRoot "EINHERJAR-HANDOFF.md") $package
+    Copy-Item (Join-Path $PSScriptRoot "EINHERJAR-PHASE2-RESULTS.md") $package
+    New-Item -ItemType Directory -Force -Path (Join-Path $package 'assets') | Out-Null
+    Copy-Item (Join-Path $PSScriptRoot 'assets/README.md') (Join-Path $package 'assets/README.md')
     Compress-Archive -Path (Join-Path $package "*") `
         -DestinationPath (Join-Path $PSScriptRoot "dist/$packageName.zip") -Force
     Write-Host "Built dist/$packageName.zip. Copy SharedInventory.dll into BepInEx/plugins on the server and every client."

@@ -41,7 +41,7 @@ internal sealed class Client
 #endif
     public bool Ready => api.Connected && Player.m_localPlayer != null && !Player.m_localPlayer.IsDead();
 
-    public long Available(string item) => Counts.TryGetValue(item, out var count) ? count : 0;
+    public long Available(string item) => ContentIds.CanShare(item) && Counts.TryGetValue(item, out var count) ? count : 0;
 
     public Client(RpcApi api) : this(api, () => (double)System.Diagnostics.Stopwatch.GetTimestamp() /
         System.Diagnostics.Stopwatch.Frequency) { }
@@ -118,6 +118,8 @@ internal sealed class Client
     public void Consume(Dictionary<string, long> amounts)
     {
         if (amounts.Count == 0 || !Ready) return;
+        foreach (var item in amounts.Keys)
+            if (!ContentIds.CanShare(item)) { Status = "Einherjar Essence must be carried."; return; }
         var id = ++nextRequest;
         batches.Add(id, amounts);
         foreach (var pair in amounts)
@@ -146,6 +148,7 @@ internal sealed class Client
     public void Deposit(ItemDrop.ItemData item)
     {
         if (!Ready || Busy || item.m_dropPrefab == null) return;
+        if (!ContentIds.CanShare(Items.Id(item))) { Status = "Einherjar Essence cannot enter shared storage."; return; }
         var player = Player.m_localPlayer;
         var inventory = player.GetInventory();
         if (!inventory.ContainsItem(item)) return;
@@ -167,6 +170,7 @@ internal sealed class Client
     public void Withdrawal(string itemId, bool stack)
     {
         if (!Ready || Busy) return;
+        if (!ContentIds.CanShare(itemId)) { Status = "Einherjar Essence cannot leave legacy shared storage."; return; }
         var item = Items.Default(itemId, Quality(itemId));
         if (item == null)
         {
