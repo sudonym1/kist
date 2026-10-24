@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace SharedInventory;
 
-[BepInPlugin(Guid, "Shared Inventory", "0.4.1")]
+[BepInPlugin(Guid, "Einherjar Chest", "0.4.1")]
 public sealed class Plugin : BaseUnityPlugin
 {
     public const string Guid = "local.sharedinventory";

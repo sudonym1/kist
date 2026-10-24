@@ -10,7 +10,7 @@ Use a .NET 8 or newer SDK and the same game/BepInEx references as the normal bui
 .\build.ps1 -ValheimDir '<isolated game>' -BepInExDir '<isolated game>\BepInEx' -EnableTestHarness
 ```
 
-The opt-in DLL is `bin/Release/testing/netstandard2.1/SharedInventory.dll` and its separate package is `dist/SharedInventory-Testing.zip`. Normal output remains `bin/Release/netstandard2.1/SharedInventory.dll` and `dist/SharedInventory.zip`. Build checks inspect the assembly to verify harness inclusion or exclusion.
+The opt-in DLL is `bin/Release/testing/netstandard2.1/SharedInventory.dll` and its separate package is `dist/EinherjarChest-Testing.zip`. Normal output remains `bin/Release/netstandard2.1/SharedInventory.dll` and `dist/EinherjarChest.zip`. Build checks inspect the assembly to verify harness inclusion or exclusion.
 
 Install the opt-in DLL only in the isolated game. Launch once to create the config, exit, and set these entries in `BepInEx/config/local.sharedinventory.cfg`:
 
@@ -61,7 +61,7 @@ Enabled = false
 Impairments = false
 ```
 
-Edit the existing `[Testing]` section rather than adding a duplicate section. Restart using `Launch-Test.cmd`. The Testing tab should be absent, and the new launch's log should not contain `Shared Inventory test harness enabled`. The earlier log line may still exist in a retained historical log.
+Edit the existing `[Testing]` section rather than adding a duplicate section. Restart using `Launch-Test.cmd`. The Testing tab should be absent, and the new launch's log should not contain `Einherjar Chest test harness enabled`. Older builds used `Shared Inventory test harness enabled`; earlier log lines may still exist in a retained historical log.
 
 Keep `SharedInventory.TestIsolation.dll` and the launcher's `-sharedinventory-test` / `-savedir` arguments. They protect the test saves and are separate from error injection. Removing the test flag causes the isolation helper to reject the launch. `FreeBuild = false` in the helper's config controls gameplay costs; it does not disable injection.
 
@@ -75,7 +75,7 @@ From the source repository, run the normal build without `-EnableTestHarness`:
 
 `build.ps1` explicitly sets `EnableTestHarness=false` when its switch is omitted. Direct MSBuild callers can use `dotnet build SharedInventory.csproj -c Release -p:EnableTestHarness=false` with their game/BepInEx reference properties.
 
-Install `bin/Release/netstandard2.1/SharedInventory.dll` from the normal build, or use `dist/SharedInventory.zip`. The separate paths containing `testing` and the `SharedInventory-Testing.zip` package retain the harness. All peers should use the intended matching build.
+Install `bin/Release/netstandard2.1/SharedInventory.dll` from the normal build, or use `dist/EinherjarChest.zip`. The separate paths containing `testing` and the `EinherjarChest-Testing.zip` package retain the harness. All peers should use the intended matching build.
 
 For this repository's existing isolated install, first quit the test game normally and back up its current DLL/config. Then stage the normal DLL and use its guarded updater:
 

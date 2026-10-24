@@ -207,7 +207,7 @@ internal sealed class Window : IDisposable
         try
         {
             GUI.skin = skin;
-            rect = GUI.Window(0x53494E56, rect, DrawContents, "Shared inventory");
+            rect = GUI.Window(0x53494E56, rect, DrawContents, "Einherjar Chest");
         }
         finally { GUI.skin = previousSkin; }
         ClampToScreen();

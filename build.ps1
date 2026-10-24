@@ -32,14 +32,15 @@ if (-not $SkipTests) {
     if ($LASTEXITCODE -ne 0) { throw "Game resource hook checks failed." }
 }
 
-$packageName = 'SharedInventory'
-if ($EnableTestHarness) { $packageName = 'SharedInventory-Testing' }
+$packageName = 'EinherjarChest'
+if ($EnableTestHarness) { $packageName = 'EinherjarChest-Testing' }
 $package = Join-Path $PSScriptRoot "dist/$packageName"
 New-Item -ItemType Directory -Force -Path $package | Out-Null
 Copy-Item $binary $package
 Copy-Item (Join-Path $PSScriptRoot "README.md") $package
 Copy-Item (Join-Path $PSScriptRoot "API.md") $package
 Copy-Item (Join-Path $PSScriptRoot "TESTING.md") $package
+Copy-Item (Join-Path $PSScriptRoot "EINHERJAR-HANDOFF.md") $package
 Compress-Archive -Path (Join-Path $package "*") `
     -DestinationPath (Join-Path $PSScriptRoot "dist/$packageName.zip") -Force
 Write-Host "Built dist/$packageName.zip. Copy SharedInventory.dll into BepInEx/plugins on the server and every client."

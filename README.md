@@ -1,6 +1,8 @@
-# Shared Inventory
+# Einherjar Chest
 
 A small BepInEx 5 mod for a session-wide shared item inventory. Install the same DLL on the server and every client. It works from anywhere, including for the host's player.
+
+Previously named Shared Inventory. The DLL name (`SharedInventory.dll`), plugin ID (`local.sharedinventory`), configuration paths, save paths, and RPC identifiers retain their existing names for compatibility. The planned ritual and chest access restrictions are described in [the gameplay handoff](EINHERJAR-HANDOFF.md); they are not implemented yet.
 
 Use synthetic stock for isolated testing; see [the Windows setup instructions](WINDOWS-CODEX-SETUP.md).
 
@@ -39,7 +41,7 @@ From Windows PowerShell in this folder:
   -BepInExDir "$env:APPDATA\com.kesomannen.gale\valheim\profiles\My Valheim\BepInEx"
 ```
 
-If BepInEx is inside your Valheim installation, omit `-BepInExDir`. The script runs regression tests, builds the mod, and packages `dist/SharedInventory.zip`. Copy the DLL to `BepInEx/plugins/SharedInventory/` on the server and all clients. No other DLLs from the build references should be copied.
+If BepInEx is inside your Valheim installation, omit `-BepInExDir`. The script runs regression tests, builds the mod, and packages `dist/EinherjarChest.zip`. Copy the DLL to `BepInEx/plugins/SharedInventory/` on the server and all clients. No other DLLs from the build references should be copied.
 
 From Linux/WSL with a Linux .NET SDK, run:
 

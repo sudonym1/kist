@@ -1,4 +1,4 @@
-# Shared inventory database API
+# Einherjar Chest shared inventory database API
 
 The database stores `itemId -> (count, quality)`. Item IDs are exact, case-sensitive prefab names, such as `Coal` and `SwordIron`. Counts and amounts are signed 64-bit integers. Stored counts are nonnegative; request amounts and quality must be positive. Quality is a signed 32-bit integer.
 

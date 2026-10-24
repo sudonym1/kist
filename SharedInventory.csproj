@@ -5,6 +5,9 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <AssemblyName>SharedInventory</AssemblyName>
+    <Title>Einherjar Chest</Title>
+    <AssemblyTitle>Einherjar Chest</AssemblyTitle>
+    <Product>Einherjar Chest</Product>
     <Version>0.4.1</Version>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <EnableTestHarness Condition="'$(EnableTestHarness)' == ''">false</EnableTestHarness>

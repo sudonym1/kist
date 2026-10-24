@@ -37,7 +37,7 @@ internal sealed class TestPanel
             log.LogWarning("Test harness remains disabled: use the guarded isolated test launcher.");
             return null;
         }
-        log.LogWarning("Shared Inventory test harness enabled; impairments default OFF.");
+        log.LogWarning("Einherjar Chest test harness enabled; impairments default OFF.");
         return new TestPanel(config, log);
     }
     public TestHarness NewSession()
@@ -120,7 +120,7 @@ internal sealed class TestPanel
         if (GUI.Button(new Rect(w / 2, 208, w / 2, 25), "Export report")) Export();
         GUI.Label(new Rect(0, 242, w, 44), $"Request {settings.RequestDelayMs} ms | Reply {settings.ReplyDelayMs} ms\nJitter {settings.JitterMs} ms | Rate {settings.BytesPerSecond} B/s (0 unlimited)");
         GUI.Label(new Rect(0, 290, w, 200), diagnostics);
-        GUI.Label(new Rect(0, 500, w, 75), "These faults affect Shared Inventory RPCs.\nDiscarding a reply can leave a transfer uncertain.\nItem mutations are never automatically retried or restored.");
+        GUI.Label(new Rect(0, 500, w, 75), "These faults affect Einherjar Chest RPCs.\nDiscarding a reply can leave a transfer uncertain.\nItem mutations are never automatically retried or restored.");
         GUI.Label(new Rect(0, 580, w, 100), status);
         GUI.EndScrollView();
     }

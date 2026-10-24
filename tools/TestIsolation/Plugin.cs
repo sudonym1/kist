@@ -9,7 +9,7 @@ using UnityEngine;
 namespace SharedInventory.TestIsolation;
 
 // Test tooling only. This project is not part of the mod's build or package.
-[BepInPlugin("local.sharedinventory.testisolation", "Shared Inventory Test Isolation", "0.1.0")]
+[BepInPlugin("local.sharedinventory.testisolation", "Einherjar Chest Test Isolation", "0.1.0")]
 [BepInDependency("local.sharedinventory")]
 public sealed class Plugin : BaseUnityPlugin
 {
@@ -44,7 +44,7 @@ public sealed class Plugin : BaseUnityPlugin
             if (FileHelpers.CloudStorageSupported || FileHelpers.CloudStorageSupportedAndEnabled
                 || Utils.GetSaveDataPath(FileHelpers.FileSource.Local) != saveRoot)
                 throw new InvalidOperationException("Local-only save isolation did not install");
-            Logger.LogInfo("SHARED INVENTORY LOCAL-ONLY TEST ISOLATION: " + saveRoot);
+            Logger.LogInfo("EINHERJAR CHEST LOCAL-ONLY TEST ISOLATION: " + saveRoot);
             freeBuild = Config.Bind("Testing", "FreeBuild", true,
                 "Enable free building in the isolated test game. Disable to test real shared resource consumption.");
         }
@@ -69,7 +69,7 @@ public sealed class Plugin : BaseUnityPlugin
         private static void Postfix()
         {
             if (ZNet.instance != null && ZNet.instance.IsServer())
-                instance.Logger.LogInfo("SHARED INVENTORY TEST WORLD uid=" + ZNet.instance.GetWorldUID()
+                instance.Logger.LogInfo("EINHERJAR CHEST TEST WORLD uid=" + ZNet.instance.GetWorldUID()
                     + " name=" + ZNet.instance.GetWorldName());
         }
     }
