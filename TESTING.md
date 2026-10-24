@@ -143,6 +143,21 @@ Throwaway instances exercise actual prefab loading, natural scene unloading with
 
 The 117 out-of-game regressions cover loaded-only coverage, overlaps, inactive/invalid/ghost rejection, reload, player life/position, carried crafting/machine behavior, stale shared selections, transfer completion/returns across range loss and death, cached-total reconciliation, and polling. Access checks iterate only loaded Einherjar Chest components, O(number of loaded shared chests), not all entities. There is no spatial index/cache or extra access network traffic to test. Production protocol checks continue to cover the existing shared inventory database. Full host-plus-remote deployment remains phase 6 acceptance.
 
+## Original plaque and gathering acceptance
+
+Use the same guarded isolated copy, runtime Testing enabled, FreeBuild = false, impairments off, and access to Steam:
+
+```powershell
+.\tools\Test-Assets.ps1 -TestRoot '<isolated test root>' -Suite Ritual -Mode Review -ExitAfter
+.\tools\Test-Assets.ps1 -TestRoot '<isolated test root>' -Suite Ritual -Mode Headless
+```
+
+Run one mode at a time. Supply `-Dotnet '<.NET 8 SDK>\dotnet.exe'` if needed. The existing marked-directory/savedir guard and local-only `EinherjarAssets` bootstrap apply. Reports are `ritual-acceptance.txt` and `ritual-headless-acceptance.txt`; graphical testing also writes `ritual-boundary-review.png`, an overhead render with the measured perimeter. Inspect the first report line for `passed`; an old report remains until the new run completes. Launch logs are `asset-Review.log` / `asset-Headless.log` and are replaced on subsequent runs.
+
+The graphical suite exercises the original plaque, copied/wrong stones, circle geometry, normal reading, actual trophy placement and power selection, private-map host membership, connected loading-player errors, dead-host and near-outside rejection, held-use suppression, unauthorized display rejection, routed owner confirmation, cancellation, restart, and five-second completion. Temporary test trophies are consumed/removed and the original power is restored. A synthetic connected peer is added and removed within one frame to exercise loading/join cases; this is not a remote networking test. The headless suite checks original-site streaming and exclusion of the server process from participants without rendering resources. Production excludes `RitualAcceptance` and its message observer.
+
+The regression suite now has 133 tests, including frozen roster/life changes, single-attempt commitment, exact countdown boundaries, two client clock offsets with symmetric latency, reordered/duplicate displays, cancellation clearing, session rejection, and clock-jitter monotonicity. Phase 4 ends at a gathering handoff: no death, reward, anger state, or persistence is exercised. Phase 5 implements those outcomes. Actual host-plus-remote timing, dedicated-executable deployment, real network asymmetry/loss, and full acceptance remain phase 6; see [phase 4 evidence](EINHERJAR-PHASE4-RESULTS.md).
+
 ## Correctness checks and testing limits
 
 `build.ps1` runs the gameplay regression suite, production protocol checks, eleven deterministic fault-harness checks, game hook signature checks, and assembly isolation checks. Load presets are opt-in through the runner rather than part of every build. Virtual-clock tests compile the production Client and cover lost List requests/replies, deadlines, capped retry timing, manual overrides, closed menus, readiness loss, dispatch failures, error replies, retired snapshots, failure-triggered follow-ups, count/quality reconciliation, and uncertain mutations. The gameplay lab explicitly runs refresh maintenance on every virtual tick, including during death or disconnect. The protocol load runner substitutes logical peers and does not exercise this client state machine.

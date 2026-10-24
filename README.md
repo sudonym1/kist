@@ -2,7 +2,7 @@
 
 A small BepInEx 5 mod for a world-wide shared item inventory, accessed near an Einherjar Chest. Install the same DLL on the server and every client, including the host.
 
-Previously named Shared Inventory. The DLL name (`SharedInventory.dll`), plugin ID (`local.sharedinventory`), configuration paths, save paths, and count RPC identifiers retain their existing names for compatibility. Chest content and access coverage are implemented; the ritual described in [the gameplay handoff](EINHERJAR-HANDOFF.md) is still pending.
+Previously named Shared Inventory. The DLL name (`SharedInventory.dll`), plugin ID (`local.sharedinventory`), configuration paths, save paths, and count RPC identifiers retain their existing names for compatibility. Chest content, access coverage, and the original-plaque gathering/countdown are implemented. Ritual deaths, lightning, essence rewards, and the hidden repeat rule remain phase 5 work in [the gameplay handoff](EINHERJAR-HANDOFF.md).
 
 The hammer can build an **Einherjar Chest** from exactly **one carried Einherjar Essence**, with no other ingredients or workbench requirement. Picking up essence discovers its recipe. The chest has an original Nordic reliquary model and opens the existing shared inventory. Essence has an original rune-marked crystal model and cannot be deposited, withdrawn, spent from shared counts, or taken through portals, including unrestricted portals/resource settings. Legacy shared essence entries remain saved but unavailable. Removing or destroying a chest never refunds its essence or changes shared stock. Vanilla no-cost/admin building remains an administrative override. The ritual that earns essence will arrive in a later phase; administrators can supply essence through the game's console meanwhile. See [asset sources and capture instructions](assets/README.md).
 
@@ -13,6 +13,8 @@ Placement and inspection show the 100-metre maximum with three amber circles out
 Chest access is checked entirely on the client by iterating only loaded Einherjar Chest components: **O(number of loaded Einherjar chests)**, not all game entities. Load/unload callbacks maintain that small set; there are no world scans, access RPCs, spatial indexes, or access caches. The shared inventory database still runs on the server.
 
 Losing range or the last loaded covering chest blocks new shared actions. Existing transfers finish or return unused grants, including after death; ordinary menu polling pauses outside coverage while required reconciliation continues. This retains the mod's trusted-client scope. Use the same compatible version on every peer.
+
+At the original sacrificial stones, the Eikthyr plaque retains its normal read action and shows an alternate-use **Begin Einherjar ritual** action. Its hover text reports connected-player presence. Every connected player, including the host and players with private map positions, must be alive, fully spawned, and inside the seven-stone perimeter. Missing players are named in a visible error. A valid gathering starts **5... 4... 3... 2... 1...** on every participant's client. Leaving, dying, changing character, joining, or disconnecting cancels it. Version 0.4.4 ends with **The gathering is complete.**; it does not yet sacrifice anyone or grant essence. Trophy placement and boss-power selection retain their normal controls.
 
 Use synthetic stock for isolated testing; see [the Windows setup instructions](WINDOWS-CODEX-SETUP.md).
 
@@ -36,7 +38,7 @@ The client checks room before withdrawing. If inventory capacity changes during 
 
 ## Server and threads
 
-The server stores a `prefab ID -> (Int64 count, Int32 quality)` database. Clients are trusted; gameplay checks run locally. The RPC admission layer additionally rejects all essence mutations, preserving legacy shared essence entries. The only requests are [`List`, `Deposit`, and `Withdrawal`](API.md).
+The server stores a `prefab ID -> (Int64 count, Int32 quality)` database. Clients are trusted; shared-stock gameplay checks run locally. The RPC admission layer additionally rejects all essence mutations, preserving legacy shared essence entries. Its requests remain [`List`, `Deposit`, and `Withdrawal`](API.md). Separate ritual messages coordinate the connected roster and countdown on the main thread; they do not change the count protocol or database worker.
 
 The mod uses Valheim's existing reliable RPC transport. A dedicated worker constructs and parses packages, serializes database requests from all clients, and reads/writes saves. Valheim's packet dispatch stays on Unity's main thread, along with local inventory changes and UI rendering. Main-thread completions are pumped in Update and LateUpdate with a one-millisecond budget checked between actions; gameplay never waits for the database worker.
 
@@ -79,6 +81,8 @@ This deliberately simple protocol has no durable transfer receipts or automatic 
 ## Validation
 
 Loaded-only chest access evidence and reproduction are in [the updated phase 3 results](EINHERJAR-PHASE3-RESULTS.md). Isolated graphical/headless acceptance covers load/unload/reload, destruction, live resource gating, fixed 3D boundaries, and the placement preview. Full host-plus-remote deployment remains phase 6.
+
+Original-plaque, measured circle boundary, roster validation, and countdown evidence are in [the phase 4 results](EINHERJAR-PHASE4-RESULTS.md). These include real-game graphical/headless checks and deterministic clock/roster regressions. Full remote multiplayer timing and dedicated-executable acceptance remain phase 6.
 
 Opt-in load and poor-network testing is documented in [TESTING.md](TESTING.md). Normal builds exclude the harness entirely; test builds also require explicit runtime activation, and impairments default off. To stop current faults, use **F3 → Testing → Disable faults and release queued packets**. To disable the harness on future launches, exit and set both `Enabled = false` and `Impairments = false` in the config's `[Testing]` section. See [complete shutdown and normal-build installation instructions](TESTING.md#disable-fault-injection-and-testing), including the isolated launcher's staged DLL update. The standalone runner uses temporary inventories and includes burst, contention, outage, lost-confirmation, and slow-storage presets.
 

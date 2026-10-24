@@ -1,7 +1,7 @@
 # Einherjar Chest implementation handoff
 
 Prepared: 2026-10-24.
-Status: phases 1 through 3 complete (2026-10-24). Original content and client-side loaded-chest access are implemented. The current user-approved access policy is fixed at 100 metres and may be reduced by client loading settings. Phase 4 original-plaque trigger is next; ritual gameplay is not implemented. See EINHERJAR-PHASE3-RESULTS.md for access evidence and validation limits.
+Status: phases 1 through 4 complete (2026-10-24), version 0.4.4. Original content, client-side loaded-chest access, original-plaque gathering validation, and synchronized five-second countdown are implemented. The user-approved access policy remains fixed at 100 metres and may be reduced by client loading settings. Phase 5 outcomes, persistence, and test controls are next. No ritual death, lightning, reward, or hidden timer is implemented yet. See EINHERJAR-PHASE4-RESULTS.md for phase 4 evidence and validation limits, and EINHERJAR-PHASE3-RESULTS.md for access evidence.
 Repository: `C:\Users\seamu\source\repos\SharedInventory`.
 
 ## Objective
@@ -200,7 +200,7 @@ The current optimistic shared crafting behavior is unchanged for ordinary ingred
 1. **Complete: confirm defaults and visual direction (2026-10-24).** The user adopted all recommended rules and the proposed artwork. The gameplay and visual decision sections above are the implementation baseline. Confirmed hidden punishment, five-second countdown, lethal lightning, unique chest model, and fixed 100-metre maximum remain requirements (subject to client chest loading).
 2. **Complete: prove the asset path first (2026-10-24).** Original scripted chest/essence meshes were loaded and visually inspected in the isolated game, and both matching transparent PNG icons were captured and embedded. Direct prefab registration, ghost/material/headless checks, stable IDs, hammer recipe, discovery/localization, carried-only essence consumption, shared-storage/portal exclusions, and refund behavior are implemented. See the phase 2 completion record and evidence below.
 3. **Complete: implement access coverage (2026-10-24).** Fixed 100-metre client-only checks against loaded chests, action gating across every shared-stock path, placement/inspection sphere and HUD status, and range-safe transfer reconciliation. The original registry and setting were removed at the user's request. See the phase 3 completion record and EINHERJAR-PHASE3-RESULTS.md.
-4. **Implement the original-plaque trigger.** Verify the actual Eikthyr plaque object in an isolated game, preserve normal interactions, add visible missing-player errors, synchronized five-second countdown, and server roster validation.
+4. **Complete: implement the original-plaque trigger (2026-10-24).** Verified the actual Eikthyr plaque and seven-stone boundary in the isolated game, preserved reading/trophy/power interactions, and implemented visible missing-player errors, synchronized five-second countdown, cancellation, and server roster validation. See EINHERJAR-PHASE4-RESULTS.md.
 5. **Implement outcomes, persistence, and test controls.** Random sacrifice with a lethal lightning strike, lightning strikes on every player during punishment, exact message, hidden deadline, death/effect correlation, reward ownership and deduplication, restart handling, and the test-only cooldown-reset/essence-spawn controls.
 6. **Validate and document.** Run relevant regressions, real-game hook checks, and isolated host plus remote multiplayer acceptance. Update player/admin documentation without exposing timer state in ordinary player UI. Ship the same compatible version to server and every client.
 
@@ -210,7 +210,7 @@ The current optimistic shared crafting behavior is unchanged for ordinary ingred
 - Chest and essence artwork direction confirmed, with original procedural geometry and matching model-rendered icons selected for the initial prototype.
 - Existing confirmed requirements retained; no additional mundane chest ingredients, progression gate, readiness confirmation, or extra death penalty added.
 - Reviewed this handoff for consistency with the adopted decisions. This phase changes documentation only; no gameplay implementation, build, or in-game acceptance result is claimed.
-- At phase 1 completion, phase 2 was next. Its asset prototype and visual review are now complete; original-circle boundary calibration remains a phase 4 real-game check.
+- At phase 1 completion, phase 2 was next. Its asset prototype and visual review are now complete; original-circle boundary calibration is also complete in the phase 4 record below.
 
 ### Phase 2 completion record
 
@@ -232,7 +232,17 @@ The current optimistic shared crafting behavior is unchanged for ordinary ingred
 - `Client.Ready` remains separate from access. Pending callbacks still reconcile after range loss or unloading; dead/detached/capacity-limited grants return through the unchanged deposit path. Cached authoritative inventory totals survive access loss. Ordinary polling pauses while required recovery continues. No mutation replay or durable receipts were added.
 - The single local three-circle preview, fixed numeric radius, HUD status, and guarded Testing entry without a chest remain. Preview resources are absent on headless servers.
 - Current verification and reproduction are in EINHERJAR-PHASE3-RESULTS.md. Earlier registry verification belongs to version 0.4.2/commit a59c854 and does not describe current behavior. Version 0.4.3 implements the loaded-only revision.
-- Count RPCs, saves, worker guarantees, plugin ID, namespace, and DLL name are preserved. Separate dedicated-executable and host-plus-remote acceptance remain phase 6. Phase 4 plaque/gathering/countdown and phase 5 outcomes/timer/test controls remain pending.
+- Count RPCs, saves, worker guarantees, plugin ID, namespace, and DLL name are preserved. At phase 3 completion, phase 4 plaque/gathering/countdown was next; it is now complete below. Separate dedicated-executable and host-plus-remote acceptance remain phase 6. Phase 5 outcomes/timer/test controls remain pending.
+
+### Phase 4 completion record
+
+- Verified `BossStone_Eikthyr(Clone)` in Valheim 1.0.20 / Unity 6000.0.75f1: its root `RuneStone` reads the plaque, while its child `ItemStand` handles trophies and guardian power. Added alternate-use ritual triggering and hover guidance only to the original plaque. Normal reading, actual trophy attachment, and actual Eikthyr power selection pass isolated in-game checks.
+- Original-site identity comes from the world's `StartTemple` location icon/record and its loaded location pose. The server resolves the requested plaque ZDO, stable Eikthyr prefab, expected authored offset, and initiator reach. Copies elsewhere, other boss plaques, vegvisirs, runestones, and other circles cannot start it. Location lifecycle callbacks maintain the small candidate set; there is no idle entity scan.
+- Calibrated a seven-sided gathering polygon joining the seven standing-stone origins, transformed by the original site's pose, with a local foot-height interval of -1 to +2.5 metres. Inspected an overhead real-world render with the perimeter overlaid, and checked points just inside/outside every stone, nearby starting terrain, other circles, and vertical exclusion. This is neither the former 20-metre proposal nor chest access's 100-metre radius.
+- The main-thread server endpoint builds the roster from connected peers plus the graphical host, retaining dead/loading/unready players and ignoring map publicity. It validates server-known character ownership, identity, health/death and position, plus nonce/ritual/session-bound owner confirmations. All connected players must pass before countdown. Missing players/reasons use the initiator's actual center-screen message UI.
+- One attempt owns the frozen peer/character-life roster and monotonic five-second schedule. Active owner probes run at most four times per second. Clients estimate clock offset from probe echoes and reject stale revisions/session packets. Leaving, dying, joining, disconnecting, character replacement, unavailable confirmation, or loss of the original site cancels before commitment, clears the display, and explains why. Held use cannot start/spam attempts; concurrent starts cannot replace one.
+- Successful phase 4 validation displays `5... 4... 3... 2... 1...`, then emits one committed ritual ID/roster handoff at five seconds and shows **The gathering is complete.** Phase 5 must replace that interim completion path with the outcome lifecycle. This phase creates no deaths, lightning, essence, hidden deadline, persistence, configuration, or phase 5 test buttons.
+- Production/testing builds pass 133 deterministic gameplay regressions, inventory protocol checks, eleven fault-harness checks, actual game hook checks, and assembly inclusion/exclusion checks. Guarded graphical and headless ritual suites pass. Full evidence, reproduction commands, and remaining remote/dedicated acceptance limits are in EINHERJAR-PHASE4-RESULTS.md. The same compatible DLL remains required on every peer.
 
 ## Acceptance checks
 
@@ -267,7 +277,7 @@ Revalidated on 2026-10-24 against the repository, installed game/editor, and off
 - One server schedule can keep countdown displays close, but packet latency prevents a guarantee that every remote screen shows the strike on exactly the same frame. Correctness means one committed outcome and one death per targeted life, with coherent visual timing.
 - A cheap faceted essence and authored low-poly chest are practical to generate from code, but recognizable art needs a visual iteration loop. Original geometry satisfies uniqueness; it does not automatically guarantee a polished Valheim-style result. Prove this first instead of assuming a full asset workflow exists.
 - The installed newer Unity editor is an asset-bundle compatibility risk, not evidence that the conventional pipeline is ready. A procedural mesh plus embedded PNG route avoids this editor/bundle dependency while keeping an optional path to more detailed art.
-- The circle boundary must be authored/calibrated to the original site's geometry. A generic proximity check is insufficient, and an authoritative roster is not the same as server-owned player movement. Retain the trusted-client scope instead of claiming complete anti-cheat enforcement.
+- Phase 4 calibrated the circle boundary to the original site's seven standing stones and reviewed it in-game. Future game-location changes require rechecking that authored geometry. An authoritative roster is not the same as server-owned player movement; retain the trusted-client scope instead of claiming complete anti-cheat enforcement.
 
 ## Asset feasibility references
 

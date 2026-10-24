@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace SharedInventory;
 
-[BepInPlugin(Guid, "Einherjar Chest", "0.4.3")]
+[BepInPlugin(Guid, "Einherjar Chest", "0.4.4")]
 public sealed class Plugin : BaseUnityPlugin
 {
     public const string Guid = "local.sharedinventory";
@@ -22,6 +22,7 @@ public sealed class Plugin : BaseUnityPlugin
     private RpcApi? api;
     private Client? client;
     private Window? window;
+    internal Ritual? Ritual { get; private set; }
 #if SHAREDINVENTORY_TESTING
     private TestPanel? testPanel;
 #endif
@@ -62,12 +63,14 @@ public sealed class Plugin : BaseUnityPlugin
     {
         if (ZRoutedRpc.instance == null || ReferenceEquals(router, ZRoutedRpc.instance)) return;
         api?.Stop();
+        Ritual?.Stop();
         radiusVisual?.Dispose();
 #if SHAREDINVENTORY_TESTING
         testPanel?.Detach();
 #endif
         window?.Dispose();
         router = ZRoutedRpc.instance;
+        Ritual = new Ritual(router, Logger);
         radiusVisual = new ChestRadiusVisual();
         api = new RpcApi(router, Logger,
             reply => client?.OnList(reply),
@@ -91,6 +94,7 @@ public sealed class Plugin : BaseUnityPlugin
 
     private void Update()
     {
+        Ritual?.Update();
         radiusVisual?.Update();
         if (Time.unscaledTime >= nextAccessStatus)
         {
@@ -104,6 +108,7 @@ public sealed class Plugin : BaseUnityPlugin
         if (testPanel != null) AssetCapture.Update();
         if (testPanel != null) ContentAcceptance.Update(this);
         if (testPanel != null) AccessAcceptance.Update(this);
+        if (testPanel != null) RitualAcceptance.Update(this);
 #endif
         // Read the same input backend as Valheim. Track held-key edges so the
         // game's manual input updates cannot clear a press before our Update.
@@ -125,6 +130,7 @@ public sealed class Plugin : BaseUnityPlugin
 
     private void OnGUI()
     {
+        Ritual?.Draw();
         window?.Draw();
         if (Player.m_localPlayer != null && !Player.m_localPlayer.IsDead() && !WindowOpen && client != null)
         {
@@ -138,6 +144,8 @@ public sealed class Plugin : BaseUnityPlugin
     private void ResetSession()
     {
         api?.Stop();
+        Ritual?.Stop(); Ritual = null;
+        RitualSite.Clear();
         ChestAccess.Clear();
         radiusVisual?.Dispose(); radiusVisual = null;
 #if SHAREDINVENTORY_TESTING

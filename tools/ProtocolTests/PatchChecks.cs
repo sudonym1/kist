@@ -6,6 +6,21 @@ using Mono.Cecil;
 
 internal static class PatchChecks
 {
+    private static void CheckRitualHooks(AssemblyDefinition game)
+    {
+        var rune = game.MainModule.Types.Single(t => t.Name == "RuneStone");
+        var interact = rune.Methods.Single(m => m.Name == "Interact");
+        if (interact.ReturnType.FullName != "System.Boolean" ||
+            !interact.Parameters.Select(p => p.Name + ":" + p.ParameterType.Name)
+                .SequenceEqual(new[] { "character:Humanoid", "hold:Boolean", "alt:Boolean" }) ||
+            rune.Methods.Single(m => m.Name == "GetHoverText").ReturnType.FullName != "System.String")
+            throw new Exception("Ritual plaque hook signature changed");
+        var location = game.MainModule.Types.Single(t => t.Name == "Location");
+        foreach (var name in new[] { "Awake", "OnDestroy" })
+            if (location.Methods.Single(m => m.Name == name).Parameters.Count != 0)
+                throw new Exception("Original-site lifecycle hook signature changed");
+        System.Console.WriteLine("PASS original-plaque and site lifecycle hook signatures");
+    }
     private static void CheckChestRadius(AssemblyDefinition game)
     {
         var player = game.MainModule.Types.Single(type => type.Name == "Player");
@@ -16,7 +31,7 @@ internal static class PatchChecks
     public static int CheckHarness(string path, bool expected)
     {
         using var mod = AssemblyDefinition.ReadAssembly(path);
-        foreach (var name in new[] { "TestSettings", "TestHarness", "LabMetrics", "TestPanel", "AssetCapture", "ContentAcceptance", "AccessAcceptance" })
+        foreach (var name in new[] { "TestSettings", "TestHarness", "LabMetrics", "TestPanel", "AssetCapture", "ContentAcceptance", "AccessAcceptance", "RitualAcceptance" })
         {
             var present = mod.MainModule.Types.Any(type => type.FullName == "SharedInventory." + name);
             if (present != expected) throw new Exception("Test harness inclusion mismatch: " + name);
@@ -33,6 +48,7 @@ internal static class PatchChecks
         using var utils = AssemblyDefinition.ReadAssembly(Path.Combine(managedPath, "assembly_utils.dll"));
         CheckWindowInput(mod, utils);
         CheckChestRadius(game);
+        CheckRitualHooks(game);
         var hooks = mod.MainModule.Types.Single(type => type.FullName == "SharedInventory.Crafting");
         var replacements = new Dictionary<string, string>
         {
