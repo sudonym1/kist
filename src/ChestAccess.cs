@@ -8,7 +8,7 @@ namespace SharedInventory;
 internal static class ChestAccess
 {
     internal const float Radius = 100;
-    internal const string Unavailable = "A loaded Einherjar Chest within 100 metres is required for shared access.";
+    internal const string Unavailable = "There is no Einherjar Chest in range.";
     private static readonly HashSet<SharedChest> loaded = new HashSet<SharedChest>();
 
     internal static bool CanAccess => Player.m_localPlayer != null &&

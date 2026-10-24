@@ -16,8 +16,6 @@ public sealed class Plugin : BaseUnityPlugin
     private Harmony harmony = null!;
     private ConfigEntry<KeyCode> toggleKey = null!;
     private ChestRadiusVisual? radiusVisual;
-    private string accessStatus = "";
-    private float nextAccessStatus;
     private ZRoutedRpc? router;
     private RpcApi? api;
     private Client? client;
@@ -35,22 +33,13 @@ public sealed class Plugin : BaseUnityPlugin
     private void ToggleWindow()
     {
         if (WindowOpen) { window?.Close(); return; }
-        if (!ChestAccess.CanAccess)
-        {
-            Player.m_localPlayer?.Message(MessageHud.MessageType.Center, ChestAccess.Unavailable);
-#if SHAREDINVENTORY_TESTING
-            // An explicitly guarded test session must be usable before a chest exists.
-            if (testPanel != null) window?.Toggle();
-#endif
-            return;
-        }
         window?.Toggle();
     }
 
     private void Awake()
     {
         Instance = this;
-        toggleKey = Config.Bind("Client", "ToggleKey", KeyCode.F3, "Open shared inventory within an Einherjar Chest's coverage.");
+        toggleKey = Config.Bind("Client", "ToggleKey", KeyCode.F3, "Open shared inventory. Transfers require an Einherjar Chest in range.");
 #if SHAREDINVENTORY_TESTING
         testPanel = TestPanel.Create(Config, Logger);
 #endif
@@ -92,11 +81,6 @@ public sealed class Plugin : BaseUnityPlugin
     private void Update()
     {
         radiusVisual?.Update();
-        if (Time.unscaledTime >= nextAccessStatus)
-        {
-            nextAccessStatus = Time.unscaledTime + .25f;
-            accessStatus = ChestAccess.CanAccess ? "Einherjar: shared access" : "Einherjar: no loaded chest within range";
-        }
         api?.Pump();
         client?.MaintainRefresh();
 #if SHAREDINVENTORY_TESTING
@@ -123,16 +107,7 @@ public sealed class Plugin : BaseUnityPlugin
             StationTargets.IsInputTarget(Player.m_localPlayer.GetHoverObject()));
     }
 
-    private void OnGUI()
-    {
-        window?.Draw();
-        if (Player.m_localPlayer != null && !Player.m_localPlayer.IsDead() && !WindowOpen && client != null)
-        {
-            GUI.Label(new Rect(12, Screen.height - 32, 330, 24), accessStatus);
-            if (radiusVisual?.Visible == true)
-                GUI.Label(new Rect(12, Screen.height - 56, 330, 24), "Shared radius: 100 m (loaded chests only)");
-        }
-    }
+    private void OnGUI() => window?.Draw();
     private void LateUpdate() => api?.Pump();
 
     private void ResetSession()

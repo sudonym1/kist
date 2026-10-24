@@ -60,7 +60,7 @@ internal static partial class Program
             Player.m_localPlayer.Dead = true; Equal(false, ChestAccess.CanAccess);
             Player.m_localPlayer = null!; Equal(false, ChestAccess.CanAccess);
         });
-        Test("All new shared requests fail outside coverage while carried resources remain usable", () =>
+        Test("New shared mutations fail outside coverage while carried resources remain usable", () =>
         {
             var (initial, api) = Setup("Wood", 10);
             var access = false;
@@ -69,7 +69,6 @@ internal static partial class Program
             var inventory = Player.m_localPlayer.GetInventory();
             var wood = Items.Default("Wood")!; wood.m_stack = 3; inventory.AddItem(wood);
             var local = inventory.GetAllItems()[0];
-            client.List(); client.Refresh(true, true, true, true); client.MaintainRefresh();
             client.Deposit(local); client.Withdrawal("Wood", true);
             client.Consume(new Dictionary<string, long> { ["Wood"] = 1 });
             Equal(0, api.Calls.Count); Equal(true, inventory.ContainsItem(local)); Equal(0L, client.Available("Wood"));
@@ -79,6 +78,60 @@ internal static partial class Program
             Equal(1, inventory.CountItems("Wood")); Equal(0, api.Calls.Count);
             access = true; Equal(10L, client.Available("Wood"));
             client.Withdrawal("Wood", false); Equal(1, api.Calls.Count);
+        });
+        Test("First opening loads uncached stock with no loaded chest and blocks single and stack withdrawals", () =>
+        {
+            var (_, api) = Setup("Wood", 10);
+            ChestAccess.Clear();
+            var client = new Client(api, () => 0);
+            Equal(0, client.Counts.Count); Equal(false, client.CanAccessSharedInventory);
+            client.List(false); client.Refresh(true, false, false); client.MaintainRefresh();
+            Equal(1, api.Calls.Count); Equal("List", api.Calls[0].Method);
+            client.OnList(Stock(api.Calls[0].Id, 23, 4));
+            Equal(23L, client.Counts["Wood"]); Equal(4, client.Quality("Wood"));
+            Equal(0L, client.Available("Wood")); Equal(false, client.Listing);
+            client.Withdrawal("Wood", false); client.Withdrawal("Wood", true);
+            Equal(1, api.Calls.Count); Equal(false, client.Busy);
+            Equal(0, Player.m_localPlayer.GetInventory().CountItems("Wood"));
+            Equal("There is no Einherjar Chest in range.", Player.m_localPlayer.MessageText);
+            LoadedChest(); Equal(true, client.CanAccessSharedInventory);
+            client.Withdrawal("Wood", false); Equal(2, api.Calls.Count);
+            Equal("Withdrawal", api.Calls[1].Method); Equal(1L, api.Calls[1].Amount);
+        });
+        Test("Opening before player or connection readiness queues a first list without chest coverage", () =>
+        {
+            foreach (var mode in new[] { 0, 1, 2 })
+            {
+                ObjectDB.instance = new ObjectDB();
+                var (_, api) = Setup("Wood", 10);
+                ChestAccess.Clear();
+                var player = Player.m_localPlayer;
+                if (mode != 1) Player.m_localPlayer = null!;
+                if (mode != 0) api.Connected = false;
+                var client = new Client(api, () => 0);
+                client.List(false); client.MaintainRefresh();
+                Equal(0, api.Calls.Count); Equal(0, client.Counts.Count);
+                Player.m_localPlayer = player; api.Connected = true;
+                client.MaintainRefresh(); client.Refresh(true, false, false);
+                Equal(1, api.Calls.Count); Equal("List", api.Calls[0].Method);
+                client.OnList(Stock(api.Calls[0].Id, 17));
+                Equal(17L, client.Counts["Wood"]); Equal(false, client.CanAccessSharedInventory);
+                Equal(0L, client.Available("Wood"));
+            }
+        });
+        Test("First outside-range list retries after a timeout and stops after closing the window", () =>
+        {
+            var (_, api) = Setup("Wood", 10);
+            ChestAccess.Clear(); double now = 0;
+            var client = new Client(api, () => now);
+            client.List(false);
+            now = 10; client.MaintainRefresh(); Equal(false, client.Listing);
+            now = 11.99; client.Refresh(true, false, false); Equal(1, api.Calls.Count);
+            now = 12; client.MaintainRefresh(); Equal(2, api.Calls.Count);
+            client.OnList(Stock(api.Calls[1].Id, 9));
+            Equal(9L, client.Counts["Wood"]); Equal("", client.RefreshStatus);
+            now = 100; client.Refresh(false, true, true, true); client.MaintainRefresh();
+            Equal(2, api.Calls.Count); Equal(false, client.CanAccessSharedInventory);
         });
         Test("Station shortcuts keep carried counts and reject stale shared selections on range loss", () =>
         {
@@ -139,7 +192,7 @@ internal static partial class Program
             client.OnDeposit(new TransferReply { RequestId = deposit, Error = "rejected" });
             Equal(2, inventory.CountItems("Wood")); Equal(false, client.Busy);
         });
-        Test("Outside coverage pauses ordinary polling but preserves failure recovery", () =>
+        Test("Outside coverage refreshes the shared window but pauses other menus and preserves reconciliation", () =>
         {
             var (_, api) = Setup("Wood", 10);
             var access = true; double now = 0;
@@ -147,14 +200,20 @@ internal static partial class Program
             client.Refresh(true, false, false);
             client.OnList(Stock(api.Calls[0].Id, 10));
             access = false; now = 100;
-            client.Refresh(true, true, true, true); client.List(); client.MaintainRefresh();
+            client.Refresh(false, true, true, true); client.MaintainRefresh();
             Equal(1, api.Calls.Count);
+            client.Refresh(true, true, true, true); client.List(false); client.MaintainRefresh();
+            Equal(2, api.Calls.Count); client.OnList(Stock(api.Calls[1].Id, 8));
+            Equal(8L, client.Counts["Wood"]); Equal(0L, client.Available("Wood"));
+            now = 101; client.Refresh(true, false, false); Equal(2, api.Calls.Count);
+            now = 102; client.Refresh(true, false, false); Equal(3, api.Calls.Count);
+            client.OnList(Stock(api.Calls[2].Id, 7));
             access = true; client.Withdrawal("Wood", false); var id = api.Calls.Last().Id; access = false;
             client.OnWithdrawal(new TransferReply { RequestId = id, Error = "stock changed" });
             Equal("List", api.Calls.Last().Method);
             client.OnList(Stock(api.Calls.Last().Id, 4));
             var calls = api.Calls.Count;
-            now = 200; client.Refresh(true, true, true, true); client.MaintainRefresh();
+            now = 200; client.Refresh(false, true, true, true); client.MaintainRefresh();
             Equal(calls, api.Calls.Count); Equal(4L, client.Counts["Wood"]);
             access = true; Equal(4L, client.Available("Wood"));
         });

@@ -45,7 +45,6 @@ internal sealed class Window : IDisposable
     private GUIStyle hintStyle = null!;
     private GUIStyle statusStyle = null!;
     private GUIStyle emptyStyle = null!;
-    private GUIStyle tooltipStyle = null!;
     private GUIStyle recoveryStyle = null!;
     private Texture2D? crystal;
     private Texture2D? risingLine;
@@ -254,13 +253,6 @@ internal sealed class Window : IDisposable
         statusStyle = new GUIStyle(hintStyle) { fontSize = 11 };
         emptyStyle = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleCenter, wordWrap = true };
         emptyStyle.normal.textColor = Muted;
-        tooltipStyle = new GUIStyle(skin.box)
-        {
-            fontSize = 12, wordWrap = true, alignment = TextAnchor.MiddleLeft,
-            padding = new RectOffset(10, 10, 7, 7), border = new RectOffset(1, 1, 1, 1)
-        };
-        tooltipStyle.normal.background = Background(new Color(0.06f, 0.065f, 0.058f), Gold);
-        tooltipStyle.normal.textColor = ink;
         recoveryStyle = new GUIStyle(statusStyle) { wordWrap = true };
         crystal = CrystalTexture();
         risingLine = LineTexture(true);
@@ -315,7 +307,6 @@ internal sealed class Window : IDisposable
             // sprites, scrolling and hit testing together; the UI blocker below
             // uses the actual screen-space rectangle instead.
             GUI.Window(0x53494E56, new Rect(rect.x / scale, rect.y / scale, Width, height), DrawContents, "");
-            DrawTooltip();
         }
         finally
         {
@@ -358,18 +349,6 @@ internal sealed class Window : IDisposable
         GUI.color = previous;
     }
 
-    private void DrawTooltip()
-    {
-        if (Event.current.type != EventType.Repaint || GUI.tooltip.Length == 0) return;
-        const float width = 285;
-        var content = new GUIContent(GUI.tooltip);
-        var tooltipHeight = tooltipStyle.CalcHeight(content, width);
-        var pointer = ZInput.pointerPosition;
-        var x = Mathf.Clamp(pointer.x / scale + 12, 4, Screen.width / scale - width - 4);
-        var y = Mathf.Clamp((Screen.height - pointer.y) / scale + 18, 4, Screen.height / scale - tooltipHeight - 4);
-        GUI.Label(new Rect(x, y, width, tooltipHeight), content, tooltipStyle);
-    }
-
     private void DrawFrame()
     {
         Fill(new Rect(0, 0, Width, 3), Gold);
@@ -407,9 +386,6 @@ internal sealed class Window : IDisposable
     private void DrawFooter()
     {
         Fill(new Rect(18, height - 51, Width - 36, 1), new Color(0.27f, 0.24f, 0.17f));
-        var status = !client.CanAccessSharedInventory ? ChestAccess.Unavailable :
-            client.Status.Length > 0 ? client.Status : rows.Count.ToString(CultureInfo.CurrentCulture) + " item types";
-        GUI.Label(new Rect(18, height - 47, Width - 116, 21), new GUIContent(status, status), statusStyle);
         GUI.Label(new Rect(32, height - 26, Width - 140, 16), "ALT-CLICK TO DEPOSIT    /    F3 OR ESC TO CLOSE", hintStyle);
 #if SHAREDINVENTORY_TESTING
         if (TestingPanel != null && GUI.Button(new Rect(Width - 98, height - 39, 66, 23), testingTab ? "Inventory" : "Testing"))
@@ -420,7 +396,7 @@ internal sealed class Window : IDisposable
     private void DrawContents(int id)
     {
         DrawFrame();
-        if (GUI.Button(new Rect(Width - 52, 21, 25, 25), new GUIContent("x", "Close (F3 / Escape)"))) Close();
+        if (GUI.Button(new Rect(Width - 52, 21, 25, 25), "x")) Close();
 #if SHAREDINVENTORY_TESTING
         if (TestingPanel != null && testingTab)
         {
@@ -451,7 +427,7 @@ internal sealed class Window : IDisposable
         GUI.Label(new Rect(18 + actionsX, 143, 90, 19), "WITHDRAW", headingStyle);
         var recovery = client.RefreshStatus.Length != 0;
         if (recovery)
-            GUI.Label(new Rect(18, 164, Width - 36, 32), new GUIContent(client.RefreshStatus, client.RefreshStatus), recoveryStyle);
+            GUI.Label(new Rect(18, 164, Width - 36, 32), client.RefreshStatus, recoveryStyle);
         var top = recovery ? 200 : 166;
         var viewport = new Rect(18, top, Width - 36, height - top - 61);
         const int rowHeight = 40;
@@ -465,11 +441,9 @@ internal sealed class Window : IDisposable
             var y = i * rowHeight;
             var rowRect = new Rect(0, y, contentWidth, rowHeight - 1);
             Fill(rowRect, i % 2 == 0 ? new Color(0.12f, 0.13f, 0.115f, 0.65f) : new Color(0.08f, 0.09f, 0.08f, 0.6f));
-            if (rowRect.Contains(Event.current.mousePosition))
-                Fill(rowRect, new Color(0.35f, 0.27f, 0.14f, 0.22f));
             Fill(new Rect(5, y + 4, 33, 32), new Color(0.04f, 0.045f, 0.039f, 0.8f));
             if (row.Icon != null) DrawIcon(new Rect(6, y + 4, 32, 32), row.Icon);
-            GUI.Label(new Rect(46, y + 4, countX - 51, 32), new GUIContent(row.Name, row.Name + " (" + row.Id + ")"));
+            GUI.Label(new Rect(46, y + 4, countX - 51, 32), row.Name);
             GUI.Label(new Rect(countX, y + 4, 72, 32), row.Count, countStyle);
             GUI.enabled = client.CanAccessSharedInventory && !client.Busy && row.Stack > 0;
             if (GUI.Button(new Rect(actionsX, y + 6, 30, 28), "1")) client.Withdrawal(row.Id, false);

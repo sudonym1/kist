@@ -25,7 +25,6 @@ internal sealed class Client
     private int refreshFailures;
     private bool refreshDemand;
     private bool refreshAgain;
-    private bool recoveryDemand;
     private readonly Dictionary<long, Dictionary<string, long>> batches = new Dictionary<long, Dictionary<string, long>>();
     private readonly Dictionary<string, long> latestTotals = new Dictionary<string, long>(StringComparer.Ordinal);
     public Dictionary<string, long> Counts { get; private set; } = new Dictionary<string, long>(StringComparer.Ordinal);
@@ -55,16 +54,16 @@ internal sealed class Client
 
     public void Refresh(bool sharedWindow, bool craftingMenu, bool hammerMenu, bool stationInput = false)
     {
-        var active = CanAccessSharedInventory && (sharedWindow || craftingMenu || hammerMenu || stationInput);
+        var active = Ready && (sharedWindow || (CanAccessSharedInventory && (craftingMenu || hammerMenu || stationInput)));
         ExpireRefresh();
         if (active && clock() >= nextList) TryList(false);
     }
 
-    // Explicit demand survives closed menus and loss of readiness. Opening a
-    // window uses the same path without bypassing automatic recovery backoff.
+    // Viewing stock does not require chest coverage. Queue explicit demand even
+    // before the world/player/connection is ready so the first opening loads it.
+    // Opening a window does not bypass automatic recovery backoff.
     public void List(bool manual = true)
     {
-        if (!CanAccessSharedInventory) return;
         ExpireRefresh();
         refreshDemand = true;
         if (Listing) return;
@@ -86,7 +85,6 @@ internal sealed class Client
 
     private void RetireRefresh(string reason)
     {
-        if (refreshDemand) recoveryDemand = true;
 #if SHAREDINVENTORY_TESTING
         api.Testing?.ExpireRefresh(listRequest, reason);
 #endif
@@ -99,7 +97,7 @@ internal sealed class Client
 
     private void TryList(bool manual)
     {
-        if (!Ready || (!CanAccessSharedInventory && !recoveryDemand) || Listing || (!manual && clock() < retryAt)) return;
+        if (!Ready || Listing || (!manual && clock() < retryAt)) return;
         var now = clock();
         nextList = now + 2;
         listRequest = ++nextRequest;
@@ -115,7 +113,6 @@ internal sealed class Client
 
     private void RefreshAfterFailure()
     {
-        recoveryDemand = true;
         refreshDemand = true;
         if (Listing) refreshAgain = true;
         else TryList(false);
@@ -256,7 +253,6 @@ internal sealed class Client
         retryAt = 0;
         RefreshStatus = "";
         refreshDemand = refreshAgain;
-        recoveryDemand = refreshAgain;
         if (refreshDemand) TryList(false);
     }
 
