@@ -9,7 +9,7 @@ internal static class PatchChecks
     public static int CheckHarness(string path, bool expected)
     {
         using var mod = AssemblyDefinition.ReadAssembly(path);
-        foreach (var name in new[] { "TestSettings", "TestHarness", "LabMetrics", "TestPanel" })
+        foreach (var name in new[] { "TestSettings", "TestHarness", "LabMetrics", "TestPanel", "AssetCapture", "ContentAcceptance" })
         {
             var present = mod.MainModule.Types.Any(type => type.FullName == "SharedInventory." + name);
             if (present != expected) throw new Exception("Test harness inclusion mismatch: " + name);

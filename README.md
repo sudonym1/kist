@@ -2,7 +2,9 @@
 
 A small BepInEx 5 mod for a session-wide shared item inventory. Install the same DLL on the server and every client. It works from anywhere, including for the host's player.
 
-Previously named Shared Inventory. The DLL name (`SharedInventory.dll`), plugin ID (`local.sharedinventory`), configuration paths, save paths, and RPC identifiers retain their existing names for compatibility. The planned ritual and chest access restrictions are described in [the gameplay handoff](EINHERJAR-HANDOFF.md); they are not implemented yet.
+Previously named Shared Inventory. The DLL name (`SharedInventory.dll`), plugin ID (`local.sharedinventory`), configuration paths, save paths, and RPC identifiers retain their existing names for compatibility. The ritual and chest access coverage described in [the gameplay handoff](EINHERJAR-HANDOFF.md) are still pending. The chest/essence content and restrictions below are implemented.
+
+The hammer can build an **Einherjar Chest** from exactly **one carried Einherjar Essence**, with no other ingredients or workbench requirement. Picking up essence discovers its recipe. The chest has an original Nordic reliquary model and opens the existing shared inventory. Essence has an original rune-marked crystal model and cannot be deposited, withdrawn, spent from shared counts, or taken through portals, including unrestricted portals/resource settings. Legacy shared essence entries remain saved but unavailable. Removing or destroying a chest never refunds its essence or changes shared stock. Vanilla no-cost/admin building remains an administrative override. The ritual that earns essence and the chest radius gate will arrive in later phases; ordinary shared access remains unrestricted for now. See [asset sources and capture instructions](assets/README.md).
 
 Use synthetic stock for isolated testing; see [the Windows setup instructions](WINDOWS-CODEX-SETUP.md).
 
@@ -26,7 +28,7 @@ The client checks room before withdrawing. If inventory capacity changes during 
 
 ## Server and threads
 
-The server is only a `prefab ID -> (Int64 count, Int32 quality)` database. Clients are fully trusted. All gameplay rules live on clients. The only requests are [`List`, `Deposit`, and `Withdrawal`](API.md).
+The server stores a `prefab ID -> (Int64 count, Int32 quality)` database. Clients are trusted; gameplay checks run locally. The RPC admission layer additionally rejects all essence mutations, preserving legacy shared essence entries. The only requests are [`List`, `Deposit`, and `Withdrawal`](API.md).
 
 The mod uses Valheim's existing reliable RPC transport. A dedicated worker constructs and parses packages, serializes database requests from all clients, and reads/writes saves. Valheim's packet dispatch stays on Unity's main thread, along with local inventory changes and UI rendering. Main-thread completions are pumped in Update and LateUpdate with a one-millisecond budget checked between actions; gameplay never waits for the database worker.
 
@@ -70,7 +72,7 @@ Opt-in load and poor-network testing is documented in [TESTING.md](TESTING.md). 
 
 `tests/` exercises the production count database, client transfer logic, item normalization, and background worker using small game/transport doubles. It covers concurrent-style overdraw, counts beyond Int32, absence of server gameplay caps, incompatible inventory stacks, capacity races, partial insertions, ordinary-deposit returns, death during withdrawal, rejected deposits, and worker thread/order/shutdown behavior.
 
-The Windows production and testing builds pass 102 regression tests, including client refresh recovery under a virtual clock, count/quality reconciliation, optimistic crafting deductions, window input, and station shortcuts. `tools/ProtocolTests` checks production RPC handlers using Valheim's actual `ZPackage`, including success/error round trips, competing batches, main-thread routing, and persistence; it also runs eleven deterministic harness checks. Build checks verify game hook signatures and harness inclusion/exclusion. All seven out-of-game load presets passed; the intentional lost-deposit-confirmation case retains its uncertain transfer. An isolated host acceptance run confirmed automatic and manual recovery after discarded ListReplies, rejection of a late held reply after a withdrawal, and recovery from outage-delayed delivery. Final cached counts and qualities matched all 385 persisted entries, with no pending operations. See [PLAN.md](PLAN.md) for evidence and remaining validation, including crafting-failure overlap and remote multiplayer.
+The Windows production and testing builds pass 106 regression tests, including client refresh recovery under a virtual clock, count/quality reconciliation, optimistic crafting deductions, window input, and station shortcuts. `tools/ProtocolTests` checks production RPC handlers using Valheim's actual `ZPackage`, including success/error round trips, competing batches, main-thread routing, and persistence; it also runs eleven deterministic harness checks. Build checks verify game hook signatures and harness inclusion/exclusion. All seven out-of-game load presets passed; the intentional lost-deposit-confirmation case retains its uncertain transfer. An isolated host acceptance run confirmed automatic and manual recovery after discarded ListReplies, rejection of a late held reply after a withdrawal, and recovery from outage-delayed delivery. Final cached counts and qualities matched all 385 persisted entries, with no pending operations. See [PLAN.md](PLAN.md) for evidence and remaining validation, including crafting-failure overlap and remote multiplayer.
 
 ## Isolated test building
 

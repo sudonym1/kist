@@ -280,6 +280,7 @@ internal sealed class RpcApi
         {
             var item = request.ReadString();
             var amount = request.ReadLong();
+            if (!ContentIds.CanShare(item)) throw new InvalidOperationException("Einherjar Essence cannot be shared.");
             var db = Database;
             long transferred;
             var quality = deposit ? request.ReadInt() : db.Quality(item);
@@ -316,6 +317,7 @@ internal sealed class RpcApi
             {
                 var item = request.ReadString();
                 var amount = request.ReadLong();
+                if (!ContentIds.CanShare(item)) throw new InvalidOperationException("Einherjar Essence must be carried.");
                 if (amount <= 0) throw new ArgumentOutOfRangeException("amount");
                 amounts[item] = checked((amounts.TryGetValue(item, out var previous) ? previous : 0) + amount);
             }

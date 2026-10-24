@@ -1,7 +1,7 @@
 # Einherjar Chest implementation handoff
 
 Prepared: 2026-10-24.
-Status: phase 1 complete (defaults and visual direction confirmed on 2026-10-24); phase 2 asset prototype is next. Ritual and chest gameplay changes are not implemented.
+Status: phases 1 and 2 complete (2026-10-24). Original chest/essence models, embedded icons, direct registration, hammer recipe, and essence restrictions are implemented and checked in the isolated game. Phase 3 access coverage is next; ritual gameplay is not implemented.
 Repository: `C:\Users\seamu\source\repos\SharedInventory`.
 
 ## Objective
@@ -201,7 +201,7 @@ The current optimistic shared crafting behavior is unchanged for ordinary ingred
 ## Implementation sequence
 
 1. **Complete: confirm defaults and visual direction (2026-10-24).** The user adopted all recommended rules and the proposed artwork. The gameplay and visual decision sections above are the implementation baseline. Confirmed hidden punishment, five-second countdown, lethal lightning, unique chest model, and 100-metre default remain requirements.
-2. **Prove the asset path first.** Produce a recognizable chest/essence model prototype, load them in the isolated game, capture both icons, and verify material/ghost/headless behavior before building the whole feature around the asset pipeline. Prefer original scripted meshes; use a compatible asset-bundle toolchain if visual review requires it. Then establish stable IDs, hammer recipe, discovery/localization, carried-only essence consumption, shared-storage/portal exclusions, and refund behavior.
+2. **Complete: prove the asset path first (2026-10-24).** Original scripted chest/essence meshes were loaded and visually inspected in the isolated game, and both matching transparent PNG icons were captured and embedded. Direct prefab registration, ghost/material/headless checks, stable IDs, hammer recipe, discovery/localization, carried-only essence consumption, shared-storage/portal exclusions, and refund behavior are implemented. See the phase 2 completion record and evidence below.
 3. **Implement access coverage.** Server registry including unloaded chests, configuration synchronization, action gating across all shared paths, radius visuals, and safe handling of pending operations.
 4. **Implement the original-plaque trigger.** Verify the actual Eikthyr plaque object in an isolated game, preserve normal interactions, add visible missing-player errors, synchronized five-second countdown, and server roster validation.
 5. **Implement outcomes, persistence, and test controls.** Random sacrifice with a lethal lightning strike, lightning strikes on every player during punishment, exact message, hidden deadline, death/effect correlation, reward ownership and deduplication, restart handling, and the test-only cooldown-reset/essence-spawn controls.
@@ -213,7 +213,19 @@ The current optimistic shared crafting behavior is unchanged for ordinary ingred
 - Chest and essence artwork direction confirmed, with original procedural geometry and matching model-rendered icons selected for the initial prototype.
 - Existing confirmed requirements retained; no additional mundane chest ingredients, progression gate, readiness confirmation, or extra death penalty added.
 - Reviewed this handoff for consistency with the adopted decisions. This phase changes documentation only; no gameplay implementation, build, or in-game acceptance result is claimed.
-- Next work is phase 2: create the actual models, load them in the guarded isolated game, capture and inspect their icons, and verify materials, placement ghost, and headless registration. Prototype visual acceptance and original-circle boundary calibration remain real-game checks in their respective implementation phases.
+- At phase 1 completion, phase 2 was next. Its asset prototype and visual review are now complete; original-circle boundary calibration remains a phase 4 real-game check.
+
+### Phase 2 completion record
+
+- Rebased this worktree onto local `main` at `c202f74`, retaining its inventory-window reskin.
+- Added original deterministic Mesh API sources in `src/ContentModels.cs`: Nordic reliquary chest, faceted rune-marked crystal, simple colliders, shared materials, and floor-aligned chest pivot. No editor, asset bundle, or Jotunn dependency was introduced. Asset sources, provenance, and capture instructions are in `assets/README.md`.
+- Registered stable `EinherjarChest` and `EinherjarEssence` prefab IDs on the world server/client path. The chest has no vanilla Container or private inventory; interacting with a valid placed chest opens the existing shared window. The hammer recipe requires exactly one carried essence, no workbench, and no mundane ingredients. Pickup discovers the recipe. Its essence requirement is nonrecoverable for removal and damage destruction.
+- Added client/shared-resource and server RPC exclusion of essence without deleting legacy shared entries or changing the count protocol. Portal eligibility is false, and a Humanoid eligibility postfix plus the portal transition check enforce the restriction even for unrestricted portals. Administrative teleports remain available.
+- Captured and embedded actual-model 256 x 256 transparent PNGs. Visual inspection found and fixed selection of the vanilla snow shader and zero-alpha icon output; the development capture reconstructs alpha from two background renders. In-game hammer/recipe/pickup UI icons are visible and recognizable.
+- Guarded real-engine acceptance passed: registration, pickup, discovery, normal/unrestricted portal eligibility, hammer selection, original placement ghost, invalid placement preserving essence, valid terrain placement, exact local consumption, placed-chest shared interaction, and no refund through either WearNTear removal or damage. Both icon alpha masks are checked. The headless server-role run passed and generates no model/material/icon/camera resources. These checks use Valheim 1.0.20 / Unity 6000.0.75f1 in a separate local test copy, not a production save.
+- Production/testing builds pass 106 regressions, production protocol checks including legacy essence preservation and atomic batch rejection, eleven fault-harness checks, real game hook checks, and test-type inclusion/exclusion checks. Development capture/acceptance types and entry points are excluded from production.
+- The test copy remains at `SharedInventory-Test-Phase2` beneath this worktree, with its normal guarded `Launch-Test.cmd`, local `EinherjarAssets` character/world (UID `4232492362`), and detailed reports. Reproducible guarded testing is in `tools/Test-Assets.ps1`; complete evidence and limits are in `EINHERJAR-PHASE2-RESULTS.md`.
+- Next work is phase 3. Shared access remains unrestricted outside chests until coverage is implemented. No original-plaque trigger, ritual outcome, hidden timer, or phase 5 Testing buttons are claimed. Dedicated-executable and remote multiplayer acceptance remains in phase 6; the phase 2 headless proof uses the installed game runtime with `-batchmode -nographics` and server role enabled.
 
 ## Acceptance checks
 
@@ -236,7 +248,7 @@ The current optimistic shared crafting behavior is unchanged for ordinary ingred
 
 ## Remaining gameplay critique
 
-Revalidated on 2026-10-24 against the repository, installed game/editor, and official Unity/Jotunn documentation. The mechanics are feasible; the combined feature is moderate implementation work rather than just a recipe/UI change. The main uncertain work is final asset appearance, game-compatible effects/materials, and remote ownership/death synchronization. No ritual, model, icon, or multiplayer acceptance prototype exists yet; the earlier successful regression/build results concern the existing mod and rename.
+Revalidated on 2026-10-24 against the repository, installed game/editor, and official Unity/Jotunn documentation. Phase 2 has since proved the original procedural models, embedded icons, and content path in-game; see its completion record. Ritual effects, remote ownership/death synchronization, and full multiplayer acceptance remain unimplemented/unverified. The combined feature is moderate implementation work rather than just a recipe/UI change.
 
 - This deliberately makes the repeat rule a hidden punishment. A thematic warning can make the danger legible, but players cannot know precisely when it becomes safe from in-game feedback. That is an intentional exception to the original goal that mechanisms be obvious.
 - Gathering at spawn plus physical, nonportal essence restores travel to establish access. Once bases have chests, goods still move instantly between them. The design preserves expansion travel rather than routine hauling between established bases.
