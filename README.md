@@ -34,7 +34,7 @@ The host's player uses the same RPCs and worker queue as remote players. There i
 
 ## Build
 
-Requires a .NET 8 SDK or newer, Valheim, and BepInEx 5. References come from your game installation and BepInEx profile; no game DLLs are distributed with this source.
+Requires a .NET 8 SDK, Valheim, and BepInEx 5. References come from your game installation and BepInEx profile; no game DLLs are distributed with this source.
 
 From Windows PowerShell in this folder:
 
@@ -44,6 +44,8 @@ From Windows PowerShell in this folder:
 ```
 
 If BepInEx is inside your Valheim installation, omit `-BepInExDir`. The script runs regression tests, builds the mod, and packages `dist/EinherjarChest.zip`. Copy the DLL to `BepInEx/plugins/SharedInventory/` on the server and all clients. No other DLLs from the build references should be copied.
+
+The build and load-test scripts automatically select a stable .NET 8 SDK, checking PATH, `DOTNET_ROOT` / `DOTNET_ROOT_X64`, repository-local `.tools/dotnet` and `.work/dotnet` installations, and standard Windows installation locations. They print the selected SDK and path. Use `-Dotnet '<SDK installation>\dotnet.exe'` to select another installation. If none is compatible, they stop with setup instructions. The repository's `global.json` permits newer .NET 8 feature bands and patches; the shipped mod still targets `netstandard2.1`.
 
 From Linux/WSL with a Linux .NET SDK, run:
 

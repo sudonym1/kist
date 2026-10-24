@@ -106,7 +106,7 @@ The runner needs game assemblies and a .NET 8 SDK, but does not launch Valheim, 
 .\tools\Run-LoadTests.ps1 -Scenario slow-network -ValheimDir '<game>' -BepInExDir '<BepInEx>'
 ```
 
-Use `-Dotnet '<standalone SDK>\dotnet.exe'` if the SDK is not on PATH. Reports default to `.work/load-reports`. To compare another run against a saved report, use `-Scenario baseline -Baseline '<report.json>'`. `MaxBaselineRatio` in the scenario controls the permitted p95 ratio. The runner returns a nonzero exit code for invariant, unexpected error, unresolved-operation, or configured threshold failures.
+The runner uses the same automatic .NET 8 SDK selection as `build.ps1`; use `-Dotnet '<standalone SDK>\dotnet.exe'` to select an installation explicitly. Reports default to `.work/load-reports`. To compare another run against a saved report, use `-Scenario baseline -Baseline '<report.json>'`. `MaxBaselineRatio` in the scenario controls the permitted p95 ratio. The runner returns a nonzero exit code for invariant, unexpected error, unresolved-operation, or configured threshold failures.
 
 | Preset | Workload |
 | --- | --- |
