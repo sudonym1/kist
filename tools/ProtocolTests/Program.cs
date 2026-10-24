@@ -23,7 +23,6 @@ internal static class Program
             if (args.Length == 3 && args[0] == "--verify-harness") return PatchChecks.CheckHarness(args[1], bool.Parse(args[2]));
             if (args.Length == 3) return PatchChecks.Run(args[0], args[1], args[2]);
             ProtocolChecks();
-            AccessChecks.Run();
             return EssenceChecks();
         }
         catch (Exception error)

@@ -1,5 +1,7 @@
 # Einherjar phase 2 evidence
 
+Historical phase 2 asset/content evidence. Chest access is now implemented as a fixed 100-metre client-side check against loaded chests only; unloading removes coverage and client loading settings may reduce usable range. The current implementation and verification are in EINHERJAR-PHASE3-RESULTS.md. Later-phase statements below describe the state at phase 2 completion.
+
 Completed 2026-10-24. The first incomplete handoff phase was the asset/content
 path. Phase 3 access coverage is next. Rebased onto local main at `c202f74`.
 The existing main-branch inventory-window theme is retained. PLAN.md is unchanged.
@@ -81,8 +83,8 @@ The normal/testing packages are `dist/EinherjarChest.zip` and
 
 ## Scope left for later phases
 
-Shared access still works outside chests until phase 3 implements authoritative
-coverage. The original plaque trigger, gathering/countdown, ritual outcomes,
+At phase 2 completion, access was unrestricted; phase 3 has since implemented
+loaded-only client access as described above. The original plaque trigger, gathering/countdown, ritual outcomes,
 hidden timer, and phase 5 test buttons are not implemented. Original-circle
 calibration, separate dedicated-executable deployment, two-client construction,
 and full multiplayer/portal acceptance remain in their later phases. This

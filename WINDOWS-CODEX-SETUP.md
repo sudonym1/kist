@@ -127,17 +127,9 @@ Use a few newly created test items, such as wood, coal, and an iron sword. Depos
 
 ## Leave the environment ready for manual testing
 
-Relaunch with `Launch-Test.cmd` and load the new test character/world. Press **F8** and confirm entries such as:
+Relaunch with `Launch-Test.cmd` and load the new test character/world. Place an Einherjar Chest with the hammer before testing shared inventory actions. The isolated helper's free-build mode can supply a test chest without ingredients; disable FreeBuild and supply one carried test essence when checking real construction costs. Shared actions require a valid chest loaded on that client within a fixed 100 metres. Client loading settings may reduce usable range, and an unloaded chest grants no access. There is no radius setting or server chest registry.
 
-| Item prefab | Initial count |
-| --- | ---: |
-| Coal | 119 |
-| SwordIron | 2 |
-| Eitr | 101 |
-| Coins | 3,630 |
-| Wood | 1,247 |
-
-The seed has 385 item types and 32,470 total units. Each prefab appears as one row. Some names are localized. Report any prefab the installed client cannot resolve; do not silently remove it from the seed.
+Stand near the loaded chest, press **F3** (the default key), and confirm that the deposited test items have the quantities you recorded.
 
 If performing a smoke test, verify withdrawal of one coal and then one normal stack, Alt-click deposits, a single iron sword per withdrawal, and blocked withdrawal with a full inventory. Restore test stock through normal deposits. Check save persistence after a normal exit/relaunch. Do not describe a capacity-race mock test as a real network-latency test.
 

@@ -8,15 +8,13 @@ using UnityEngine;
 
 namespace SharedInventory;
 
-[BepInPlugin(Guid, "Einherjar Chest", "0.4.2")]
+[BepInPlugin(Guid, "Einherjar Chest", "0.4.3")]
 public sealed class Plugin : BaseUnityPlugin
 {
     public const string Guid = "local.sharedinventory";
     internal static Plugin? Instance;
     private Harmony harmony = null!;
     private ConfigEntry<KeyCode> toggleKey = null!;
-    private ConfigEntry<float> chestRadius = null!;
-    private ChestAccess? access;
     private ChestRadiusVisual? radiusVisual;
     private string accessStatus = "";
     private float nextAccessStatus;
@@ -53,9 +51,6 @@ public sealed class Plugin : BaseUnityPlugin
     {
         Instance = this;
         toggleKey = Config.Bind("Client", "ToggleKey", KeyCode.F3, "Open shared inventory within an Einherjar Chest's coverage.");
-        chestRadius = Config.Bind("Server", "SharedChestRadiusMeters", 100f,
-            "Shared access radius in metres (inclusive 3D distance). Server-owned; finite and positive.");
-        chestRadius.SettingChanged += (_, __) => access?.Configure(chestRadius.Value);
 #if SHAREDINVENTORY_TESTING
         testPanel = TestPanel.Create(Config, Logger);
 #endif
@@ -67,14 +62,12 @@ public sealed class Plugin : BaseUnityPlugin
     {
         if (ZRoutedRpc.instance == null || ReferenceEquals(router, ZRoutedRpc.instance)) return;
         api?.Stop();
-        access?.Stop();
         radiusVisual?.Dispose();
 #if SHAREDINVENTORY_TESTING
         testPanel?.Detach();
 #endif
         window?.Dispose();
         router = ZRoutedRpc.instance;
-        access = new ChestAccess(router, Logger, chestRadius.Value);
         radiusVisual = new ChestRadiusVisual();
         api = new RpcApi(router, Logger,
             reply => client?.OnList(reply),
@@ -98,13 +91,11 @@ public sealed class Plugin : BaseUnityPlugin
 
     private void Update()
     {
-        access?.Update();
         radiusVisual?.Update();
         if (Time.unscaledTime >= nextAccessStatus)
         {
             nextAccessStatus = Time.unscaledTime + .25f;
-            accessStatus = ChestAccess.CanAccess ? "Einherjar: shared access" :
-                access?.Ready == true ? "Einherjar: outside chest coverage" : "Einherjar: synchronizing chests";
+            accessStatus = ChestAccess.CanAccess ? "Einherjar: shared access" : "Einherjar: no loaded chest within range";
         }
         api?.Pump();
         client?.MaintainRefresh();
@@ -135,11 +126,11 @@ public sealed class Plugin : BaseUnityPlugin
     private void OnGUI()
     {
         window?.Draw();
-        if (Player.m_localPlayer != null && !Player.m_localPlayer.IsDead() && !WindowOpen && access != null)
+        if (Player.m_localPlayer != null && !Player.m_localPlayer.IsDead() && !WindowOpen && client != null)
         {
             GUI.Label(new Rect(12, Screen.height - 32, 330, 24), accessStatus);
             if (radiusVisual?.Visible == true)
-                GUI.Label(new Rect(12, Screen.height - 56, 330, 24), "Shared radius: " + access.Radius.ToString("0.##") + " m (sphere)");
+                GUI.Label(new Rect(12, Screen.height - 56, 330, 24), "Shared radius: 100 m (loaded chests only)");
         }
     }
     private void LateUpdate() => api?.Pump();
@@ -147,9 +138,8 @@ public sealed class Plugin : BaseUnityPlugin
     private void ResetSession()
     {
         api?.Stop();
-        access?.Stop(); access = null;
+        ChestAccess.Clear();
         radiusVisual?.Dispose(); radiusVisual = null;
-        ChestAccess.WorldStarted = false;
 #if SHAREDINVENTORY_TESTING
         testPanel?.Detach();
 #endif

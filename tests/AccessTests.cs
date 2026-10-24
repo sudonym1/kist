@@ -5,40 +5,60 @@ using SharedInventory;
 
 internal static partial class Program
 {
+    private static SharedChest LoadedChest(float x = 0, float y = 0, float z = 0, bool valid = true)
+    {
+        var instance = new GameObject();
+        instance.Attach(new ZNetView { Valid = valid });
+        var chest = instance.Attach(new SharedChest());
+        chest.transform.position = new UnityEngine.Vector3(x, y, z);
+        ChestAccess.Register(chest);
+        return chest;
+    }
+
     private static void AccessTests()
     {
-        Test("Coverage fails closed until ready and includes exact 3D boundary", () =>
+        Test("Only loaded chests grant inclusive 100-metre 3D coverage", () =>
         {
-            var map = new ChestCoverage<int>();
-            map.Upsert(1, new ChestPoint(0, 0, 0));
-            Equal(false, map.Covers(new ChestPoint(0, 0, 0)));
-            map.Ready = true;
-            Equal(true, map.Covers(new ChestPoint(60, 80, 0)));
-            Equal(false, map.Covers(new ChestPoint(60, 80.001f, 0)));
-            Equal(true, map.Covers(new ChestPoint(0, -100, 0)));
-            Equal(false, map.Covers(new ChestPoint(0, 100.001f, 0)));
+            ChestAccess.Clear();
+            Equal(false, ChestAccess.Covers(new UnityEngine.Vector3()));
+            LoadedChest();
+            Equal(true, ChestAccess.Covers(new UnityEngine.Vector3(60, 80, 0)));
+            Equal(false, ChestAccess.Covers(new UnityEngine.Vector3(60, 80.001f, 0)));
+            Equal(true, ChestAccess.Covers(new UnityEngine.Vector3(0, -100, 0)));
+            Equal(false, ChestAccess.Covers(new UnityEngine.Vector3(0, 100.001f, 0)));
         });
-        Test("Overlapping and unloaded positions preserve access until final destruction", () =>
+        Test("Unloading removes coverage and reloading restores it without a snapshot", () =>
         {
-            var map = new ChestCoverage<int> { Ready = true };
-            map.Upsert(1, new ChestPoint(0, 0, 0)); map.Upsert(2, new ChestPoint(50, 0, 0));
-            Equal(true, map.Covers(new ChestPoint(25, 0, 0)));
-            map.Remove(1); Equal(true, map.Covers(new ChestPoint(25, 0, 0)));
-            Equal(false, map.Upsert(2, new ChestPoint(50, 0, 0)));
-            map.Upsert(2, new ChestPoint(500, 0, 0)); Equal(false, map.Covers(new ChestPoint(25, 0, 0)));
-            map.Remove(2); Equal(0, map.Positions.Count);
+            ChestAccess.Clear();
+            var first = LoadedChest(); var second = LoadedChest(50);
+            ChestAccess.Unregister(first); Equal(true, ChestAccess.CanAccess);
+            ChestAccess.Unregister(second); Equal(false, ChestAccess.CanAccess);
+            ChestAccess.Register(second); Equal(true, ChestAccess.CanAccess);
+            second.transform.position = new UnityEngine.Vector3(500, 0, 0);
+            Equal(false, ChestAccess.CanAccess); // Current transform, no cached position.
+            ChestAccess.Clear(); Equal(false, ChestAccess.Covers(second.transform.position));
         });
-        Test("Coverage validates configuration and rejects nonfinite positions", () =>
+        Test("Placement ghosts inactive and invalid chests never grant access", () =>
         {
-            foreach (var radius in new[] { 0f, -1f, float.NaN, float.PositiveInfinity, float.NegativeInfinity })
-                Equal(false, ChestPoint.ValidRadius(radius));
-            var map = new ChestCoverage<int> { Ready = true };
-            map.SetRadius(25); map.Upsert(1, new ChestPoint(0, 0, 0));
-            Equal(true, map.Covers(new ChestPoint(25, 0, 0)));
-            Equal(false, map.Covers(new ChestPoint(25.01f, 0, 0)));
-            Equal(false, map.Covers(new ChestPoint(float.NaN, 0, 0)));
-            map.Upsert(1, new ChestPoint(float.PositiveInfinity, 0, 0));
-            Equal(0, map.Positions.Count);
+            ChestAccess.Clear();
+            var chest = LoadedChest(valid: false); Equal(false, ChestAccess.CanAccess);
+            var view = chest.GetComponent<ZNetView>()!; view.Valid = true;
+            chest.isActiveAndEnabled = false; Equal(false, ChestAccess.CanAccess);
+            chest.isActiveAndEnabled = true; chest.gameObject.activeInHierarchy = false;
+            Equal(false, ChestAccess.CanAccess);
+            chest.gameObject.activeInHierarchy = true; Equal(true, ChestAccess.CanAccess);
+            chest.transform.position = new UnityEngine.Vector3(float.NaN, 0, 0); Equal(false, ChestAccess.CanAccess);
+        });
+        Test("Local access follows player life position and overlap without multiplying stock", () =>
+        {
+            var (client, _) = Setup("Wood", 10);
+            LoadedChest(50); Equal(10L, client.Available("Wood"));
+            Player.m_localPlayer.transform.position = new UnityEngine.Vector3(151, 0, 0);
+            Equal(0L, client.Available("Wood"));
+            Player.m_localPlayer.transform.position = new UnityEngine.Vector3(50, 0, 0);
+            Equal(10L, client.Available("Wood"));
+            Player.m_localPlayer.Dead = true; Equal(false, ChestAccess.CanAccess);
+            Player.m_localPlayer = null!; Equal(false, ChestAccess.CanAccess);
         });
         Test("All new shared requests fail outside coverage while carried resources remain usable", () =>
         {

@@ -14,6 +14,8 @@ internal static partial class Program
     {
         ObjectDB.instance = new ObjectDB();
         Player.m_localPlayer = new Player();
+        ChestAccess.Clear();
+        LoadedChest(); // Existing gameplay regressions run with local access.
         ItemDrop.Dropped.Clear();
         Game.m_worldLevel = 0;
         action();

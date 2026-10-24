@@ -1,5 +1,7 @@
 # Handoff plan: recover from lost inventory refresh replies
 
+Historical refresh-recovery handoff. Current gameplay access is defined in EINHERJAR-HANDOFF.md: a fixed 100-metre client-side check against loaded Einherjar Chests only, with lower effective range from client loading settings accepted. There is no server chest registry, access RPC, or radius setting. Repeat the refresh acceptance steps below while a valid chest is loaded within range; the guarded Testing tab remains reachable without one. Historical execution records and counts below describe their original versions.
+
 Status: recovery fix implemented; automated validation and isolated host refresh acceptance passed. Crafting-failure overlap and remote multiplayer remain untested in-game.
 Prepared: 2026-10-23.
 Repository: `C:\Users\seamu\source\repos\SharedInventory`.
