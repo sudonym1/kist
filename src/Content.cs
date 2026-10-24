@@ -212,7 +212,8 @@ public sealed class SharedChest : MonoBehaviour, Hoverable, Interactable
 {
     public float GetHoverOffset() => .7f;
     public string GetHoverName() => Localization.instance.Localize("$piece_einherjarchest");
-    public string GetHoverText() => Localization.instance.Localize("$piece_einherjarchest\n[<color=yellow><b>$KEY_Use</b></color>] $einherjar_open");
+    public string GetHoverText() => Localization.instance.Localize("$piece_einherjarchest\n[<color=yellow><b>$KEY_Use</b></color>] $einherjar_open") +
+        "\nShared access radius: " + (ChestAccess.Current?.Radius ?? 100).ToString("0.##") + " m (sphere)";
     public bool Interact(Humanoid user, bool hold, bool alt)
     {
         if (hold || user != Player.m_localPlayer || GetComponent<ZNetView>()?.IsValid() != true) return false;

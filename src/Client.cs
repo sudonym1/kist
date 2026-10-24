@@ -16,6 +16,7 @@ internal sealed class Client
 
     private readonly RpcApi api;
     private readonly Func<double> clock;
+    private readonly Func<bool> canAccess;
     private readonly Dictionary<long, Pending> pending = new Dictionary<long, Pending>();
     private long nextRequest;
     private long listRequest;
@@ -24,6 +25,7 @@ internal sealed class Client
     private int refreshFailures;
     private bool refreshDemand;
     private bool refreshAgain;
+    private bool recoveryDemand;
     private readonly Dictionary<long, Dictionary<string, long>> batches = new Dictionary<long, Dictionary<string, long>>();
     private readonly Dictionary<string, long> latestTotals = new Dictionary<string, long>(StringComparer.Ordinal);
     public Dictionary<string, long> Counts { get; private set; } = new Dictionary<string, long>(StringComparer.Ordinal);
@@ -40,17 +42,20 @@ internal sealed class Client
     public double LastSnapshotAt { get; private set; }
 #endif
     public bool Ready => api.Connected && Player.m_localPlayer != null && !Player.m_localPlayer.IsDead();
+    public bool CanAccessSharedInventory => Ready && canAccess();
 
-    public long Available(string item) => ContentIds.CanShare(item) && Counts.TryGetValue(item, out var count) ? count : 0;
+    private long CachedAvailable(string item) => ContentIds.CanShare(item) && Counts.TryGetValue(item, out var count) ? count : 0;
+    public long Available(string item) => CanAccessSharedInventory ? CachedAvailable(item) : 0;
 
     public Client(RpcApi api) : this(api, () => (double)System.Diagnostics.Stopwatch.GetTimestamp() /
         System.Diagnostics.Stopwatch.Frequency) { }
 
-    public Client(RpcApi api, Func<double> clock) { this.api = api; this.clock = clock; }
+    public Client(RpcApi api, Func<double> clock, Func<bool>? canAccess = null)
+    { this.api = api; this.clock = clock; this.canAccess = canAccess ?? (() => ChestAccess.CanAccess); }
 
     public void Refresh(bool sharedWindow, bool craftingMenu, bool hammerMenu, bool stationInput = false)
     {
-        var active = sharedWindow || craftingMenu || hammerMenu || stationInput;
+        var active = CanAccessSharedInventory && (sharedWindow || craftingMenu || hammerMenu || stationInput);
         ExpireRefresh();
         if (active && clock() >= nextList) TryList(false);
     }
@@ -59,6 +64,7 @@ internal sealed class Client
     // window uses the same path without bypassing automatic recovery backoff.
     public void List(bool manual = true)
     {
+        if (!CanAccessSharedInventory) return;
         ExpireRefresh();
         refreshDemand = true;
         if (Listing) return;
@@ -80,6 +86,7 @@ internal sealed class Client
 
     private void RetireRefresh(string reason)
     {
+        if (refreshDemand) recoveryDemand = true;
 #if SHAREDINVENTORY_TESTING
         api.Testing?.ExpireRefresh(listRequest, reason);
 #endif
@@ -92,7 +99,7 @@ internal sealed class Client
 
     private void TryList(bool manual)
     {
-        if (!Ready || Listing || (!manual && clock() < retryAt)) return;
+        if (!Ready || (!CanAccessSharedInventory && !recoveryDemand) || Listing || (!manual && clock() < retryAt)) return;
         var now = clock();
         nextList = now + 2;
         listRequest = ++nextRequest;
@@ -108,6 +115,7 @@ internal sealed class Client
 
     private void RefreshAfterFailure()
     {
+        recoveryDemand = true;
         refreshDemand = true;
         if (Listing) refreshAgain = true;
         else TryList(false);
@@ -117,7 +125,7 @@ internal sealed class Client
     // immediate action cannot spend the same cached materials again.
     public void Consume(Dictionary<string, long> amounts)
     {
-        if (amounts.Count == 0 || !Ready) return;
+        if (amounts.Count == 0 || !CanAccessSharedInventory) return;
         foreach (var item in amounts.Keys)
             if (!ContentIds.CanShare(item)) { Status = "Einherjar Essence must be carried."; return; }
         var id = ++nextRequest;
@@ -148,6 +156,7 @@ internal sealed class Client
     public void Deposit(ItemDrop.ItemData item)
     {
         if (!Ready || Busy || item.m_dropPrefab == null) return;
+        if (!CanAccessSharedInventory) { DenyAccess(); return; }
         if (!ContentIds.CanShare(Items.Id(item))) { Status = "Einherjar Essence cannot enter shared storage."; return; }
         var player = Player.m_localPlayer;
         var inventory = player.GetInventory();
@@ -170,6 +179,7 @@ internal sealed class Client
     public void Withdrawal(string itemId, bool stack)
     {
         if (!Ready || Busy) return;
+        if (!CanAccessSharedInventory) { DenyAccess(); return; }
         if (!ContentIds.CanShare(itemId)) { Status = "Einherjar Essence cannot leave legacy shared storage."; return; }
         var item = Items.Default(itemId, Quality(itemId));
         if (item == null)
@@ -217,7 +227,7 @@ internal sealed class Client
             foreach (var pair in latestTotals)
             {
                 if (pair.Value <= reply.RequestId) continue;
-                reply.Items[pair.Key] = Available(pair.Key);
+                reply.Items[pair.Key] = CachedAvailable(pair.Key);
                 reply.Qualities[pair.Key] = Quality(pair.Key);
             }
             foreach (var batch in batches)
@@ -246,6 +256,7 @@ internal sealed class Client
         retryAt = 0;
         RefreshStatus = "";
         refreshDemand = refreshAgain;
+        recoveryDemand = refreshAgain;
         if (refreshDemand) TryList(false);
     }
 
@@ -328,5 +339,11 @@ internal sealed class Client
         if (count == 0) { Counts.Remove(item); Qualities.Remove(item); }
         else { Counts[item] = count; Qualities[item] = quality; }
         Version++;
+    }
+
+    private void DenyAccess()
+    {
+        Status = ChestAccess.Unavailable;
+        Player.m_localPlayer?.Message(MessageHud.MessageType.Center, Status);
     }
 }

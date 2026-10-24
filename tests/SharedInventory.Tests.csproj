@@ -13,6 +13,7 @@
     <Compile Include="../src/DatabaseFile.cs" Link="DatabaseFile.cs" />
     <Compile Include="../src/CountDatabase.cs" Link="CountDatabase.cs" />
     <Compile Include="../src/Client.cs" Link="Client.cs" />
+    <Compile Include="../src/ChestCoverage.cs" Link="ChestCoverage.cs" />
     <Compile Include="../src/Items.cs" Link="Items.cs" />
     <Compile Include="../src/ContentIds.cs" Link="ContentIds.cs" />
     <Compile Include="../src/Replies.cs" Link="Replies.cs" />

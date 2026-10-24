@@ -48,6 +48,7 @@ try {
     Copy-Item (Join-Path $PSScriptRoot "TESTING.md") $package
     Copy-Item (Join-Path $PSScriptRoot "EINHERJAR-HANDOFF.md") $package
     Copy-Item (Join-Path $PSScriptRoot "EINHERJAR-PHASE2-RESULTS.md") $package
+    Copy-Item (Join-Path $PSScriptRoot "EINHERJAR-PHASE3-RESULTS.md") $package
     New-Item -ItemType Directory -Force -Path (Join-Path $package 'assets') | Out-Null
     Copy-Item (Join-Path $PSScriptRoot 'assets/README.md') (Join-Path $package 'assets/README.md')
     Compress-Archive -Path (Join-Path $package "*") `

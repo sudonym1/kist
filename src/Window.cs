@@ -407,7 +407,8 @@ internal sealed class Window : IDisposable
     private void DrawFooter()
     {
         Fill(new Rect(18, height - 51, Width - 36, 1), new Color(0.27f, 0.24f, 0.17f));
-        var status = client.Status.Length > 0 ? client.Status : rows.Count.ToString(CultureInfo.CurrentCulture) + " item types";
+        var status = !client.CanAccessSharedInventory ? ChestAccess.Unavailable :
+            client.Status.Length > 0 ? client.Status : rows.Count.ToString(CultureInfo.CurrentCulture) + " item types";
         GUI.Label(new Rect(18, height - 47, Width - 116, 21), new GUIContent(status, status), statusStyle);
         GUI.Label(new Rect(32, height - 26, Width - 140, 16), "ALT-CLICK TO DEPOSIT    /    F3 OR ESC TO CLOSE", hintStyle);
 #if SHAREDINVENTORY_TESTING
@@ -470,7 +471,7 @@ internal sealed class Window : IDisposable
             if (row.Icon != null) DrawIcon(new Rect(6, y + 4, 32, 32), row.Icon);
             GUI.Label(new Rect(46, y + 4, countX - 51, 32), new GUIContent(row.Name, row.Name + " (" + row.Id + ")"));
             GUI.Label(new Rect(countX, y + 4, 72, 32), new GUIContent(row.Count, row.Count), countStyle);
-            GUI.enabled = client.Ready && !client.Busy && row.Stack > 0;
+            GUI.enabled = client.CanAccessSharedInventory && !client.Busy && row.Stack > 0;
             if (GUI.Button(new Rect(actionsX, y + 6, 30, 28), "1")) client.Withdrawal(row.Id, false);
             if (GUI.Button(new Rect(actionsX + 35, y + 6, 53, 28), "Stack")) client.Withdrawal(row.Id, true);
             GUI.enabled = true;

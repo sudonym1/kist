@@ -8,13 +8,18 @@ using UnityEngine;
 
 namespace SharedInventory;
 
-[BepInPlugin(Guid, "Einherjar Chest", "0.4.1")]
+[BepInPlugin(Guid, "Einherjar Chest", "0.4.2")]
 public sealed class Plugin : BaseUnityPlugin
 {
     public const string Guid = "local.sharedinventory";
     internal static Plugin? Instance;
     private Harmony harmony = null!;
     private ConfigEntry<KeyCode> toggleKey = null!;
+    private ConfigEntry<float> chestRadius = null!;
+    private ChestAccess? access;
+    private ChestRadiusVisual? radiusVisual;
+    private string accessStatus = "";
+    private float nextAccessStatus;
     private ZRoutedRpc? router;
     private RpcApi? api;
     private Client? client;
@@ -27,12 +32,30 @@ public sealed class Plugin : BaseUnityPlugin
     internal static StationInventory? StationItems { get; private set; }
     internal static StationShortcuts? Shortcuts { get; private set; }
     internal static bool WindowOpen => Instance?.window?.Visible == true;
-    internal void OpenChest() { if (!WindowOpen) window?.Toggle(); }
+    internal void OpenChest() { if (!WindowOpen) ToggleWindow(); }
+
+    private void ToggleWindow()
+    {
+        if (WindowOpen) { window?.Close(); return; }
+        if (!ChestAccess.CanAccess)
+        {
+            Player.m_localPlayer?.Message(MessageHud.MessageType.Center, ChestAccess.Unavailable);
+#if SHAREDINVENTORY_TESTING
+            // An explicitly guarded test session must be usable before a chest exists.
+            if (testPanel != null) window?.Toggle();
+#endif
+            return;
+        }
+        window?.Toggle();
+    }
 
     private void Awake()
     {
         Instance = this;
-        toggleKey = Config.Bind("Client", "ToggleKey", KeyCode.F3, "Open shared inventory from anywhere.");
+        toggleKey = Config.Bind("Client", "ToggleKey", KeyCode.F3, "Open shared inventory within an Einherjar Chest's coverage.");
+        chestRadius = Config.Bind("Server", "SharedChestRadiusMeters", 100f,
+            "Shared access radius in metres (inclusive 3D distance). Server-owned; finite and positive.");
+        chestRadius.SettingChanged += (_, __) => access?.Configure(chestRadius.Value);
 #if SHAREDINVENTORY_TESTING
         testPanel = TestPanel.Create(Config, Logger);
 #endif
@@ -44,11 +67,15 @@ public sealed class Plugin : BaseUnityPlugin
     {
         if (ZRoutedRpc.instance == null || ReferenceEquals(router, ZRoutedRpc.instance)) return;
         api?.Stop();
+        access?.Stop();
+        radiusVisual?.Dispose();
 #if SHAREDINVENTORY_TESTING
         testPanel?.Detach();
 #endif
         window?.Dispose();
         router = ZRoutedRpc.instance;
+        access = new ChestAccess(router, Logger, chestRadius.Value);
+        radiusVisual = new ChestRadiusVisual();
         api = new RpcApi(router, Logger,
             reply => client?.OnList(reply),
             reply => client?.OnDeposit(reply),
@@ -71,12 +98,21 @@ public sealed class Plugin : BaseUnityPlugin
 
     private void Update()
     {
+        access?.Update();
+        radiusVisual?.Update();
+        if (Time.unscaledTime >= nextAccessStatus)
+        {
+            nextAccessStatus = Time.unscaledTime + .25f;
+            accessStatus = ChestAccess.CanAccess ? "Einherjar: shared access" :
+                access?.Ready == true ? "Einherjar: outside chest coverage" : "Einherjar: synchronizing chests";
+        }
         api?.Pump();
         client?.MaintainRefresh();
 #if SHAREDINVENTORY_TESTING
         testPanel?.Update();
         if (testPanel != null) AssetCapture.Update();
         if (testPanel != null) ContentAcceptance.Update(this);
+        if (testPanel != null) AccessAcceptance.Update(this);
 #endif
         // Read the same input backend as Valheim. Track held-key edges so the
         // game's manual input updates cannot clear a press before our Update.
@@ -89,7 +125,7 @@ public sealed class Plugin : BaseUnityPlugin
         }
         switch (input)
         {
-            case WindowInput.Action.Toggle: window?.Toggle(); break;
+            case WindowInput.Action.Toggle: ToggleWindow(); break;
             case WindowInput.Action.Close: window?.Close(); break;
         }
         client?.Refresh(WindowOpen, InventoryGui.IsVisible(), Hud.IsPieceSelectionVisible(),
@@ -99,12 +135,21 @@ public sealed class Plugin : BaseUnityPlugin
     private void OnGUI()
     {
         window?.Draw();
+        if (Player.m_localPlayer != null && !Player.m_localPlayer.IsDead() && !WindowOpen && access != null)
+        {
+            GUI.Label(new Rect(12, Screen.height - 32, 330, 24), accessStatus);
+            if (radiusVisual?.Visible == true)
+                GUI.Label(new Rect(12, Screen.height - 56, 330, 24), "Shared radius: " + access.Radius.ToString("0.##") + " m (sphere)");
+        }
     }
     private void LateUpdate() => api?.Pump();
 
     private void ResetSession()
     {
         api?.Stop();
+        access?.Stop(); access = null;
+        radiusVisual?.Dispose(); radiusVisual = null;
+        ChestAccess.WorldStarted = false;
 #if SHAREDINVENTORY_TESTING
         testPanel?.Detach();
 #endif

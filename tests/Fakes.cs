@@ -177,13 +177,21 @@ public sealed class Player
     public UnityEngine.Transform transform = new UnityEngine.Transform();
     public Inventory GetInventory() => Inventory;
     public bool IsDead() => Dead;
+    public string MessageText = "";
+    public void Message(MessageHud.MessageType type, string message) => MessageText = message;
     public void UnequipItem(ItemDrop.ItemData item, bool effects) => item.m_equipped = false;
 }
 
 public static class Game { public static int m_worldLevel; }
+public static class MessageHud { public enum MessageType { Center } }
 
 namespace SharedInventory
 {
+    internal static class ChestAccess
+    {
+        internal static bool CanAccess = true;
+        internal const string Unavailable = "A nearby Einherjar Chest is required for shared access.";
+    }
     internal sealed class RpcApi
     {
         internal sealed class Call

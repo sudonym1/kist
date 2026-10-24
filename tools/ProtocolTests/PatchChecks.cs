@@ -6,10 +6,30 @@ using Mono.Cecil;
 
 internal static class PatchChecks
 {
+    private static void CheckAccessHooks(AssemblyDefinition game)
+    {
+        foreach (var (typeName, methodName, parameter) in new[]
+        {
+            ("ZNet", "Start", ""), ("ZDO", "SetPrefab", "System.Int32"),
+            ("ZDO", "Deserialize", "ZPackage"), ("ZDO", "InternalSetPosition", "UnityEngine.Vector3"),
+            ("ZDOMan", "HandleDestroyedZDO", "ZDOID")
+        })
+        {
+            var target = game.MainModule.Types.Single(type => type.Name == typeName).Methods.Single(method => method.Name == methodName);
+            if (target.IsStatic || target.ReturnType.FullName != "System.Void" ||
+                target.Parameters.Count != (parameter == "" ? 0 : 1) ||
+                (parameter != "" && target.Parameters[0].ParameterType.FullName != parameter))
+                throw new Exception("Chest registry hook changed: " + target.FullName);
+        }
+        var player = game.MainModule.Types.Single(type => type.Name == "Player");
+        if (player.Fields.Single(field => field.Name == "m_placementGhost").FieldType.FullName != "UnityEngine.GameObject")
+            throw new Exception("Chest radius placement-ghost field changed");
+        System.Console.WriteLine("PASS chest registry lifecycle and radius placement-ghost reflection signatures");
+    }
     public static int CheckHarness(string path, bool expected)
     {
         using var mod = AssemblyDefinition.ReadAssembly(path);
-        foreach (var name in new[] { "TestSettings", "TestHarness", "LabMetrics", "TestPanel", "AssetCapture", "ContentAcceptance" })
+        foreach (var name in new[] { "TestSettings", "TestHarness", "LabMetrics", "TestPanel", "AssetCapture", "ContentAcceptance", "AccessAcceptance" })
         {
             var present = mod.MainModule.Types.Any(type => type.FullName == "SharedInventory." + name);
             if (present != expected) throw new Exception("Test harness inclusion mismatch: " + name);
@@ -25,6 +45,7 @@ internal static class PatchChecks
         using var game = AssemblyDefinition.ReadAssembly(Path.Combine(managedPath, "assembly_valheim.dll"));
         using var utils = AssemblyDefinition.ReadAssembly(Path.Combine(managedPath, "assembly_utils.dll"));
         CheckWindowInput(mod, utils);
+        CheckAccessHooks(game);
         var hooks = mod.MainModule.Types.Single(type => type.FullName == "SharedInventory.Crafting");
         var replacements = new Dictionary<string, string>
         {

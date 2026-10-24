@@ -34,6 +34,8 @@ Clients use batches for resources already consumed by an immediate crafting/buil
 
 ## Client responsibilities
 
+New shared actions require a living local player inside the server-synchronized chest registry's coverage. Carried actions remain available outside it. `Client.Ready` describes connection/life readiness separately from `CanAccessSharedInventory`: callbacks must reconcile deposits, grants, and capacity returns even after coverage is lost. Cached counts remain stored while shared availability is zero outside coverage. Ordinary access-driven polling pauses there; failure reconciliation retains its existing backoff. Coverage does not change the v3 count wire format or turn its trusted-client mutation API into an anti-cheat boundary.
+
 - Alt-click removes the selected local stack and sends its prefab ID, amount, and quality through `Deposit`.
 - The UI aggregates by prefab ID. The highest quality is stored for the entire entry; other metadata is discarded.
 - The client chooses a withdrawal amount of one or one normal stack, limited to one for nonstackable items.
@@ -65,7 +67,15 @@ The withdrawal reply payload is a nested package encoded as a length-prefixed by
 
 An empty error string means success. An error reply ends immediately after the nonempty error string. Item IDs are never validated against a game prefab database on the server. Positive amounts and numeric overflow are database integrity checks, not gameplay limits.
 
-Packet construction, parsing, database operations, and file persistence run on an ordered worker. The main thread only registers/dispatches Valheim RPCs and applies completed results to the player's inventory or UI. No Unity or game-state methods are called by the worker; `ZPackage` uses its own managed memory stream and readers/writers.
+Count packet construction, parsing, database operations, and file persistence run on an ordered worker. The main thread registers/dispatches Valheim RPCs and applies completed results to the player's inventory or UI. Chest registry messages run separately on the main thread and never enter the database worker. No Unity or game-state methods are called by the worker; `ZPackage` uses its own managed memory stream and readers/writers.
+
+## Chest registry protocol
+
+`SharedInventory.Access.v1.Request` requests an initial or recovery snapshot, with an empty package. The server queues requests during its one-time incremental world-ZDO scan. Clients accept snapshots and changes only from their server; unavailable initialization, malformed messages, or revision gaps deny access until a complete snapshot arrives. A missing server/mod never grants unrestricted access.
+
+`Snapshot` and `Changes` use a header of `worldUID: Int64, revision: Int64, radiusMeters: Single`, followed by `entryCount: Int32`. Snapshot entries contain `chestID: ZDOID, x: Single, y: Single, z: Single`. Change entries contain `chestID: ZDOID, exists: Bool`, followed by the same three coordinates when present. Snapshots replace the registry atomically; changes increment its revision once per batch. Stale and duplicate changes are ignored. A new session requests a fresh snapshot instead of retaining another world's positions. Retry requests occur at five-second intervals only until initialization/recovery succeeds.
+
+Chest positions come from server ZDOs, including unloaded objects. Prefab assignment, deserialization, movement, and actual ZDO destruction update the registry. Scene unloading never removes a chest. Server radius changes travel in the same ordered revision stream. No anger state or ritual deadline is included. Typical chest counts use cached squared-distance comparisons; there are no ongoing world scans or idle registry RPCs.
 
 All peers must use v3. Legacy count-only saves load at quality 1 and are rewritten in the object format on the next dirty save. This change does not alter the existing save format.
 

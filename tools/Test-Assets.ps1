@@ -1,10 +1,13 @@
 param(
     [Parameter(Mandatory = $true)][string]$TestRoot,
     [ValidateSet('Review', 'Capture', 'Headless')][string]$Mode = 'Review',
+    [ValidateSet('Assets', 'Access')][string]$Suite = 'Assets',
+    [switch]$ExitAfter,
     [string]$Dotnet = ''
 )
 
 $ErrorActionPreference = 'Stop'
+if ($Suite -eq 'Access' -and $Mode -eq 'Capture') { throw 'Access tests support Review and Headless modes.' }
 $root = [IO.Path]::GetFullPath($TestRoot).TrimEnd([IO.Path]::DirectorySeparatorChar)
 $game = Join-Path $root 'game'
 $repo = Split-Path $PSScriptRoot -Parent
@@ -43,15 +46,23 @@ Copy-Item -LiteralPath (Join-Path $repo 'bin/Release/testing/netstandard2.1/Shar
 $arguments = '--doorstop-enabled true --doorstop-target-assembly "' + (Join-Path $game 'BepInEx/core/BepInEx.Preloader.dll') +
     '" -sharedinventory-test -savedir "' + (Join-Path $root 'saves') + '" -logFile "' + (Join-Path $root "asset-$Mode.log") + '" -console'
 switch ($Mode) {
-    'Review' { $arguments += ' -screen-fullscreen 0 -screen-width 1280 -screen-height 720 -einherjar-asset-tests -einherjar-capture-assets' }
+    'Review' {
+        $arguments += ' -screen-fullscreen 0 -screen-width 1280 -screen-height 720'
+        if ($Suite -eq 'Access') { $arguments += ' -einherjar-access-tests' }
+        else { $arguments += ' -einherjar-asset-tests -einherjar-capture-assets' }
+    }
     'Capture' { $arguments += ' -screen-fullscreen 0 -screen-width 1280 -screen-height 720 -einherjar-capture-assets -einherjar-exit-after-capture' }
-    'Headless' { $arguments += ' -batchmode -nographics -einherjar-asset-tests -einherjar-exit-after-assets' }
+    'Headless' {
+        $arguments += ' -batchmode -nographics'
+        if ($Suite -eq 'Access') { $arguments += ' -einherjar-access-tests -einherjar-exit-after-access' }
+        else { $arguments += ' -einherjar-asset-tests -einherjar-exit-after-assets' }
+    }
 }
 # The isolation helper independently validates these arguments and redirects all
-# saves. Review mode can be brought forward through its returned game window.
-if ($Mode -eq 'Review') {
-    $process = Start-Process -FilePath $executable -ArgumentList $arguments -WorkingDirectory $game -WindowStyle Normal -PassThru
-} else {
-    $process = Start-Process -FilePath $executable -ArgumentList $arguments -WorkingDirectory $game -WindowStyle Hidden -PassThru
+if ($ExitAfter) {
+    if ($Suite -eq 'Access') { $arguments += ' -einherjar-exit-after-access' }
+    else { $arguments += ' -einherjar-exit-after-assets' }
 }
+# saves. Review mode can be brought forward through its returned game window.
+$process = Start-Process -FilePath $executable -ArgumentList $arguments -WorkingDirectory $game -WindowStyle Hidden -PassThru
 Write-Output "Started guarded $Mode mode, PID $($process.Id). Reports and captures: $root"

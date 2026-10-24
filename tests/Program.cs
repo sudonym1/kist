@@ -48,6 +48,7 @@ internal static partial class Program
     {
         WindowInputTests();
         ContentTests();
+        AccessTests();
         Test("Database aggregates unstackable and stackable items without game rules", () =>
         {
             var db = new CountDatabase();

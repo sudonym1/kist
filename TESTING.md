@@ -126,6 +126,21 @@ Copy a JSON preset to define a custom scenario and pass its path as `-Scenario`.
 
 Reports compare each received reply and the final persisted inventory against an independent reference model in the actual server admission order. They include initial/final counts, rejected batches, unpaid shared-material units, unresolved operation IDs, queue maxima, throughput, p95 latency, and violations. `AllowUnresolved` permits intentional loss scenarios; unresolved operations remain listed. `Context.BeforeCleanup` captures workload state before the final validation barrier. The original scenario is retained in `Context.Scenario`; a seed reproduces workload/fault choices, while operating-system scheduling still affects timing and inter-peer ordering. Percentiles cover completed requests only; inspect unresolved counts alongside them.
 
+## Chest coverage acceptance
+
+Use an existing marked isolated copy with `[Testing] Enabled = true`, `Impairments = false`, and the isolation helper's `FreeBuild = false`. Close that copy before launching:
+
+```powershell
+.\tools\Test-Assets.ps1 -TestRoot '<isolated test root>' -Suite Access -Mode Headless
+.\tools\Test-Assets.ps1 -TestRoot '<isolated test root>' -Suite Access -Mode Review -ExitAfter
+```
+
+Supply `-Dotnet '<.NET 8 SDK>\dotnet.exe'` if needed. Run with access to the running Steam client. Both modes enforce the existing marker/savedir/runtime guard, use only the local `EinherjarAssets` test character/world, and write `access-headless-acceptance.txt` or `access-acceptance.txt` under the test root. The graphical mode also renders `access-radius-preview.png` from the actual world and placement sphere for visual review. Helpers launch hidden; `-ExitAfter` exits normally after reporting. Production contains no access acceptance helper.
+
+The first run leaves one marked persistent chest ZDO far from the test player, without spending a real player's essence. Subsequent runs verify that startup restores its unloaded coverage. Throwaway instances exercise actual prefab creation, natural scene unloading, ZDO movement/deserialization/destruction, exact 3D boundaries, configuration changes, and headless operation. Graphical checks cover live resource availability and the real hammer ghost's three-circle preview. They do not bypass the marked-directory guard or use production saves.
+
+Out-of-game tests cover overlaps, final-chest removal, carried crafting/machine behavior, stale shared selections, transfer completion/returns across range loss and death, cached-total reconciliation, and polling. Protocol tests run production registry code with real ZPackages and logical peers, covering queued snapshots, server-only configuration, malformed/stale/gapped updates, reconnect, and no idle scans or packets. Full host-plus-remote deployment remains phase 6 acceptance.
+
 ## Correctness checks and testing limits
 
 `build.ps1` runs the gameplay regression suite, production protocol checks, eleven deterministic fault-harness checks, game hook signature checks, and assembly isolation checks. Load presets are opt-in through the runner rather than part of every build. Virtual-clock tests compile the production Client and cover lost List requests/replies, deadlines, capped retry timing, manual overrides, closed menus, readiness loss, dispatch failures, error replies, retired snapshots, failure-triggered follow-ups, count/quality reconciliation, and uncertain mutations. The gameplay lab explicitly runs refresh maintenance on every virtual tick, including during death or disconnect. The protocol load runner substitutes logical peers and does not exercise this client state machine.
