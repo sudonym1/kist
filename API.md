@@ -78,3 +78,20 @@ Scene unloading immediately removes coverage; stored ZDO positions do not grant 
 All peers must use v3. Legacy count-only saves load at quality 1 and are rewritten in the object format on the next dirty save. This change does not alter the existing save format.
 
 Refresh recovery uses one monotonic client clock. Each List attempt has a ten-second deadline; expiry or loss of readiness retires its ID. Automatic retries wait 2, 4, 8, 16, then 30 seconds (capped), only while ready and polling or explicit/failure demand remains. Explicit and failure demand survives closed menus. Manual Refresh can bypass automatic backoff when idle; repeated requests coalesce and failures retain the backoff count. Success resets backoff. Only the current attempt may apply a snapshot; retired replies cannot alter counts, qualities, deadlines, or pending deductions. Timeout maintenance runs even without a living player or open menus. Dispatch exceptions and List errors also release the active attempt and back off. Transfers and ingredient batches are never replayed by this mechanism.
+
+## Ritual gathering protocol (0.4.4)
+
+These separate `ZRoutedRpc` endpoints run entirely on the main thread, each with one `ZPackage`. Every package begins with `worldUid: Int64`. The namespace is `SharedInventory.Ritual.v1.`; it does not change inventory v3 or add chest-access messages.
+
+| Suffix | Fields after world UID, in order |
+| --- | --- |
+| `Request` | `begin: Bool, plaque: ZDOID` |
+| `Probe` | `serverSession: String, ritualId: String, nonce: String, serverSent: Double` |
+| `Presence` | `serverSession: String, ritualId: String, nonce: String, serverSent: Double, clientTime: Double, character: ZDOID, unavailableReason: String, position: Vector3` |
+| `Display` | `serverSession: String, revision: Int64, ritualId: String, message: String, presence: String, serverTime: Double, echoedClientTime: Double, countdown: Bool, serverStart: Double` |
+
+Clients send requests to the world server. The server resolves the plaque's actual scene instance, stable Eikthyr prefab ID, expected authored position in the original loaded StartTemple, and the initiating character's reach. Location callbacks maintain the original-site candidates; no entity scan runs in the ritual's idle loop. Hover inspection is limited to once per second. Begin and inspect requests are rate limited independently.
+
+The server builds membership from connected peers plus a graphical hosting player, including unready/dead/loading players, without using map publicity. Character ZDO ownership, health/death, player identity, and position are checked. During validation/countdown, targeted probes at most four times per second also require the owning client's current character, spawn state, and position. Responses require the current world/session/ritual, an issued nonce, the current peer/character, and a monotonic age no greater than 1.25 seconds. Initial confirmations time out after 1.5 seconds. The captured peer/life roster must remain unchanged, and server validation runs again at commitment.
+
+Client displays accept only the world server and increasing revisions for the current endpoint session. Probe echoes estimate the offset between monotonic clocks using half a round trip; the server sends one five-second start schedule, with corrections carried by active probe responses. The display cannot count backwards, and cancellation revisions prevent delayed starts from restoring it. No per-frame network traffic, hidden deadline, anger state, death command, reward, or persistence is implemented here. Phase 4 hands one committed ritual ID and frozen roster to the future outcome handler, then returns idle. Network asymmetry can still shift remote presentation; phase 6 must measure real multiplayer timing. This remains trusted-client coordination, not server-owned movement or comprehensive anti-cheat.

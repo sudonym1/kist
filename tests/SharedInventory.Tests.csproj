@@ -14,6 +14,7 @@
     <Compile Include="../src/CountDatabase.cs" Link="CountDatabase.cs" />
     <Compile Include="../src/Client.cs" Link="Client.cs" />
     <Compile Include="../src/ChestAccess.cs" Link="ChestAccess.cs" />
+    <Compile Include="../src/RitualGathering.cs" Link="RitualGathering.cs" />
     <Compile Include="../src/Items.cs" Link="Items.cs" />
     <Compile Include="../src/ContentIds.cs" Link="ContentIds.cs" />
     <Compile Include="../src/Replies.cs" Link="Replies.cs" />
