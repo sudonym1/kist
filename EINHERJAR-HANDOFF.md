@@ -10,6 +10,10 @@ Replace unrestricted shared-inventory access with permanent, earned access point
 
 This document is the gameplay handoff. `PLAN.md` contains an earlier inventory-refresh recovery handoff and its verification evidence; preserve it. Its historical restriction against adding RPCs applied to that recovery task. This feature requires additional ritual, configuration, and chest-registry messages.
 
+## Implemented visual foundation
+
+The inventory window now uses the planned reliquary palette: dark charcoal timber, aged-gold frame and angular bindings, an amber crystal/rune emblem, and a larger serif title. It is fixed to the screen centre with a preferred size of 675 x 810 pixels, using a 1.5x UI scale. Controls, fonts, and icons scale together; item icons are 48 pixels at the preferred scale. Shorter screens shorten the list first, with scale reduction only when needed to fit the minimum panel. Legacy saved window positions are ignored and dragging is removed. The header has no tagline, and the full-width search field has no manual Refresh button; the existing automatic two-second refresh remains in use. The existing Testing tab uses the same enlarged, centered shell, with its switch in the footer. This is presentation work only: ritual, physical chest, essence, access gating, and new gameplay testing controls remain planned.
+
 ## Confirmed user requirements
 
 - The mod is named **Einherjar Chest**. The plugin display name, inventory-window title, assembly title/product metadata, package names, and current documentation use this name. Preserve `SharedInventory.dll`, the `local.sharedinventory` plugin ID, existing configuration/save paths, namespaces, and RPC identifiers for compatibility with installed versions and test launchers.

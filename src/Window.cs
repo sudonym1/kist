@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using BepInEx.Configuration;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -10,6 +9,12 @@ namespace SharedInventory;
 internal sealed class Window : IDisposable
 {
     private const string SearchControlName = "SharedInventorySearch";
+    private const float Width = 450;
+    private const float PreferredHeight = 540;
+    private const float PreferredScale = 1.5f;
+    private static readonly Color Gold = new Color(0.68f, 0.49f, 0.25f);
+    private static readonly Color PaleGold = new Color(0.94f, 0.79f, 0.49f);
+    private static readonly Color Muted = new Color(0.63f, 0.61f, 0.54f);
 
     private sealed class Row
     {
@@ -21,10 +26,10 @@ internal sealed class Window : IDisposable
     }
 
     private readonly Client client;
-    private readonly ConfigEntry<Vector2> savedPosition;
-    private bool positioned;
     private readonly List<Row> rows = new List<Row>();
     private Rect rect;
+    private float scale;
+    private float height;
     private Vector2 scroll;
     private string search = "";
     private bool focusSearch;
@@ -33,6 +38,18 @@ internal sealed class Window : IDisposable
     private GameObject? blocker;
     private RectTransform? blockerRect;
     private GUISkin? skin;
+    private Font? titleFont;
+    private GUIStyle titleStyle = null!;
+    private GUIStyle headingStyle = null!;
+    private GUIStyle countStyle = null!;
+    private GUIStyle hintStyle = null!;
+    private GUIStyle statusStyle = null!;
+    private GUIStyle emptyStyle = null!;
+    private GUIStyle tooltipStyle = null!;
+    private GUIStyle recoveryStyle = null!;
+    private Texture2D? crystal;
+    private Texture2D? risingLine;
+    private Texture2D? fallingLine;
     private readonly List<Texture2D> themeTextures = new List<Texture2D>();
     public bool Visible { get; private set; }
 #if SHAREDINVENTORY_TESTING
@@ -44,18 +61,14 @@ internal sealed class Window : IDisposable
         get
         {
             if (!Visible) return false;
-            ClampToScreen();
+            CenterOnScreen();
             var pointer = ZInput.pointerPosition;
             // Screen input starts at the bottom left; IMGUI starts at the top left.
             return rect.Contains(new Vector2(pointer.x, Screen.height - pointer.y));
         }
     }
 
-    public Window(Client client, ConfigEntry<Vector2> savedPosition)
-    {
-        this.client = client;
-        this.savedPosition = savedPosition;
-    }
+    public Window(Client client) => this.client = client;
 
     public void Toggle()
     {
@@ -64,18 +77,7 @@ internal sealed class Window : IDisposable
         scroll = Vector2.zero;
         focusSearch = true;
         Visible = true;
-        if (!positioned)
-        {
-            var width = Mathf.Min(450, Screen.width);
-            var height = Mathf.Min(540, Screen.height);
-            var position = savedPosition.Value;
-            if (position.x < 0 || position.y < 0 || float.IsNaN(position.x) || float.IsNaN(position.y) ||
-                float.IsInfinity(position.x) || float.IsInfinity(position.y))
-                position = new Vector2((Screen.width - width) / 2, (Screen.height - height) / 2);
-            rect = new Rect(position.x, position.y, width, height);
-            positioned = true;
-        }
-        ClampToScreen();
+        CenterOnScreen();
         CreateBlocker();
         blocker!.SetActive(true);
         PositionBlocker();
@@ -84,7 +86,6 @@ internal sealed class Window : IDisposable
 
     public void Close()
     {
-        SavePosition();
         search = "";
         scroll = Vector2.zero;
         focusSearch = false;
@@ -94,36 +95,93 @@ internal sealed class Window : IDisposable
 
     public void Dispose()
     {
-        SavePosition();
         if (blocker != null) UnityEngine.Object.Destroy(blocker);
         blocker = null;
         blockerRect = null;
         if (skin != null) UnityEngine.Object.Destroy(skin);
         skin = null;
+        if (titleFont != null) UnityEngine.Object.Destroy(titleFont);
+        titleFont = null;
         foreach (var texture in themeTextures) UnityEngine.Object.Destroy(texture);
         themeTextures.Clear();
+        crystal = null;
+        risingLine = fallingLine = null;
     }
 
-    private void ClampToScreen()
+    private void CenterOnScreen()
     {
-        rect.width = Mathf.Min(450, Screen.width);
-        rect.height = Mathf.Min(540, Screen.height);
-        rect.x = Mathf.Clamp(rect.x, 0, Screen.width - rect.width);
-        rect.y = Mathf.Clamp(rect.y, 0, Screen.height - rect.height);
+        // Shorten the scrolling list on small screens before shrinking type or
+        // icons. Both remain at 150% unless even the minimum panel cannot fit.
+        var availableWidth = Mathf.Max(1, Screen.width - 32);
+        var availableHeight = Mathf.Max(1, Screen.height - 32);
+        scale = Mathf.Min(PreferredScale, Mathf.Min(availableWidth / Width, availableHeight / 360f));
+        height = Mathf.Min(PreferredHeight, availableHeight / scale);
+        var size = new Vector2(Width * scale, height * scale);
+        rect = new Rect((Screen.width - size.x) / 2, (Screen.height - size.y) / 2, size.x, size.y);
     }
 
-    private void SavePosition()
+    private Texture2D Background(Color color, Color edge)
     {
-        if (!positioned) return;
-        ClampToScreen();
-        if (savedPosition.Value != rect.position) savedPosition.Value = rect.position;
+        var texture = new Texture2D(8, 8, TextureFormat.RGBA32, false) { hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Point };
+        for (var y = 0; y < 8; y++)
+            for (var x = 0; x < 8; x++)
+                texture.SetPixel(x, y, x == 0 || y == 0 || x == 7 || y == 7 ? edge : color);
+        texture.Apply(false, true);
+        themeTextures.Add(texture);
+        return texture;
     }
 
-    private Texture2D Background(Color color)
+    private Texture2D PanelTexture()
     {
-        var texture = new Texture2D(1, 1) { hideFlags = HideFlags.HideAndDontSave };
-        texture.SetPixel(0, 0, color);
-        texture.Apply();
+        var texture = new Texture2D(128, 256, TextureFormat.RGBA32, false) { hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Bilinear };
+        var pixels = new Color[128 * 256];
+        for (var y = 0; y < 256; y++)
+            for (var x = 0; x < 128; x++)
+            {
+                // Subtle dark timber grain, generated only once per session.
+                var grain = Mathf.Sin(x * 0.7f + Mathf.Sin(y * 0.055f) * 0.9f) * 0.004f;
+                var noise = ((x * 73 + y * 37) % 19) * 0.0003f;
+                pixels[y * 128 + x] = new Color(0.075f + grain + noise, 0.079f + grain, 0.074f + grain, 0.995f);
+            }
+        texture.SetPixels(pixels);
+        texture.Apply(false, true);
+        themeTextures.Add(texture);
+        return texture;
+    }
+
+    private Texture2D CrystalTexture()
+    {
+        var texture = new Texture2D(48, 64, TextureFormat.RGBA32, false) { hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Bilinear };
+        var pixels = new Color[48 * 64];
+        for (var y = 0; y < 64; y++)
+            for (var x = 0; x < 48; x++)
+            {
+                var px = (x - 23.5f) / 19;
+                var py = (y - 31.5f) / 28;
+                var distance = Mathf.Abs(px) + Mathf.Abs(py);
+                if (distance > 1) continue;
+                var facet = px < 0 ? (py < 0 ? 0.65f : 1f) : (py < 0 ? 0.42f : 0.77f);
+                pixels[y * 48 + x] = distance > 0.92f ? PaleGold :
+                    new Color(0.94f * facet, 0.59f * facet, 0.19f * facet, 1);
+            }
+        texture.SetPixels(pixels);
+        texture.Apply(false, true);
+        themeTextures.Add(texture);
+        return texture;
+    }
+
+    private Texture2D LineTexture(bool rising)
+    {
+        var texture = new Texture2D(32, 32, TextureFormat.RGBA32, false) { hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Bilinear };
+        var pixels = new Color[32 * 32];
+        for (var y = 0; y < 32; y++)
+            for (var x = 0; x < 32; x++)
+            {
+                var distance = Mathf.Abs(x - (rising ? y : 31 - y));
+                pixels[y * 32 + x] = new Color(1, 1, 1, Mathf.Clamp01(2.5f - distance));
+            }
+        texture.SetPixels(pixels);
+        texture.Apply(false, true);
         themeTextures.Add(texture);
         return texture;
     }
@@ -133,11 +191,11 @@ internal sealed class Window : IDisposable
         if (skin != null) return;
         skin = UnityEngine.Object.Instantiate(GUI.skin);
         skin.hideFlags = HideFlags.HideAndDontSave;
-        var panel = Background(new Color(0.24f, 0.18f, 0.12f, 0.98f));
-        var control = Background(new Color(0.34f, 0.25f, 0.15f));
-        var hover = Background(new Color(0.46f, 0.34f, 0.20f));
-        var pressed = Background(new Color(0.18f, 0.13f, 0.08f));
-        var ink = new Color(0.95f, 0.86f, 0.68f);
+        var panel = PanelTexture();
+        var control = Background(new Color(0.15f, 0.145f, 0.12f), new Color(0.38f, 0.31f, 0.20f));
+        var hover = Background(new Color(0.24f, 0.20f, 0.13f), Gold);
+        var pressed = Background(new Color(0.045f, 0.052f, 0.049f), new Color(0.30f, 0.26f, 0.18f));
+        var ink = new Color(0.91f, 0.88f, 0.78f);
         foreach (var style in new[] { skin.window, skin.button, skin.textField,
                      skin.verticalScrollbar, skin.verticalScrollbarThumb })
         {
@@ -147,15 +205,23 @@ internal sealed class Window : IDisposable
                 state.background = style == skin.window ? panel : control;
                 state.textColor = ink;
             }
-            style.border = new RectOffset();
+            style.border = style == skin.window ? new RectOffset() : new RectOffset(1, 1, 1, 1);
+            style.fontSize = 14;
         }
+        skin.button.alignment = TextAnchor.MiddleCenter;
+        skin.button.padding = new RectOffset(3, 3, 2, 2);
+        skin.textField.padding = new RectOffset(9, 6, 5, 3);
+        skin.window.padding = new RectOffset();
         skin.button.hover.background = hover;
+        skin.button.hover.textColor = PaleGold;
         skin.button.active.background = pressed;
-        skin.textField.normal.background = pressed;
+        foreach (var state in new[] { skin.textField.normal, skin.textField.hover, skin.textField.active, skin.textField.focused })
+            state.background = pressed;
+        skin.textField.focused.background = Background(new Color(0.065f, 0.070f, 0.061f), Gold);
         // The track and thumb need distinct fills in every interaction state.
         // Keep Unity's proportional thumb sizing and native drag/page behavior.
-        var thumb = Background(new Color(0.68f, 0.51f, 0.29f));
-        var thumbHighlight = Background(new Color(0.86f, 0.67f, 0.39f));
+        var thumb = Background(new Color(0.49f, 0.37f, 0.21f), Gold);
+        var thumbHighlight = Background(Gold, PaleGold);
         foreach (var state in new[] { skin.verticalScrollbar.normal, skin.verticalScrollbar.hover,
                      skin.verticalScrollbar.active, skin.verticalScrollbar.focused,
                      skin.verticalScrollbar.onNormal, skin.verticalScrollbar.onHover,
@@ -168,8 +234,37 @@ internal sealed class Window : IDisposable
             state.background = thumb;
         skin.verticalScrollbarThumb.hover.background = thumbHighlight;
         skin.verticalScrollbarThumb.active.background = thumbHighlight;
+        skin.verticalScrollbar.fixedWidth = 12;
+        skin.verticalScrollbarThumb.fixedWidth = 12;
         skin.label.normal.textColor = ink;
-        skin.window.fontStyle = FontStyle.Bold;
+        skin.label.fontSize = 14;
+        skin.label.alignment = TextAnchor.MiddleLeft;
+        skin.label.padding = new RectOffset();
+        skin.label.clipping = TextClipping.Clip;
+        skin.label.wordWrap = false;
+        titleFont = Font.CreateDynamicFontFromOSFont(new[] { "Georgia", "Liberation Serif", "DejaVu Serif" }, 24);
+        titleStyle = new GUIStyle(skin.label) { fontSize = 23, fontStyle = FontStyle.Bold, font = titleFont != null ? titleFont : skin.font };
+        titleStyle.normal.textColor = PaleGold;
+        headingStyle = new GUIStyle(skin.label) { fontSize = 10, fontStyle = FontStyle.Bold };
+        headingStyle.normal.textColor = Gold;
+        countStyle = new GUIStyle(skin.label) { fontSize = 13, alignment = TextAnchor.MiddleRight };
+        countStyle.normal.textColor = PaleGold;
+        hintStyle = new GUIStyle(skin.label) { fontSize = 10 };
+        hintStyle.normal.textColor = Muted;
+        statusStyle = new GUIStyle(hintStyle) { fontSize = 11 };
+        emptyStyle = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleCenter, wordWrap = true };
+        emptyStyle.normal.textColor = Muted;
+        tooltipStyle = new GUIStyle(skin.box)
+        {
+            fontSize = 12, wordWrap = true, alignment = TextAnchor.MiddleLeft,
+            padding = new RectOffset(10, 10, 7, 7), border = new RectOffset(1, 1, 1, 1)
+        };
+        tooltipStyle.normal.background = Background(new Color(0.06f, 0.065f, 0.058f), Gold);
+        tooltipStyle.normal.textColor = ink;
+        recoveryStyle = new GUIStyle(statusStyle) { wordWrap = true };
+        crystal = CrystalTexture();
+        risingLine = LineTexture(true);
+        fallingLine = LineTexture(false);
     }
 
     // IMGUI does not participate in Unity UI raycasts. A transparent image over
@@ -201,39 +296,144 @@ internal sealed class Window : IDisposable
     public void Draw()
     {
         if (!Visible || Player.m_localPlayer == null) return;
-        ClampToScreen();
+        CenterOnScreen();
         CreateSkin();
         var previousSkin = GUI.skin;
+        var previousMatrix = GUI.matrix;
+        var previousColor = GUI.color;
+        var previousContentColor = GUI.contentColor;
+        var previousBackgroundColor = GUI.backgroundColor;
+        var previousEnabled = GUI.enabled;
         try
         {
             GUI.skin = skin;
-            rect = GUI.Window(0x53494E56, rect, DrawContents, "Einherjar Chest");
+            GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1));
+            GUI.color = Color.white;
+            GUI.contentColor = GUI.backgroundColor = Color.white;
+            GUI.enabled = true;
+            // Keep all controls in logical coordinates. GUI.matrix scales text,
+            // sprites, scrolling and hit testing together; the UI blocker below
+            // uses the actual screen-space rectangle instead.
+            GUI.Window(0x53494E56, new Rect(rect.x / scale, rect.y / scale, Width, height), DrawContents, "");
+            DrawTooltip();
         }
-        finally { GUI.skin = previousSkin; }
-        ClampToScreen();
-        // Persist once dragging ends, rather than writing the config every frame.
-        if (!Input.GetMouseButton(0)) SavePosition();
+        finally
+        {
+            GUI.skin = previousSkin;
+            GUI.matrix = previousMatrix;
+            GUI.color = previousColor;
+            GUI.contentColor = previousContentColor;
+            GUI.backgroundColor = previousBackgroundColor;
+            GUI.enabled = previousEnabled;
+        }
         PositionBlocker();
+    }
+
+    private static void Fill(Rect area, Color color)
+    {
+        if (Event.current.type != EventType.Repaint) return;
+        var previous = GUI.color;
+        GUI.color = color;
+        GUI.DrawTexture(area, Texture2D.whiteTexture);
+        GUI.color = previous;
+    }
+
+    private void Line(Vector2 from, Vector2 to, Color color)
+    {
+        if (Event.current.type != EventType.Repaint) return;
+        var direction = to - from;
+        var x = Mathf.Min(from.x, to.x);
+        var y = Mathf.Min(from.y, to.y);
+        if (direction.x == 0 || direction.y == 0)
+        {
+            Fill(new Rect(x, y, Mathf.Max(1, Mathf.Abs(direction.x)), Mathf.Max(1, Mathf.Abs(direction.y))), color);
+            return;
+        }
+        // Rasterized diagonals keep ornament coordinates local to GUI.Window;
+        // rotating GUI.matrix inside a scaled window also rotates its origin.
+        var previous = GUI.color;
+        GUI.color = color;
+        GUI.DrawTexture(new Rect(x, y, Mathf.Abs(direction.x), Mathf.Abs(direction.y)),
+            direction.x * direction.y > 0 ? fallingLine : risingLine);
+        GUI.color = previous;
+    }
+
+    private void DrawTooltip()
+    {
+        if (Event.current.type != EventType.Repaint || GUI.tooltip.Length == 0) return;
+        const float width = 285;
+        var content = new GUIContent(GUI.tooltip);
+        var tooltipHeight = tooltipStyle.CalcHeight(content, width);
+        var pointer = ZInput.pointerPosition;
+        var x = Mathf.Clamp(pointer.x / scale + 12, 4, Screen.width / scale - width - 4);
+        var y = Mathf.Clamp((Screen.height - pointer.y) / scale + 18, 4, Screen.height / scale - tooltipHeight - 4);
+        GUI.Label(new Rect(x, y, width, tooltipHeight), content, tooltipStyle);
+    }
+
+    private void DrawFrame()
+    {
+        Fill(new Rect(0, 0, Width, 3), Gold);
+        Fill(new Rect(0, height - 3, Width, 3), Gold);
+        Fill(new Rect(0, 0, 3, height), Gold);
+        Fill(new Rect(Width - 3, 0, 3, height), Gold);
+        var innerEdge = new Color(0.27f, 0.24f, 0.17f);
+        Fill(new Rect(7, 7, Width - 14, 1), innerEdge);
+        Fill(new Rect(7, height - 8, Width - 14, 1), innerEdge);
+        Fill(new Rect(7, 7, 1, height - 14), innerEdge);
+        Fill(new Rect(Width - 8, 7, 1, height - 14), innerEdge);
+        Fill(new Rect(11, 11, Width - 22, 75), new Color(0.045f, 0.048f, 0.044f, 0.75f));
+        // Angular gold corner bindings echo the planned rune-bound reliquary.
+        for (var column = 0; column < 2; column++)
+            for (var row = 0; row < 2; row++)
+            {
+                var x = column == 0 ? 10 : Width - 27;
+                var y = row == 0 ? 10 : height - 27;
+                Line(new Vector2(x, y + 16), new Vector2(x + 16, y), Gold);
+                Line(new Vector2(x, y + 10), new Vector2(x + 10, y), Gold);
+            }
+        Line(new Vector2(20, 88), new Vector2(Width / 2 - 9, 88), innerEdge);
+        Line(new Vector2(Width / 2 + 9, 88), new Vector2(Width - 20, 88), innerEdge);
+        Line(new Vector2(Width / 2 - 5, 88), new Vector2(Width / 2, 83), Gold);
+        Line(new Vector2(Width / 2, 83), new Vector2(Width / 2 + 5, 88), Gold);
+        Line(new Vector2(Width / 2 + 5, 88), new Vector2(Width / 2, 93), Gold);
+        Line(new Vector2(Width / 2, 93), new Vector2(Width / 2 - 5, 88), Gold);
+        if (crystal != null) GUI.DrawTexture(new Rect(19, 15, 44, 60), crystal);
+        Line(new Vector2(41, 28), new Vector2(41, 62), PaleGold);
+        Line(new Vector2(34, 37), new Vector2(41, 44), PaleGold);
+        Line(new Vector2(41, 44), new Vector2(48, 37), PaleGold);
+        GUI.Label(new Rect(74, 29, Width - 115, 32), "Einherjar Chest", titleStyle);
+    }
+
+    private void DrawFooter()
+    {
+        Fill(new Rect(18, height - 51, Width - 36, 1), new Color(0.27f, 0.24f, 0.17f));
+        var status = client.Status.Length > 0 ? client.Status : rows.Count.ToString(CultureInfo.CurrentCulture) + " item types";
+        GUI.Label(new Rect(18, height - 47, Width - 116, 21), new GUIContent(status, status), statusStyle);
+        GUI.Label(new Rect(32, height - 26, Width - 140, 16), "ALT-CLICK TO DEPOSIT    /    F3 OR ESC TO CLOSE", hintStyle);
+#if SHAREDINVENTORY_TESTING
+        if (TestingPanel != null && GUI.Button(new Rect(Width - 98, height - 39, 66, 23), testingTab ? "Inventory" : "Testing"))
+            testingTab = !testingTab;
+#endif
     }
 
     private void DrawContents(int id)
     {
-        if (GUI.Button(new Rect(rect.width - 32, 3, 26, 23), "×")) Close();
+        DrawFrame();
+        if (GUI.Button(new Rect(Width - 52, 21, 25, 25), new GUIContent("x", "Close (F3 / Escape)"))) Close();
 #if SHAREDINVENTORY_TESTING
-        if (TestingPanel != null)
+        if (TestingPanel != null && testingTab)
         {
-            if (GUI.Button(new Rect(rect.width - 135, 3, 98, 23), testingTab ? "Inventory" : "Testing")) testingTab = !testingTab;
-            if (testingTab)
-            {
-                TestingPanel.DrawContents(rect.width, rect.height);
-                GUI.DragWindow(new Rect(0, 0, rect.width - 140, 25));
-                return;
-            }
+            GUI.BeginGroup(new Rect(18, 102, Width - 36, height - 162));
+            TestingPanel.DrawContents(Width - 36, height - 162);
+            GUI.EndGroup();
+            DrawFooter();
+            return;
         }
 #endif
-        GUI.Label(new Rect(12, 28, 55, 24), "Search");
         GUI.SetNextControlName(SearchControlName);
-        search = GUI.TextField(new Rect(68, 28, rect.width - 154, 25), search);
+        search = GUI.TextField(new Rect(18, 104, Width - 36, 30), search);
+        if (search.Length == 0)
+            GUI.Label(new Rect(29, 105, Width - 58, 28), "Search stored items...", statusStyle);
         // Wait until the control exists, and focus only once per opening.
         if (focusSearch && Event.current.type == EventType.Repaint)
         {
@@ -241,38 +441,44 @@ internal sealed class Window : IDisposable
             GUI.FocusControl(SearchControlName);
             focusSearch = false;
         }
-        GUI.enabled = client.Ready && !client.Listing;
-        if (GUI.Button(new Rect(rect.width - 78, 28, 66, 25), "Refresh")) client.List();
-        GUI.enabled = true;
-        GUI.Label(new Rect(46, 57, rect.width - 24, 22), "Item");
-        GUI.Label(new Rect(rect.width - 223, 57, 95, 22), "Total");
-        GUI.Label(new Rect(rect.width - 128, 57, 100, 22), "Withdraw");
         RebuildRows();
+        const float contentWidth = Width - 54;
+        const float actionsX = contentWidth - 88;
+        const float countX = actionsX - 79;
+        GUI.Label(new Rect(66, 143, countX - 40, 19), "ITEM", headingStyle);
+        GUI.Label(new Rect(18 + countX, 143, 74, 19), "STORED", headingStyle);
+        GUI.Label(new Rect(18 + actionsX, 143, 90, 19), "WITHDRAW", headingStyle);
         var recovery = client.RefreshStatus.Length != 0;
-        if (recovery) GUI.Label(new Rect(12, 80, rect.width - 24, 24), client.RefreshStatus);
-        var top = recovery ? 107 : 81;
-        var viewport = new Rect(10, top, rect.width - 20, rect.height - top - 10);
-        const int rowHeight = 32;
-        var width = viewport.width - 18;
-        scroll = GUI.BeginScrollView(viewport, scroll, new Rect(0, 0, width, rows.Count * rowHeight));
+        if (recovery)
+            GUI.Label(new Rect(18, 164, Width - 36, 32), new GUIContent(client.RefreshStatus, client.RefreshStatus), recoveryStyle);
+        var top = recovery ? 200 : 166;
+        var viewport = new Rect(18, top, Width - 36, height - top - 61);
+        const int rowHeight = 40;
+        Fill(viewport, new Color(0.035f, 0.041f, 0.037f, 0.6f));
+        scroll = GUI.BeginScrollView(viewport, scroll, new Rect(0, 0, contentWidth, rows.Count * rowHeight));
         var first = Math.Max(0, (int)(scroll.y / rowHeight));
         var last = Math.Min(rows.Count, first + (int)(viewport.height / rowHeight) + 2);
         for (var i = first; i < last; ++i)
         {
             var row = rows[i];
             var y = i * rowHeight;
-            if (row.Icon != null) DrawIcon(new Rect(2, y + 1, 28, 28), row.Icon);
-            GUI.Label(new Rect(36, y, width - 234, 28), new GUIContent(row.Name, row.Id));
-            GUI.Label(new Rect(width - 195, y, 95, 28), row.Count);
+            var rowRect = new Rect(0, y, contentWidth, rowHeight - 1);
+            Fill(rowRect, i % 2 == 0 ? new Color(0.12f, 0.13f, 0.115f, 0.65f) : new Color(0.08f, 0.09f, 0.08f, 0.6f));
+            if (rowRect.Contains(Event.current.mousePosition))
+                Fill(rowRect, new Color(0.35f, 0.27f, 0.14f, 0.22f));
+            Fill(new Rect(5, y + 4, 33, 32), new Color(0.04f, 0.045f, 0.039f, 0.8f));
+            if (row.Icon != null) DrawIcon(new Rect(6, y + 4, 32, 32), row.Icon);
+            GUI.Label(new Rect(46, y + 4, countX - 51, 32), new GUIContent(row.Name, row.Name + " (" + row.Id + ")"));
+            GUI.Label(new Rect(countX, y + 4, 72, 32), new GUIContent(row.Count, row.Count), countStyle);
             GUI.enabled = client.Ready && !client.Busy && row.Stack > 0;
-            if (GUI.Button(new Rect(width - 100, y, 35, 27), "1")) client.Withdrawal(row.Id, false);
-            if (GUI.Button(new Rect(width - 60, y, 60, 27), "Stack")) client.Withdrawal(row.Id, true);
+            if (GUI.Button(new Rect(actionsX, y + 6, 30, 28), "1")) client.Withdrawal(row.Id, false);
+            if (GUI.Button(new Rect(actionsX + 35, y + 6, 53, 28), "Stack")) client.Withdrawal(row.Id, true);
             GUI.enabled = true;
         }
         GUI.EndScrollView();
         if (rows.Count == 0 && !recovery)
-            GUI.Label(new Rect(20, top + 12, width, 26), client.Listing ? "Loading…" : "No matching items.");
-        GUI.DragWindow(new Rect(0, 0, rect.width - 35, 25));
+            GUI.Label(new Rect(28, top + 12, Width - 56, 60), client.Listing ? "Opening the chest..." : "No matching items.", emptyStyle);
+        DrawFooter();
     }
 
     private static void DrawIcon(Rect target, Sprite icon)

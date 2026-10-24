@@ -100,8 +100,8 @@ internal sealed class TestPanel
     {
         if (harness == null) return;
         var settings = harness.Settings;
-        scroll = GUI.BeginScrollView(new Rect(10, 30, width - 20, height - 40), scroll, new Rect(0, 0, width - 42, 690));
-        var w = width - 44;
+        scroll = GUI.BeginScrollView(new Rect(0, 0, width, height), scroll, new Rect(0, 0, width - 18, 690));
+        var w = width - 20;
         GUI.Label(new Rect(0, 0, w, 25), "ISOLATED TEST HARNESS - " + (settings.Active ? "FAULTS ACTIVE" : "faults off"));
         if (GUI.Button(new Rect(0, 28, w, 25), "Disable faults and release queued packets")) harness.DisableFaults();
         if (GUI.Button(new Rect(0, 58, w / 2 - 3, 25), "Slow connection"))

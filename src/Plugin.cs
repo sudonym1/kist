@@ -15,7 +15,6 @@ public sealed class Plugin : BaseUnityPlugin
     internal static Plugin? Instance;
     private Harmony harmony = null!;
     private ConfigEntry<KeyCode> toggleKey = null!;
-    private ConfigEntry<Vector2> windowPosition = null!;
     private ZRoutedRpc? router;
     private RpcApi? api;
     private Client? client;
@@ -36,8 +35,6 @@ public sealed class Plugin : BaseUnityPlugin
 #if SHAREDINVENTORY_TESTING
         testPanel = TestPanel.Create(Config, Logger);
 #endif
-        windowPosition = Config.Bind("Client", "WindowPosition", new Vector2(-1, -1),
-            "Window position in screen pixels. Set both coordinates to -1 to start centered.");
         harmony = new Harmony(Guid);
         harmony.PatchAll(typeof(Plugin).Assembly);
     }
@@ -64,7 +61,7 @@ public sealed class Plugin : BaseUnityPlugin
         Resources = new ResourceInventory(client);
         StationItems = new StationInventory(client);
         Shortcuts = new StationShortcuts(StationItems);
-        window = new Window(client, windowPosition);
+        window = new Window(client);
 #if SHAREDINVENTORY_TESTING
         testPanel?.Attach(api, client);
         window.TestingPanel = testPanel;
