@@ -134,6 +134,40 @@ internal static partial class Program
             Equal(RitualOutcomes.PunishmentMessage, view.Announcement(110.999));
             Equal("", view.Announcement(111));
         });
+        foreach (var name in new[] { "Host", "Remote" })
+        {
+            Test(name + " sacrifice announcement names the victim and survives death and empty updates on every client", () =>
+            {
+                var message = RitualOutcomes.SacrificeMessage(name);
+                Equal("Odin honors " + name + "'s sacrifice...", message);
+                foreach (var localBase in new[] { 100d, 10000d })
+                {
+                    var view = new RitualCountdown();
+                    view.Apply(localBase, "session", 1, "attempt", 100, 0, true, 100);
+                    view.Apply(localBase + 5, "session", 2, "attempt", 105, 0, false, 100, name + " has been chosen by Odin.");
+                    Equal("", view.Announcement(localBase + 5));
+                    view.Apply(localBase + 6, "session", 3, "attempt", 106, 0, false, 100, message);
+                    view.Apply(localBase + 6, "session", 4, "", 106, 0, false, 100, "$msg_youdied");
+                    view.Apply(localBase + 7, "session", 5, "attempt", 107, 0, false, 100);
+                    Equal(0, view.Number(localBase + 7));
+                    Equal(message, view.Announcement(localBase + 11.999));
+                    Equal("", view.Announcement(localBase + 12));
+                }
+            });
+        }
+        Test("Stale and foreign sacrifice packets cannot revive or extend the success announcement", () =>
+        {
+            var view = new RitualCountdown();
+            var message = RitualOutcomes.SacrificeMessage("Remote");
+            view.Apply(100, "session", 2, "attempt", 100, 0, false, 0, message);
+            Equal(false, view.Apply(105, "session", 2, "attempt", 100, 0, false, 0, message));
+            Equal(false, view.Apply(105, "session", 1, "attempt", 100, 0, false, 0, message));
+            Equal(false, view.Apply(105, "other", 99, "attempt", 100, 0, false, 0, message));
+            Equal("", view.Announcement(106));
+            view.Apply(107, "session", 3, "next", 107, 0, false, 0, message);
+            Equal(message, view.Announcement(107));
+            view.Clear(); Equal("", view.Announcement(107));
+        });
         Test("Stale and foreign punishment packets cannot revive or extend Odin's announcement", () =>
         {
             var view = new RitualCountdown();

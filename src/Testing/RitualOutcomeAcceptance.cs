@@ -162,6 +162,8 @@ internal static class RitualOutcomeAcceptance
         Check(!ritual.Active && EssenceCount() == drops + 1 && UnityEngine.Object.FindObjectsByType<TombStone>(FindObjectsSortMode.None).Length == graves + 1,
             "Confirmed ordinary death completes tombstone handling and publishes exactly one physical essence afterward");
         var sacrifice = engine.State.Attempts.Last().Copy();
+        Check(ritual.Announcement == RitualOutcomes.SacrificeMessage(sacrifice.Victims.Single().Name),
+            "Successful essence creation shows the named sacrifice in the countdown overlay even while the victim is dead");
         var persisted = RitualStateFile.Load(StatePath, ZNet.instance.GetWorldUID());
         Check(!sacrifice.Punishment && sacrifice.Reward == "published" && persisted.Attempts.Last().Reward == "published" && persisted.DeadlineUtcTicks > DateTime.UtcNow.Ticks,
             "Confirmed sacrifice persists its deadline and deduplicated reward journal");

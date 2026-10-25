@@ -9,7 +9,7 @@ Earn a shared inventory for your world. Gather at the sacrificial stones, face O
 1. Gather **every connected player** inside the original seven-stone sacrificial circle. Everyone must be alive and fully spawned.
 2. Hover any original boss stone's reading or trophy surface and use **Begin Einherjar ritual**: **Shift+E** with default bindings. Normal reading, trophy placement and boss-power selection still work.
 3. Stay inside for the **5... 4... 3... 2... 1...** countdown. Leaving, dying, joining or disconnecting cancels it.
-4. Odin chooses one player at random, kills them with lightning, and leaves **one Einherjar Essence** at their death position. Solo rituals work. Normal tombstone and death consequences apply.
+4. Odin chooses one player at random, kills them with lightning, and leaves **one Einherjar Essence** at their death position. Everyone sees `Odin honors <Player>'s sacrifice...` after the essence is created. Solo rituals work. Normal tombstone and death consequences apply.
 5. Pick up the essence to discover the hammer recipe. Build an **Einherjar Chest** for exactly **one carried essence**, with no other ingredients or workbench required.
 
 Odin punishes avarice. Another gathering can bring lightning to every participant and yield no essence. The stone's warning deserves your attention.
@@ -42,7 +42,7 @@ Requires **Valheim and BepInEx 5**. Install on **both the server and every clien
 1. Close the game/server and back up your world, characters and mod saves.
 2. Uninstall the old Thor's Kist package on every peer. For a manual install, remove its plugin directory and any duplicate `ThorsKist.dll`, `ThorsKist.Sync.dll` or `ThorsKist.Sync.Sqlite.dll` from other plugin directories. Keep old saves separately if you need them.
 3. Install this release through your mod manager, or copy `plugins/SharedInventory.dll` from the ZIP into `BepInEx/plugins/EinherjarChest/`.
-4. Start every peer with the same version. Keep only one copy of `SharedInventory.dll` in the plugins tree. The startup log should show **Einherjar Chest 0.10.1**.
+4. Start every peer with the same version. Keep only one copy of `SharedInventory.dll` in the plugins tree. The startup log should show **Einherjar Chest 0.10.2**.
 
 This is a new implementation with one shared inventory per world. Thor's Kist hirds, anchors, configuration and inventory data are not imported. **There is no automatic data migration.** Do any conversion manually while the server is stopped.
 

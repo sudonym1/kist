@@ -78,7 +78,7 @@ internal sealed class RitualGathering
 
 // Client view of the server's monotonic schedule. Revisions reject delayed
 // starts after cancellation; probe echoes estimate clock offset without sharing
-// a machine clock or any hidden gameplay deadline. The punishment announcement
+// a machine clock or any hidden gameplay deadline. The outcome announcement
 // stays independent of the game's center message, which OnDeath overwrites.
 internal sealed class RitualCountdown
 {
@@ -86,14 +86,21 @@ internal sealed class RitualCountdown
     private long revision;
     private double offset = double.NaN, start = double.NaN;
     private int lastNumber = 5;
-    private double punishmentUntil = double.NegativeInfinity;
-    public string Announcement(double now) => now < punishmentUntil ? RitualOutcomes.PunishmentMessage : "";
+    private double announcementUntil = double.NegativeInfinity;
+    private string announcement = "";
+    public string Announcement(double now) => now < announcementUntil ? announcement : "";
     public bool Apply(double now, string token, long serial, string id, double serverTime,
         double echo, bool countdown, double serverStart, string message = "")
     {
         if (session.Length != 0 && session != token || serial <= revision) return false;
         session = token; revision = serial;
-        if (message == RitualOutcomes.PunishmentMessage) punishmentUntil = now + 6;
+        if (message == RitualOutcomes.PunishmentMessage ||
+            message.StartsWith(RitualOutcomes.SacrificeMessagePrefix, StringComparison.Ordinal) &&
+            message.EndsWith(RitualOutcomes.SacrificeMessageSuffix, StringComparison.Ordinal))
+        {
+            announcement = message;
+            announcementUntil = now + 6;
+        }
         if (echo > 0) offset = serverTime - (now + echo) / 2;
         else if (double.IsNaN(offset)) offset = serverTime - now;
         if (countdown && id.Length != 0)
@@ -113,5 +120,5 @@ internal sealed class RitualCountdown
         lastNumber = Math.Min(lastNumber, number);
         return lastNumber;
     }
-    public void Clear() { start = double.NaN; attempt = ""; punishmentUntil = double.NegativeInfinity; }
+    public void Clear() { start = double.NaN; attempt = ""; announcementUntil = double.NegativeInfinity; announcement = ""; }
 }

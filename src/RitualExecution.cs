@@ -52,7 +52,11 @@ internal sealed partial class Ritual
                     return index;
                 },
                 (snapshot, complete) => storage!.Save(snapshot, complete), DispatchDeaths,
-                victim => SpawnEssence(new Vector3(victim.X, victim.Y, victim.Z)), message => Trace(AttemptId, "outcome", message));
+                victim =>
+                {
+                    SpawnEssence(new Vector3(victim.X, victim.Y, victim.Z));
+                    Broadcast(RitualOutcomes.SacrificeMessage(victim.Name), false);
+                }, message => Trace(AttemptId, "outcome", message));
         });
     }
 

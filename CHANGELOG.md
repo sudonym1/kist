@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.2
+
+- Show `Odin honors <Player>'s sacrifice...` on every participant's countdown overlay for six seconds after essence creation, including the sacrificed player. The announcement survives death messages.
+
 ## 0.10.1
 
 - Fix repeated null-reference exceptions when the chest radius preview encounters a destroyed hover object or preview object. These exceptions could interrupt inventory refreshes and window input for the affected frames.
