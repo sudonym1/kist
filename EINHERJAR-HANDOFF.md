@@ -214,6 +214,17 @@ and the save-isolation guard. See [second-computer instructions](PYRAMID-TEST-CL
 and [verification evidence](PYRAMID-TEST-CLIENT-RESULTS.md). A joined two-account
 session and the Phase 6 gameplay/deployment acceptance are still outstanding.
 
+Phase 6 multiplayer fix (2026-10-24), version 0.4.6: the first actual two-player
+attempt exposed a remote-client `Ritual` constructor exception during `Game.Start`,
+before `PeerInfo` supplies the world. Endpoint attachment now waits for that world
+and retries from Update only while requested; shutdown clears the request.
+Production/testing builds pass 166 regressions plus protocol/harness/hook checks.
+The real-engine ritual suite passes a new absent-world/deferred-attachment
+regression. Matching Testing DLLs are deployed to the actual local `TESTWORLD`
+install and TestPlayer's existing Pyramid install, preserving all 33 local and five
+remote test-save files. The local auto-build launcher points at the rebased fix
+checkout. Two-account ritual acceptance still requires retrying the session.
+
 ### Phase 1 completion record
 
 - Gameplay defaults confirmed, including punishment restart, elapsed offline time, and permanent essence loss under enemy destruction.

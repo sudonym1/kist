@@ -230,7 +230,7 @@ Get-CimInstance Win32_Process -Filter "Name='valheim.exe'" | ForEach-Object {
 '@
 ```
 
-Expect `Loading [Einherjar Chest 0.4.5]`, exactly two loaded plugins with zero
+Expect `Loading [Einherjar Chest 0.4.6]` for the current fix, exactly two loaded plugins with zero
 failures, `Einherjar Chest test harness enabled; impairments default OFF`, and
 `EINHERJAR CHEST LOCAL-ONLY TEST ISOLATION:` pointing to this root's `saves`.
 The process must be TestPlayer's, in her interactive session, with the isolated exe

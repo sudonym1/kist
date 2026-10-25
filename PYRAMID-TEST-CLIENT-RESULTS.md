@@ -1,5 +1,38 @@
 # Pyramid client setup verification
 
+**Update, October 24:** both test installations now have **0.4.6**, fixing
+remote attachment before the world handshake. The original 0.4.5 startup proof
+below remains historical; 0.4.6 has passed the new real-engine readiness regression
+and has been deployed for a fresh two-account retry. See the handoff's Phase 6
+multiplayer-fix record.
+
+The local auto-build launcher at
+`C:\Users\seamu\source\repos\SharedInventory\SharedInventory-Test-20261023\Launch-Test.cmd`
+now builds from `C:\Users\seamu\.codex\worktrees\60fb\SharedInventory`, which was
+rebased onto main `dcda15f` before the fix. Keep that checkout available until the
+fix is merged and the launcher's build path is deliberately updated.
+
+Current `SharedInventory.dll` SHA-256 on both machines, installed and staged:
+`8366A4559B254678F06F7090DA9D4BEB8EEC2132F9B465D088C7C6D6C14D64BE`.
+The isolation-helper hash remains `11D05A5287FB279194933C03FC49CBDEC5828FF9CB843166309DC1C5DA22C8A2`.
+Production and Testing builds passed 166 regressions, protocol checks, 11 harness
+checks, hook checks, and inclusion/exclusion checks. The guarded headless ritual
+suite passed at 17:28:55 PDT, including the absent-world attachment regression.
+The initial sandboxed engine launch could not initialize Steam and was discarded;
+the passing rerun used the normal Steam session. No old report was counted as a
+new pass.
+
+Verified pre-0.4.6 backups:
+
+```text
+Local: C:\Users\seamu\source\repos\SharedInventory\SharedInventory-Test-20261023\backups\before-remote-join-fix-20261024-172917
+Pyramid: C:\Users\testplayer\SharedInventory-Test-20261023\backups\before-client-update-20261024-172920-90d1fc6e
+```
+
+All 33 local and five remote test-save files were unchanged by deployment.
+Both games were stopped for installation and are ready to relaunch. The real
+two-account retry has not yet been observed after this fix.
+
 Verified October 24, 2026 (America/Los_Angeles). The **existing** installation at
 `C:\Users\testplayer\SharedInventory-Test-20261023` was updated in place from 0.4.1 to
 **Einherjar Chest 0.4.5**, Testing build. No replacement environment was created.

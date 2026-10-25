@@ -66,6 +66,7 @@ internal static class RitualAcceptance
     {
         var graphical = SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null;
         var ritual = plugin.Ritual ?? throw new InvalidOperationException("Ritual endpoint is not attached");
+        CheckJoiningAttachment(plugin, ritual);
         Check(ZNet.instance.IsServer(), "Ritual endpoint attaches to the actual world router");
         Check(ZoneSystem.instance.FindClosestLocation("StartTemple", Vector3.zero, out var original), "Server resolves the original StartTemple world identity");
         var player = Player.m_localPlayer;
@@ -294,6 +295,35 @@ internal static class RitualAcceptance
         Check(commits == 1 && Number(ritual) == 0 && player.IsDead(), "Countdown hands off once to the phase 5 lethal outcome");
         Check(MessageHud.instance != null && messages.Count > 0, "Errors and cancellation use the actual game message UI");
         CaptureSite(site);
+    }
+
+    private static void CheckJoiningAttachment(Plugin plugin, Ritual existing)
+    {
+        // Reproduce the actual remote Game.Start state for one synchronous
+        // call, without sending packets or disturbing this suite's endpoints.
+        var world = AccessTools.Field(typeof(ZNet), "m_world");
+        var server = AccessTools.Field(typeof(ZNet), "m_isServer");
+        var pending = AccessTools.Field(typeof(Plugin), "attachPending");
+        var savedWorld = world.GetValue(null);
+        var savedServer = server.GetValue(null);
+        var resources = Plugin.Resources;
+        try
+        {
+            world.SetValue(null, null);
+            server.SetValue(null, false);
+            AccessTools.Method(typeof(Plugin), "RequestAttach").Invoke(plugin, null);
+            Check((bool)pending.GetValue(plugin) && ReferenceEquals(existing, plugin.Ritual) &&
+                ReferenceEquals(resources, Plugin.Resources),
+                "Joining client waits for PeerInfo world without throwing or replacing endpoints");
+        }
+        finally
+        {
+            world.SetValue(null, savedWorld);
+            server.SetValue(null, savedServer);
+        }
+        AccessTools.Method(typeof(Plugin), "Attach").Invoke(plugin, null);
+        Check(!(bool)pending.GetValue(plugin) && ReferenceEquals(existing, plugin.Ritual),
+            "Deferred attachment completes idempotently once the handshake world is available");
     }
     private static void CaptureSite(RitualSite site)
     {

@@ -238,18 +238,18 @@ internal sealed partial class Ritual
         if (stopped || !server || !Active) return;
         if (Now >= nextProbe) Probe();
         var roster = Roster(true);
-        if (!TryStone(stone, out _, out _)) { Cancel(); return; }
+        if (!TryStone(stone, out _, out _)) { Cancel("original stone unavailable"); return; }
         if (pending)
         {
             if (roster.Count != pendingRoster.Count || pendingRoster.Any(m => !roster.Any(p => p.Peer == m.Peer && p.Life == m.Life)))
-            { Cancel(); return; }
+            { Cancel("connected roster or character changed during validation"); return; }
             var error = RitualGathering.Missing(roster);
             if (error.Length != 0)
             {
                 if (Now - pendingAt < 1.5 && roster.All(m => m.Unavailable.Length == 0 || m.Unavailable == "confirmation unavailable")) return;
-                Cancel(); return;
+                Cancel(error); return;
             }
-            if (!gathering.Start(Now, roster, out error, pendingId)) { Cancel(); return; }
+            if (!gathering.Start(Now, roster, out error, pendingId)) { Cancel(error); return; }
             pending = false;
             Broadcast("", true);
             return;
@@ -258,15 +258,17 @@ internal sealed partial class Ritual
         {
             Broadcast("", false);
             if (outcomes?.Commit(gathering.Id, gathering.Members) != true)
-            { Cancel(); return; }
+            { Cancel("outcome commitment unavailable"); return; }
             log.LogInfo("Einherjar ritual committed: " + gathering.Id + " (" + gathering.Members.Count + " participants)");
             Committed?.Invoke(gathering.Id, gathering.Members);
         }
-        else if (cancellation.Length != 0) Cancel();
+        else if (cancellation.Length != 0)
+            Cancel(RitualGathering.Missing(roster) is var missing && missing.Length != 0 ? missing : "participant identity changed during countdown");
     }
 
-    private void Cancel()
+    private void Cancel(string reason)
     {
+        log.LogInfo("Einherjar ritual cancelled: " + AttemptId + " / " + reason);
         if (pending) Display(initiator, "", RitualGathering.Cancelled);
         else Broadcast(RitualGathering.Cancelled, false);
         pending = false; gathering.Reset(); confirmations.Clear(); probes.Clear();

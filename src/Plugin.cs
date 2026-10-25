@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace SharedInventory;
 
-[BepInPlugin(Guid, "Einherjar Chest", "0.4.5")]
+[BepInPlugin(Guid, "Einherjar Chest", "0.4.6")]
 public sealed class Plugin : BaseUnityPlugin
 {
     public const string Guid = "local.sharedinventory";
@@ -21,6 +21,7 @@ public sealed class Plugin : BaseUnityPlugin
     private RpcApi? api;
     private Client? client;
     private Window? window;
+    private bool attachPending;
     internal Ritual? Ritual { get; private set; }
 #if SHAREDINVENTORY_TESTING
     private TestPanel? testPanel;
@@ -52,9 +53,19 @@ public sealed class Plugin : BaseUnityPlugin
         harmony.PatchAll(typeof(Plugin).Assembly);
     }
 
+    private void RequestAttach()
+    {
+        attachPending = true;
+        Attach();
+    }
+
     private void Attach()
     {
-        if (ZRoutedRpc.instance == null || ReferenceEquals(router, ZRoutedRpc.instance)) return;
+        // Game.Start runs before a joining client's PeerInfo handshake supplies
+        // its World. GetWorldUID dereferences that still-null World. Wait before
+        // constructing either the ritual endpoint or its Testing controls.
+        if (ZRoutedRpc.instance == null || ZNet.instance == null || ZNet.instance.GetWorld() == null) return;
+        if (ReferenceEquals(router, ZRoutedRpc.instance)) { attachPending = false; return; }
         api?.Stop();
         Ritual?.Stop();
         radiusVisual?.Dispose();
@@ -84,10 +95,12 @@ public sealed class Plugin : BaseUnityPlugin
         testPanel?.AttachRitual(router, Ritual);
         window.TestingPanel = testPanel;
 #endif
+        attachPending = false;
     }
 
     private void Update()
     {
+        if (attachPending) Attach();
         Ritual?.Update();
         radiusVisual?.Update();
         api?.Pump();
@@ -127,6 +140,7 @@ public sealed class Plugin : BaseUnityPlugin
 
     private void ResetSession()
     {
+        attachPending = false;
         api?.Stop();
         Ritual?.Stop(); Ritual = null;
         RitualSite.Clear();
@@ -165,7 +179,7 @@ public sealed class Plugin : BaseUnityPlugin
     [HarmonyPatch(typeof(Game), "Start")]
     private static class RegisterRpc
     {
-        private static void Prefix() => Instance?.Attach();
+        private static void Prefix() => Instance?.RequestAttach();
     }
 
     [HarmonyPatch(typeof(ZNet), "Shutdown")]
