@@ -21,6 +21,7 @@ internal static class Program
             if (args.Length > 0 && args[0] == "--load") return LoadRunner.Run(args);
             if (args.Length > 0 && args[0] == "--lab-tests") return LabChecks.Run();
             if (args.Length == 3 && args[0] == "--verify-harness") return PatchChecks.CheckHarness(args[1], bool.Parse(args[2]));
+            if (args.Length == 3 && args[0] == "--verify-release") return PatchChecks.CheckRelease(args[1], args[2]);
             if (args.Length == 3) return PatchChecks.Run(args[0], args[1], args[2]);
             ProtocolChecks();
             return EssenceChecks();

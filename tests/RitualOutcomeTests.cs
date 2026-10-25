@@ -63,6 +63,35 @@ internal static partial class Program
                 Equal(slot + 1L, lab.Dispatches.Single().Victims.Single().Peer); Equal(1, lab.Draws);
             }
         });
+        Test("Selection diagnostics record the actual ordered-roster index without consuming extra randomness", () =>
+        {
+            foreach (var slot in new[] { 0, 1 })
+            {
+                var lab = new OutcomeLab { Choice = slot };
+                var roster = OutcomeLab.Roster(); roster[0].Peer = -393302544; roster[1].Peer = 1439239401;
+                Equal(true, lab.Engine.Commit("logged", roster));
+                Equal(1, lab.Draws); Equal(0, lab.Dispatches.Count);
+                Equal("selection attempt=logged outcome=sacrifice rosterCount=2 selectedIndex=" + slot +
+                    " victimPeers=[" + roster[slot].Peer + "] persistence=pending", lab.Diagnostics.Single());
+                lab.Flush(); Equal(roster[slot].Peer, lab.Dispatches.Single().Victims.Single().Peer);
+                lab.ConfirmAll(); lab.Flush(); lab.Flush();
+                Equal(1, lab.Draws); Equal(1, lab.Rewards);
+                Equal(true, lab.Diagnostics.Contains("reward-publish attempt=logged victimPeer=" + roster[slot].Peer));
+                Equal(false, lab.Engine.Commit("logged", roster)); Equal(1, lab.Draws);
+                Equal(1, lab.Diagnostics.Count(m => m.StartsWith("selection attempt=")));
+            }
+        });
+        Test("Punishment logs no random draw and retains every victim", () =>
+        {
+            var lab = new OutcomeLab(); lab.Success(); lab.Diagnostics.Clear();
+            Equal(true, lab.Engine.Commit("logged-anger", OutcomeLab.Roster()));
+            Equal("selection attempt=logged-anger outcome=punishment rosterCount=2 selectedIndex=none victimPeers=[1,2] persistence=pending",
+                lab.Diagnostics.Single());
+            lab.Flush(); lab.ConfirmAll(); lab.Flush();
+            Equal(1, lab.Draws); Equal(1, lab.Rewards);
+            Equal(2, lab.Diagnostics.Count(m => m.StartsWith("death-confirmed attempt=logged-anger ")));
+            Equal(false, lab.Diagnostics.Any(m => m.StartsWith("reward-publish")));
+        });
         Test("Solo success has one victim and one reward", () =>
         {
             var lab = new OutcomeLab(); lab.Engine.Commit("solo", OutcomeLab.Roster().Take(1).ToArray()); lab.Flush();

@@ -41,16 +41,47 @@ internal static class PatchChecks
     public static int CheckHarness(string path, bool expected)
     {
         using var mod = AssemblyDefinition.ReadAssembly(path);
+        var types = AllTypes(mod.MainModule.Types).ToArray();
         foreach (var name in new[] { "TestSettings", "TestHarness", "LabMetrics", "TestPanel", "AssetCapture", "ContentAcceptance", "AccessAcceptance", "RitualAcceptance", "RitualTestControls", "RitualTestAction", "RitualOutcomeAcceptance" })
         {
-            var present = mod.MainModule.Types.Any(type => type.FullName == "SharedInventory." + name);
+            var present = types.Any(type => type.FullName == "SharedInventory." + name);
             if (present != expected) throw new Exception("Test harness inclusion mismatch: " + name);
         }
-        var literals = mod.MainModule.Types.SelectMany(type => type.Methods).Where(method => method.HasBody)
+        var literals = types.SelectMany(type => type.Methods).Where(method => method.HasBody)
             .SelectMany(method => method.Body.Instructions).Select(instruction => instruction.Operand).OfType<string>().ToList();
         foreach (var literal in new[] { "Reset cooldown", "Spawn essence", "Test lightning", "SharedInventory.Ritual.Test.v1.Request" })
             if (literals.Contains(literal) != expected) throw new Exception("Ritual test UI/endpoint isolation mismatch: " + literal);
         System.Console.WriteLine(expected ? "PASS test harness included in explicitly opted-in build" : "PASS production DLL contains no test harness types");
+        return 0;
+    }
+    private static IEnumerable<TypeDefinition> AllTypes(IEnumerable<TypeDefinition> types)
+    {
+        foreach (var type in types)
+        {
+            yield return type;
+            foreach (var nested in AllTypes(type.NestedTypes)) yield return nested;
+        }
+    }
+    public static int CheckRelease(string path, string manifestPath)
+    {
+        CheckHarness(path, false);
+        using var mod = AssemblyDefinition.ReadAssembly(path);
+        var manifest = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(manifestPath));
+        var version = (string?)manifest["version_number"];
+        var plugin = mod.MainModule.Types.Single(type => type.FullName == "SharedInventory.Plugin");
+        var identity = plugin.CustomAttributes.Single(attribute => attribute.AttributeType.FullName == "BepInEx.BepInPlugin");
+        if ((string)identity.ConstructorArguments[0].Value != "local.sharedinventory" ||
+            (string)identity.ConstructorArguments[1].Value != "Einherjar Chest" ||
+            (string)identity.ConstructorArguments[2].Value != version ||
+            mod.Name.Version != new System.Version(version + ".0"))
+            throw new Exception("Release manifest, assembly version and plugin identity must agree");
+        if (!plugin.CustomAttributes.Any(attribute => attribute.AttributeType.FullName == "BepInEx.BepInIncompatibility" &&
+                (string)attribute.ConstructorArguments[0].Value == "posixone_ThorsKist"))
+            throw new Exception("Release must declare the old Thor's Kist plugin incompatible");
+        var types = AllTypes(mod.MainModule.Types).ToArray();
+        if (types.SelectMany(type => type.Fields).Any(field => field.Name == "TestingPanel" || field.Name == "testingTab"))
+            throw new Exception("Production window still contains Testing menu state");
+        System.Console.WriteLine("PASS production release identity, version and Thor's Kist incompatibility");
         return 0;
     }
     // Inspect actual game IL and replacement signatures without running Unity

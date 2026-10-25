@@ -21,6 +21,10 @@ internal sealed partial class Ritual
     private static readonly System.Reflection.FieldInfo lastHit = AccessTools.Field(typeof(Character), "m_lastHit");
     internal RitualOutcomes? Outcomes => outcomes;
 
+    private void Trace(string attempt, string phase, string details) =>
+        log.LogInfo("Einherjar ritual trace: world=" + world + " localPeer=" + ZNet.GetUID() +
+            " serverPeer=" + ServerId + " localSession=" + session + " attempt=" + attempt + " phase=" + phase + " " + details);
+
     private sealed class DeathReport
     {
         public string Id = "", Life = "", OwnerLife = "";
@@ -35,13 +39,20 @@ internal sealed partial class Ritual
         router.Register<ZPackage>(Prefix + "Strike", ReceiveStrike);
         if (!server) return;
         var random = new System.Random();
+        long draws = 0;
+        Trace("", "rng-initialized", "generator=System.Random build=" + typeof(Ritual).Assembly.ManifestModule.ModuleVersionId);
         storage = new RitualStorage(Path.Combine(Paths.ConfigPath, "SharedInventory", "ritual-" + world + ".json"), world, (state, error) =>
         {
             if (stopped) return;
             if (error != null) { log.LogError("Ritual state could not be loaded: " + error); return; }
-            outcomes = new RitualOutcomes(state!, () => Now, () => DateTime.UtcNow, minutes, random.Next,
+            outcomes = new RitualOutcomes(state!, () => Now, () => DateTime.UtcNow, minutes, count =>
+                {
+                    var index = random.Next(count);
+                    Trace(AttemptId, "rng-draw", "drawNumber=" + (++draws) + " exclusiveUpperBound=" + count + " index=" + index);
+                    return index;
+                },
                 (snapshot, complete) => storage!.Save(snapshot, complete), DispatchDeaths,
-                victim => SpawnEssence(new Vector3(victim.X, victim.Y, victim.Z)), message => log.LogInfo(message));
+                victim => SpawnEssence(new Vector3(victim.X, victim.Y, victim.Z)), message => Trace(AttemptId, "outcome", message));
         });
     }
 
@@ -53,10 +64,15 @@ internal sealed partial class Ritual
         foreach (var victim in record.Victims)
         {
             var character = Character(victim.Peer);
-            if (character == null || character.m_uid.ToString() != victim.Life || character.GetBool(ZDOVars.s_dead) ||
-                !confirmations.TryGetValue(victim.Peer, out var confirmation) || confirmation.OwnerLife != victim.OwnerLife) continue;
+            var skip = character == null ? "missing-character" : character.m_uid.ToString() != victim.Life ? "different-life" :
+                character.GetBool(ZDOVars.s_dead) ? "already-dead" : "";
+            confirmations.TryGetValue(victim.Peer, out var confirmation);
+            if (skip.Length == 0 && (confirmation == null || confirmation.OwnerLife != victim.OwnerLife)) skip = "missing-life-confirmation";
+            if (skip.Length != 0)
+            { Trace(record.Id, "death-dispatch-skipped", "victimPeer=" + victim.Peer + " reason=" + skip); continue; }
             var p = Package(); p.Write(session); p.Write(record.Id); p.Write(victim.Life); p.Write(victim.OwnerLife);
-            p.Write(confirmation.ClientTime + RitualOutcomes.DeathTimeout);
+            p.Write(confirmation!.ClientTime + RitualOutcomes.DeathTimeout);
+            Trace(record.Id, "death-dispatch", "targetPeer=" + victim.Peer + " life=" + victim.Life);
             try { Send(victim.Peer, "Death", p); }
             catch (Exception error) { log.LogError("Ritual death dispatch failed for " + record.Id + "/" + victim.Life + ": " + error); }
         }
@@ -70,6 +86,7 @@ internal sealed partial class Ritual
         if (player == null || player.IsDead() || player.InIntro() || player.IsTeleporting() ||
             player.GetComponent<ZNetView>()?.IsOwner() != true || player.GetZDOID().ToString() != life ||
             !deathGuard.Claim(life, ownerLife, token, id, Now, expires)) return;
+        Trace(id, "death-accepted", "serverSession=" + token + " victimPeer=" + ZNet.GetUID() + " life=" + life);
         var position = player.transform.position;
         // Player.OnDeath reads this unconditionally for death statistics. Fresh
         // characters have no previous hit; avoid stale enemy/player attribution.
@@ -79,6 +96,7 @@ internal sealed partial class Ritual
         // tombstone, death effects, skill settings and respawn exactly once.
         // No ordinary-death observer can publish an essence.
         player.OnDeath();
+        Trace(id, "death-result", "victimPeer=" + ZNet.GetUID() + " life=" + life + " dead=" + player.IsDead());
         if (!player.IsDead()) return;
         var reply = Package(); reply.Write(token); reply.Write(id); reply.Write(life); reply.Write(ownerLife); reply.Write(position);
         Send(sender, "DeathComplete", reply);
@@ -91,6 +109,7 @@ internal sealed partial class Ritual
         if (report.Id != gathering.Id || !gathering.Members.Any(m => m.Peer == sender && m.Life == report.Life && m.OwnerLife == report.OwnerLife) ||
             !Finite(report.Position) || deathReports.Any(r => r.Peer == sender && r.Id == report.Id)) return;
         deathReports.Add(report);
+        Trace(report.Id, "death-report-received", "victimPeer=" + sender + " life=" + report.Life);
     }
 
     private void ConfirmDeaths()

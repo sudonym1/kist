@@ -109,6 +109,8 @@ internal sealed partial class Ritual
         pendingId = Guid.NewGuid().ToString("N");
         // Capture membership now, not after the confirmations arrive.
         pendingRoster = roster.Select(m => m.Copy()).ToArray();
+        Trace(pendingId, "request", "initiatorPeer=" + initiator + " initiatorRole=" +
+            (initiator == ZNet.GetUID() ? "server-player" : "client"));
         confirmations.Clear(); probes.Clear();
         nextProbe = 0;
         Probe();
@@ -257,6 +259,11 @@ internal sealed partial class Ritual
         if (gathering.Advance(Now, roster, out var cancellation))
         {
             Broadcast("", false);
+            Trace(gathering.Id, "commit", "initiatorPeer=" + initiator + " initiatorRole=" +
+                (initiator == ZNet.GetUID() ? "server-player" : "client") + " rosterCount=" + gathering.Members.Count +
+                " orderedRoster=" + Newtonsoft.Json.JsonConvert.SerializeObject(gathering.Members.Select((member, index) =>
+                    new { index, peer = member.Peer, name = member.Name, life = member.Life,
+                        role = member.Peer == ZNet.GetUID() ? "server-player" : "client" })));
             if (outcomes?.Commit(gathering.Id, gathering.Members) != true)
             { Cancel("outcome commitment unavailable"); return; }
             log.LogInfo("Einherjar ritual committed: " + gathering.Id + " (" + gathering.Members.Count + " participants)");

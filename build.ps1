@@ -29,17 +29,25 @@ try {
     $binary = Join-Path $PSScriptRoot 'bin/Release/netstandard2.1/SharedInventory.dll'
     if ($EnableTestHarness) { $binary = Join-Path $PSScriptRoot 'bin/Release/testing/netstandard2.1/SharedInventory.dll' }
 
+    # Release isolation is mandatory, including when regression tests are skipped.
+    $verification = @('--verify-release', $binary, (Join-Path $PSScriptRoot 'manifest.json'))
+    if ($EnableTestHarness) { $verification = @('--verify-harness', $binary, 'true') }
+    & $Dotnet run --project (Join-Path $PSScriptRoot "tools/ProtocolTests/ProtocolTests.csproj") -c Release "-p:ValheimDir=$ValheimDir" "-p:BepInExDir=$BepInExDir" -- @verification
+    if ($LASTEXITCODE -ne 0) { throw "Release identity or test harness isolation check failed." }
+
     if (-not $SkipTests) {
-        & $Dotnet run --project (Join-Path $PSScriptRoot "tools/ProtocolTests/ProtocolTests.csproj") -c Release "-p:ValheimDir=$ValheimDir" "-p:BepInExDir=$BepInExDir" -- --verify-harness $binary $EnableTestHarness.IsPresent.ToString()
-        if ($LASTEXITCODE -ne 0) { throw "Test harness build isolation check failed." }
         & $Dotnet run --project (Join-Path $PSScriptRoot "tools/ProtocolTests/ProtocolTests.csproj") -c Release "-p:ValheimDir=$ValheimDir" "-p:BepInExDir=$BepInExDir" -- `
             $binary `
             (Join-Path $BepInExDir "core") (Join-Path $ValheimDir "valheim_Data/Managed")
         if ($LASTEXITCODE -ne 0) { throw "Game resource hook checks failed." }
     }
 
-    $packageName = 'EinherjarChest'
-    if ($EnableTestHarness) { $packageName = 'EinherjarChest-Testing' }
+    if (-not $EnableTestHarness) {
+        & (Join-Path $PSScriptRoot 'tools/Package-Release.ps1') -Binary $binary
+        return
+    }
+
+    $packageName = 'EinherjarChest-Testing'
     $package = Join-Path $PSScriptRoot "dist/$packageName"
     New-Item -ItemType Directory -Force -Path $package | Out-Null
     Copy-Item $binary $package

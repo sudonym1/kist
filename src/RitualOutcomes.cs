@@ -88,11 +88,15 @@ internal sealed class RitualOutcomes
             roster.Any(m => m.Peer == 0 || string.IsNullOrEmpty(m.Life) || string.IsNullOrEmpty(m.OwnerLife) || m.Unavailable.Length != 0) ||
             roster.Select(m => m.Peer).Distinct().Count() != roster.Count) return false;
         var punishment = now() < deadline;
-        var victims = punishment ? roster : new[] { roster[draw(roster.Count)] };
+        var selectedIndex = punishment ? -1 : draw(roster.Count);
+        var victims = punishment ? roster : new[] { roster[selectedIndex] };
         current = new RitualRecord { Id = id, Punishment = punishment, CommittedUtcTicks = utc().Ticks,
             Victims = victims.Select(m => new RitualVictim { Peer = m.Peer, Life = m.Life, OwnerLife = m.OwnerLife, Name = m.Name }).ToList() };
         State.Attempts.Add(current);
         if (punishment) StartTimer();
+        diagnostic("selection attempt=" + id + " outcome=" + (punishment ? "punishment" : "sacrifice") +
+            " rosterCount=" + roster.Count + " selectedIndex=" + (punishment ? "none" : selectedIndex.ToString()) +
+            " victimPeers=[" + string.Join(",", current.Victims.Select(v => v.Peer)) + "] persistence=pending");
         Persist(() =>
         {
             expires = now() + DeathTimeout;
@@ -109,6 +113,7 @@ internal sealed class RitualOutcomes
         var victim = current.Victims.SingleOrDefault(v => v.Peer == peer && v.Life == life && v.OwnerLife == ownerLife);
         if (victim == null || victim.Confirmed) return false;
         victim.Confirmed = true; victim.X = x; victim.Y = y; victim.Z = z;
+        diagnostic("death-confirmed attempt=" + id + " victimPeer=" + peer + " life=" + life);
         return true;
     }
 
@@ -126,7 +131,11 @@ internal sealed class RitualOutcomes
                 // Persist the timer and publication reservation before creating an item.
                 Persist(() =>
                 {
-                    try { reward(current!.Victims.Single().Copy()); current.Reward = "published"; Finish(true); }
+                    try
+                    {
+                        diagnostic("reward-publish attempt=" + current!.Id + " victimPeer=" + current.Victims.Single().Peer);
+                        reward(current.Victims.Single().Copy()); current.Reward = "published"; Finish(true);
+                    }
                     catch (Exception error) { Fail(error); }
                 });
             }
@@ -145,7 +154,7 @@ internal sealed class RitualOutcomes
     {
         if (!Ready) return false;
         State.DeadlineUtcTicks = 0; deadline = now();
-        Persist(() => completed(null), completed);
+        Persist(() => { diagnostic("cooldown-reset persisted=true"); completed(null); }, completed);
         return true;
     }
 
