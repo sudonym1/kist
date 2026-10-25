@@ -1,6 +1,6 @@
 # Einherjar Chest
 
-These are implementation and validation notes from development through 0.4.6. The public replacement release is **0.10.0**; use [README.md](README.md) for current player instructions and [PUBLISHING.md](PUBLISHING.md) for the Hexium package. References to older versions and personal test installations below are historical evidence.
+These are implementation and validation notes from development through 0.4.6. The current release is **0.10.1**; use [README.md](README.md) for current player instructions and [PUBLISHING.md](PUBLISHING.md) for the Hexium package. References to older versions and personal test installations below are historical evidence.
 
 A small BepInEx 5 mod for a world-wide shared item inventory, viewable anywhere with transfers available near an Einherjar Chest. Install the same DLL on the server and every client, including the host.
 

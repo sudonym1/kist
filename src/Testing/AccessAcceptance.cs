@@ -57,7 +57,10 @@ internal static class AccessAcceptance
         var graphical = SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null;
         var player = Player.m_localPlayer;
         if (graphical)
+        {
             while (player.InIntro() || player.IsTeleporting()) yield return null;
+            CheckDestroyedHover(player);
+        }
         var anchor = new Vector3(5500, 500, 5500);
         Check(!ChestAccess.Covers(anchor), "Unloaded world locations provide no access");
         var instance = UnityEngine.Object.Instantiate(Content.Chest!, anchor, Quaternion.identity);
@@ -117,7 +120,11 @@ internal static class AccessAcceptance
         var inventory = player.GetInventory();
         EnvMan.instance.m_debugTimeOfDay = true; EnvMan.instance.m_debugTime = .4f; EnvMan.instance.m_debugEnv = "Clear";
         if (inventory.GetItem("$item_hammer") == null) inventory.AddItem(Items.Default("Hammer")!);
+        // This suite must also run on a fresh character, before the asset suite
+        // has discovered the chest recipe through its essence pickup test.
+        player.AddKnownItem(Content.Essence!.GetComponent<ItemDrop>().m_itemData);
         player.EquipItem(inventory.GetItem("$item_hammer"), false);
+        yield return null;
         Check(player.SetSelectedPiece(Content.Chest!.GetComponent<Piece>()), "Real hammer selects chest for radius preview");
         AccessTools.Method(typeof(Player), "SetupPlacementGhost").Invoke(player, null);
         var ghost = (GameObject)AccessTools.Field(typeof(Player), "m_placementGhost").GetValue(player);
@@ -142,9 +149,44 @@ internal static class AccessAcceptance
             .Count(line => line.transform.parent?.name == "Einherjar access sphere" && line.positionCount == 96) == 3,
             "One three-circle spherical radius preview appears for the actual placement ghost (active=" + ghost.activeInHierarchy +
             ", shader=" + (Shader.Find("Sprites/Default") != null) + ")");
-        Check(Content.Chest.GetComponent<SharedChest>().GetHoverText().Contains("100"), "Chest inspection displays fixed loaded-only radius");
+        Check(Content.Chest.GetComponent<SharedChest>().GetHoverText().Contains("Open shared inventory"), "Chest inspection displays the shared inventory action");
         CapturePreview(ghost.transform.position);
         // Leave the hammer ghost available for visual review; no new paid chest.
+    }
+
+    private static void CheckDestroyedHover(Player player)
+    {
+        var hoverField = AccessTools.Field(typeof(Player), "m_hovering");
+        var ghostField = AccessTools.Field(typeof(Player), "m_placementGhost");
+        var savedHover = hoverField.GetValue(player);
+        var savedGhost = ghostField.GetValue(player);
+        var hover = new GameObject("Destroyed radius hover regression");
+        using var visual = new ChestRadiusVisual();
+        try
+        {
+            ghostField.SetValue(player, null);
+            hoverField.SetValue(player, hover);
+            visual.Update();
+            Check(!visual.Visible, "Unrelated hover objects do not display the radius preview");
+            UnityEngine.Object.DestroyImmediate(hover);
+            Check(hover == null && !ReferenceEquals(hover, null), "Destroyed hover retains its managed Unity reference");
+            visual.Update();
+            Check(!visual.Visible, "Destroyed hover objects do not throw or display the radius preview");
+            hoverField.SetValue(player, null);
+            visual.Update();
+            Check(!visual.Visible, "Null hover objects do not throw or display the radius preview");
+            var root = new GameObject("Destroyed radius root regression");
+            AccessTools.Field(typeof(ChestRadiusVisual), "root").SetValue(visual, root);
+            UnityEngine.Object.DestroyImmediate(root);
+            visual.Update();
+            Check(!visual.Visible, "Destroyed preview roots can be hidden without throwing");
+        }
+        finally
+        {
+            hoverField.SetValue(player, savedHover);
+            ghostField.SetValue(player, savedGhost);
+            if (hover != null) UnityEngine.Object.DestroyImmediate(hover);
+        }
     }
 
     private static void CapturePreview(Vector3 center)

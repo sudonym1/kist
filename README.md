@@ -42,7 +42,7 @@ Requires **Valheim and BepInEx 5**. Install on **both the server and every clien
 1. Close the game/server and back up your world, characters and mod saves.
 2. Uninstall the old Thor's Kist package on every peer. For a manual install, remove its plugin directory and any duplicate `ThorsKist.dll`, `ThorsKist.Sync.dll` or `ThorsKist.Sync.Sqlite.dll` from other plugin directories. Keep old saves separately if you need them.
 3. Install this release through your mod manager, or copy `plugins/SharedInventory.dll` from the ZIP into `BepInEx/plugins/EinherjarChest/`.
-4. Start every peer with the same version. Keep only one copy of `SharedInventory.dll` in the plugins tree. The startup log should show **Einherjar Chest 0.10.0**.
+4. Start every peer with the same version. Keep only one copy of `SharedInventory.dll` in the plugins tree. The startup log should show **Einherjar Chest 0.10.1**.
 
 This is a new implementation with one shared inventory per world. Thor's Kist hirds, anchors, configuration and inventory data are not imported. **There is no automatic data migration.** Do any conversion manually while the server is stopped.
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.1
+
+- Fix repeated null-reference exceptions when the chest radius preview encounters a destroyed hover object or preview object. These exceptions could interrupt inventory refreshes and window input for the affected frames.
+
 ## 0.10.0
 
 - Replace Thor's Kist with Einherjar Chest, a new implementation with one shared inventory per world.

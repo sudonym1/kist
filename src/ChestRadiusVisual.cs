@@ -26,10 +26,19 @@ internal sealed class ChestRadiusVisual : IDisposable
             if (placement != null && placement.activeInHierarchy && placement.GetComponent<SharedChest>() != null)
                 target = placement.transform;
             else
-                target = player.GetHoverObject()?.GetComponentInParent<SharedChest>()?.transform;
+            {
+                // Unity's destroyed objects retain a managed reference, so ?.
+                // does not reject them. Use Unity's null checks before access.
+                var hover = player.GetHoverObject();
+                if (hover != null)
+                {
+                    var chest = hover.GetComponentInParent<SharedChest>();
+                    if (chest != null) target = chest.transform;
+                }
+            }
         }
         if (target == null || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
-        { root?.SetActive(false); return; }
+        { if (root != null) root.SetActive(false); return; }
         if (root == null) Create();
         if (root == null) return;
         root.SetActive(true);
