@@ -90,7 +90,8 @@ internal static class ContentAcceptance
         Check(chest.GetComponent<Container>() == null && chest.GetComponent<SharedChest>() != null, "No cloned vanilla storage interaction");
         Check(piece.m_resources.Length == 1 && piece.m_resources[0].m_resItem.gameObject == essence &&
             piece.m_resources[0].m_amount == 1 && !piece.m_resources[0].m_recover, "Recipe requires one essence and never refunds it");
-        Check(!essence.GetComponent<ItemDrop>().m_itemData.m_shared.m_teleportable, "Essence item portal eligibility disabled");
+        Check(essence.GetComponent<ItemDrop>().m_itemData.m_shared.m_teleportable == Content.EssencePortalsAllowed,
+            "Essence item portal eligibility follows the host setting");
         Check(chest.GetComponent<BoxCollider>().size == new Vector3(1.98f, 1.28f, 1.02f), "Simple chest collider dimensions");
         if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
         {
@@ -125,7 +126,32 @@ internal static class ContentAcceptance
         pickup.GetComponent<ItemDrop>().Pickup(player);
         yield return new WaitForSeconds(.5f);
         Check(Items.Count(inventory, ContentIds.Essence) == 1, "Real world essence pickup enters backpack exactly once");
-        Check(!player.IsTeleportable(false) && !player.IsTeleportable(true), "Essence blocks normal and unrestricted portal rules");
+        var portalSetting = Plugin.Instance!.Config.Bind("Server", "AllowEssenceThroughPortals", false, "");
+        var originalPortalSetting = portalSetting.Value;
+        try
+        {
+            var portalPrefix = AccessTools.Method(AccessTools.Inner(typeof(Content), "ExplainBlockedPortal"), "Prefix");
+            portalSetting.Value = false; yield return null;
+            Check(!player.IsTeleportable(false) && !player.IsTeleportable(true) && !(bool)portalPrefix.Invoke(null, new object[] { player }),
+                "Disabled setting blocks essence under normal and unrestricted portal rules and prevents portal activation");
+            Check(!essence.GetComponent<ItemDrop>().m_itemData.m_shared.m_teleportable, "Disabling portal travel updates essence item data");
+            var carriedEssence = inventory.GetAllItems().Single(item => item.m_dropPrefab == essence);
+            inventory.RemoveItem(carriedEssence);
+            var normalEligibility = player.IsTeleportable(false);
+            var unrestrictedEligibility = player.IsTeleportable(true);
+            inventory.AddItem(carriedEssence);
+            portalSetting.Value = true; yield return null;
+            Check(essence.GetComponent<ItemDrop>().m_itemData.m_shared.m_teleportable &&
+                player.IsTeleportable(false) == normalEligibility && player.IsTeleportable(true) == unrestrictedEligibility &&
+                (bool)portalPrefix.Invoke(null, new object[] { player }),
+                "Enabled setting permits already carried essence without bypassing other portal restrictions");
+            var copper = Items.Default("CopperOre")!;
+            Check(Items.Add(inventory, copper, 1) == 1, "Additional portal-restricted item fits in the test inventory");
+            Check(player.IsTeleportable(false) == inventory.IsTeleportable(false), "Enabled essence setting preserves the game's rules for other carried items");
+            inventory.RemoveItem(copper.m_shared.m_name, 1);
+        }
+        finally { portalSetting.Value = originalPortalSetting; }
+        yield return null;
         Check(player.HaveRequirements(piece, Player.RequirementMode.CanBuild), "Carried essence satisfies actual hammer requirements");
         Check(player.HaveRequirements(piece, Player.RequirementMode.IsKnown), "Picking up essence discovers the hammer recipe");
         inventory.AddItem(Items.Default("Hammer")!);

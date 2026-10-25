@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.3
+
+- Add `Server / AllowEssenceThroughPortals` (default `false`) to allow carried Einherjar Essence through portals. The host/server's setting synchronizes to clients; other portal restrictions still apply.
+- Update essence portal eligibility and its description to follow the setting, including for already carried essence.
+
 ## 0.10.2
 
 - Show `Odin honors <Player>'s sacrifice...` on every participant's countdown overlay for six seconds after essence creation, including the sacrificed player. The announcement survives death messages.

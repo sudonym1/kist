@@ -24,6 +24,7 @@ internal static class Program
             if (args.Length == 3 && args[0] == "--verify-release") return PatchChecks.CheckRelease(args[1], args[2]);
             if (args.Length == 3) return PatchChecks.Run(args[0], args[1], args[2]);
             ProtocolChecks();
+            PortalSettingsChecks.Run();
             return EssenceChecks();
         }
         catch (Exception error)

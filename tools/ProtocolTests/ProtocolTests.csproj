@@ -17,6 +17,7 @@
     <Reference Include="assembly_utils" HintPath="$(ManagedDir)/assembly_utils.dll" />
     <Reference Include="Newtonsoft.Json" HintPath="$(ManagedDir)/Newtonsoft.Json.dll" />
     <Compile Include="../../src/RpcApi.cs" Link="RpcApi.cs" />
+    <Compile Include="../../src/PortalSettings.cs" Link="PortalSettings.cs" />
     <Compile Include="../../src/ContentIds.cs" Link="ContentIds.cs" />
     <Compile Include="../../src/Replies.cs" Link="Replies.cs" />
     <Compile Include="../../src/CountDatabase.cs" Link="CountDatabase.cs" />

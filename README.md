@@ -14,7 +14,7 @@ Earn a shared inventory for your world. Gather at the sacrificial stones, face O
 
 Odin punishes avarice. Another gathering can bring lightning to every participant and yield no essence. The stone's warning deserves your attention.
 
-Essence cannot enter shared storage or pass through portals, including unrestricted portals. Removing or destroying a chest never returns its essence. The lightning does not damage nearby structures.
+Essence cannot enter shared storage. By default it also cannot pass through portals, including unrestricted portals; the host/server can enable portal travel with **Server / AllowEssenceThroughPortals**. Removing or destroying a chest never returns its essence. The lightning does not damage nearby structures.
 
 ## Use shared stock
 
@@ -42,7 +42,7 @@ Requires **Valheim and BepInEx 5**. Install on **both the server and every clien
 1. Close the game/server and back up your world, characters and mod saves.
 2. Uninstall the old Thor's Kist package on every peer. For a manual install, remove its plugin directory and any duplicate `ThorsKist.dll`, `ThorsKist.Sync.dll` or `ThorsKist.Sync.Sqlite.dll` from other plugin directories. Keep old saves separately if you need them.
 3. Install this release through your mod manager, or copy `plugins/SharedInventory.dll` from the ZIP into `BepInEx/plugins/EinherjarChest/`.
-4. Start every peer with the same version. Keep only one copy of `SharedInventory.dll` in the plugins tree. The startup log should show **Einherjar Chest 0.10.2**.
+4. Start every peer with the same version. Keep only one copy of `SharedInventory.dll` in the plugins tree. The startup log should show **Einherjar Chest 0.10.3**.
 
 This is a new implementation with one shared inventory per world. Thor's Kist hirds, anchors, configuration and inventory data are not imported. **There is no automatic data migration.** Do any conversion manually while the server is stopped.
 
@@ -54,6 +54,7 @@ Settings are created in `BepInEx/config/local.sharedinventory.cfg`:
 
 - **Client / ToggleKey**: inventory shortcut, default `F3`.
 - **Server / RitualAngerMinutes**: hidden world-wide ritual interval, default `30`. Must be finite and positive. Changes apply to future intervals. Players see no timer or remaining-time display.
+- **Server / AllowEssenceThroughPortals**: default `false`. Set to `true` on the host/server to allow carried essence through portals. The value is synchronized to clients; other items and normal portal restrictions still apply. Edit the host/server configuration before starting the world.
 
 The server stores stock in `BepInEx/config/SharedInventory/<worldUID>.json` and ritual state in `BepInEx/config/SharedInventory/ritual-<worldUID>.json`. Back up both with your world. Stock saves every two seconds while dirty and at normal shutdown; atomic replacement keeps a previous `.bak`. Ritual anger persists across restarts and counts real offline time. Corrupt ritual state disables initiation instead of silently resetting it.
 

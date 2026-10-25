@@ -17,6 +17,14 @@ internal static class Content
     internal static GameObject? Essence { get; private set; }
     internal static GameObject? Chest { get; private set; }
     internal static ContentModels? Models { get; private set; }
+    internal static bool EssencePortalsAllowed { get; private set; }
+
+    internal static void ApplyPortalSetting(bool allowed)
+    {
+        EssencePortalsAllowed = allowed;
+        if (Essence != null) Essence.GetComponent<ItemDrop>().m_itemData.m_shared.m_teleportable = allowed;
+        if (Localization.instance != null) Localize.Postfix(Localization.instance);
+    }
     private static readonly List<UnityEngine.Object> icons = new List<UnityEngine.Object>();
     private static bool Headless => SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null;
 
@@ -72,7 +80,7 @@ internal static class Content
                     m_weight = 1f,
                     m_maxStackSize = 20,
                     m_maxQuality = 1,
-                    m_teleportable = false,
+                    m_teleportable = EssencePortalsAllowed,
                     m_icons = LoadIcon("essence") is Sprite essenceIcon ? new[] { essenceIcon } : Array.Empty<Sprite>()
                 }
             };
@@ -176,7 +184,8 @@ internal static class Content
         internal static void Postfix(Localization __instance)
         {
             AddWord(__instance, "item_einherjaressence", "Einherjar Essence");
-            AddWord(__instance, "item_einherjaressence_description", "An amber soul bound by Odin. Builds an Einherjar Chest. Must be carried; cannot enter shared storage or pass through portals. Permanently consumed by construction.");
+            AddWord(__instance, "item_einherjaressence_description", "An amber soul bound by Odin. Builds an Einherjar Chest. Must be carried; cannot enter shared storage." +
+                (EssencePortalsAllowed ? "" : " Cannot pass through portals.") + " Permanently consumed by construction.");
             AddWord(__instance, "piece_einherjarchest", "Einherjar Chest");
             AddWord(__instance, "piece_einherjarchest_description", "A reliquary connected to the world's shared inventory. Its essence is never returned when removed or destroyed.");
             AddWord(__instance, "einherjar_open", "Open shared inventory");
@@ -191,7 +200,7 @@ internal static class Content
     {
         private static void Postfix(Humanoid __instance, ref bool __result)
         {
-            if (__result && Items.Count(__instance.GetInventory(), ContentIds.Essence) > 0) __result = false;
+            if (__result && !EssencePortalsAllowed && Items.Count(__instance.GetInventory(), ContentIds.Essence) > 0) __result = false;
         }
     }
 
@@ -200,7 +209,7 @@ internal static class Content
     {
         private static bool Prefix(Player player)
         {
-            if (Items.Count(player.GetInventory(), ContentIds.Essence) == 0) return true;
+            if (EssencePortalsAllowed || Items.Count(player.GetInventory(), ContentIds.Essence) == 0) return true;
             player.Message(MessageHud.MessageType.Center, "$einherjar_noportal");
             return false;
         }

@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace SharedInventory;
 
-[BepInPlugin(Guid, "Einherjar Chest", "0.10.2")]
+[BepInPlugin(Guid, "Einherjar Chest", "0.10.3")]
 [BepInIncompatibility("posixone_ThorsKist")]
 public sealed class Plugin : BaseUnityPlugin
 {
@@ -17,6 +17,8 @@ public sealed class Plugin : BaseUnityPlugin
     private Harmony harmony = null!;
     private ConfigEntry<KeyCode> toggleKey = null!;
     private ConfigEntry<double> ritualMinutes = null!;
+    private ConfigEntry<bool> allowEssencePortals = null!;
+    private PortalSettings? portalSettings;
     private ChestRadiusVisual? radiusVisual;
     private ZRoutedRpc? router;
     private RpcApi? api;
@@ -47,6 +49,8 @@ public sealed class Plugin : BaseUnityPlugin
         toggleKey = Config.Bind("Client", "ToggleKey", KeyCode.F3, "Open shared inventory. Transfers require an Einherjar Chest in range.");
         ritualMinutes = Config.Bind("Server", "RitualAngerMinutes", 30d,
             "Hidden world-wide ritual interval. Must be finite and positive. Changes apply to future timer starts; existing deadlines remain unchanged.");
+        allowEssencePortals = Config.Bind("Server", "AllowEssenceThroughPortals", false,
+            "Allow carried Einherjar Essence through portals. The host/server value is synchronized to every client. Other portal restrictions still apply.");
 #if SHAREDINVENTORY_TESTING
         testPanel = TestPanel.Create(Config, Logger);
 #endif
@@ -69,12 +73,14 @@ public sealed class Plugin : BaseUnityPlugin
         if (ReferenceEquals(router, ZRoutedRpc.instance)) { attachPending = false; return; }
         api?.Stop();
         Ritual?.Stop();
+        portalSettings?.Stop();
         radiusVisual?.Dispose();
 #if SHAREDINVENTORY_TESTING
         testPanel?.Detach();
 #endif
         window?.Dispose();
         router = ZRoutedRpc.instance;
+        portalSettings = new PortalSettings(router, () => allowEssencePortals.Value, Content.ApplyPortalSetting);
         Ritual = new Ritual(router, Logger, () => ritualMinutes.Value);
         radiusVisual = new ChestRadiusVisual();
         api = new RpcApi(router, Logger,
@@ -102,6 +108,7 @@ public sealed class Plugin : BaseUnityPlugin
     private void Update()
     {
         if (attachPending) Attach();
+        portalSettings?.Update(UnityEngine.Time.realtimeSinceStartupAsDouble);
         Ritual?.Update();
         radiusVisual?.Update();
         api?.Pump();
@@ -144,6 +151,7 @@ public sealed class Plugin : BaseUnityPlugin
         attachPending = false;
         api?.Stop();
         Ritual?.Stop(); Ritual = null;
+        portalSettings?.Stop(); portalSettings = null;
         RitualSite.Clear();
         ChestAccess.Clear();
         radiusVisual?.Dispose(); radiusVisual = null;

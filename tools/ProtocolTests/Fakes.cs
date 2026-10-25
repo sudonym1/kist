@@ -18,11 +18,21 @@ namespace BepInEx.Logging
 public sealed class ZNet
 {
     public static ZNet instance = new ZNet();
-    public bool IsServer() => true;
-    public long GetWorldUID() => 1;
+    public bool Server = true;
+    public long World = 1;
+    public Peer? ServerPeer = new Peer();
+    public readonly List<Peer> Peers = new List<Peer>();
+    public bool IsServer() => Server;
+    public long GetWorldUID() => World;
     public static long GetUID() => 1;
-    public Peer GetServerPeer() => new Peer();
-    public sealed class Peer { public long m_uid = 1; }
+    public Peer GetServerPeer() => ServerPeer!;
+    public List<Peer> GetPeers() => Peers;
+    public sealed class Peer
+    {
+        public long m_uid = 1;
+        public bool m_server, Ready = true;
+        public bool IsReady() => Ready;
+    }
 }
 
 // Loopback substitutes only routing; packages, codecs, worker, database, and
@@ -30,6 +40,7 @@ public sealed class ZNet
 public sealed class ZRoutedRpc
 {
     public Action<long, string, ZPackage>? ReplyReceived;
+    public Action<long, string, ZPackage>? Sent;
     private readonly int mainThread = Environment.CurrentManagedThreadId;
     private readonly Dictionary<string, Action<long, ZPackage>> handlers = new Dictionary<string, Action<long, ZPackage>>();
     public void Register<T>(string name, Action<long, T> handler) =>
@@ -37,6 +48,7 @@ public sealed class ZRoutedRpc
     public void InvokeRoutedRPC(long target, string name, ZPackage package)
     {
         if (Environment.CurrentManagedThreadId != mainThread) throw new Exception("Routing left the main thread");
+        if (Sent != null) { Sent(target, name, new ZPackage(package.GetArray())); return; }
         if (target != 1 && ReplyReceived != null) ReplyReceived(target, name, new ZPackage(package.GetArray()));
         else handlers[name](1, new ZPackage(package.GetArray()));
     }

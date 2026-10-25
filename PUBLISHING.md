@@ -1,6 +1,6 @@
 # Publishing Einherjar Chest on Hexium
 
-Version **0.10.2** adds a named sacrifice announcement on every participant's countdown overlay after essence creation. It updates the existing [cmos/ThorsKist listing](https://valheim.hexium.gg/mods/cmos/ThorsKist), continuing the version sequence used by the 0.10.0 Einherjar Chest replacement release.
+Version **0.10.3** adds a host/server setting to allow Einherjar Essence through portals, synchronized to clients and disabled by default. It updates the existing [cmos/ThorsKist listing](https://valheim.hexium.gg/mods/cmos/ThorsKist), continuing the version sequence used by the 0.10.0 Einherjar Chest replacement release.
 
 The game plugin, README, description and icon use **Einherjar Chest**. The manifest's `ThorsKist` name deliberately preserves the existing registry identity. Upload under the **cmos** team to update that listing. Changing the manifest name to `EinherjarChest` would target a different package identity. A visible listing-name change, if supported by Hexium, must preserve the existing listing; the public API documents no rename operation. No listing rename or upload is performed by these scripts.
 
@@ -10,7 +10,7 @@ The game plugin, README, description and icon use **Einherjar Chest**. The manif
 .\build.ps1 -ValheimDir '<Valheim installation>' -BepInExDir '<BepInEx folder>'
 ```
 
-The script runs regressions, protocol checks, fault-harness checks and game-hook checks. It verifies the compiled production DLL excludes all test types and controls even when `-SkipTests` is used. It then creates and validates `dist/ThorsKist-0.10.2.zip` and writes its SHA-256 alongside it. `dist/EinherjarChest.zip` is an identical convenience copy.
+The script runs regressions, protocol checks, fault-harness checks and game-hook checks. It verifies the compiled production DLL excludes all test types and controls even when `-SkipTests` is used. It then creates and validates `dist/ThorsKist-0.10.3.zip` and writes its SHA-256 alongside it. `dist/EinherjarChest.zip` is an identical convenience copy.
 
 The upload includes only these files:
 
