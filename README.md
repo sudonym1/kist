@@ -20,6 +20,8 @@ Odin chooses one participant at random, including the initiator, strikes them wi
 
 Use synthetic stock for isolated testing; see [the Windows setup instructions](WINDOWS-CODEX-SETUP.md).
 
+For TestPlayer's second computer, see [the Pyramid client instructions](PYRAMID-TEST-CLIENT.md) and [verified in-place update/startup results](PYRAMID-TEST-CLIENT-RESULTS.md). They cover SSH administration, preserving the existing isolated character, matching client/host DLLs, and launching in TestPlayer's Windows/Steam session.
+
 Press **F3** to open the searchable shared inventory window. Press **F3** again or **Escape** to close it; closing with Escape does not open the pause menu. **Alt-click** an item in your normal inventory to deposit that entire stack. The withdrawal buttons take **1** or **one normal stack**. Nonstackable items can only be withdrawn one at a time.
 
 The window stays centered and uses a charcoal, aged-gold, and amber reliquary theme. Its default size is 675 x 810 pixels with enlarged text, controls, and item icons. Shorter screens reduce the scrolling list's height before reducing the UI scale. The old `Client / WindowPosition` setting is ignored; the window is no longer draggable.
