@@ -6,6 +6,11 @@ The implementation must retain the agreed scope: server only stores prefab count
 
 ## Locate inputs
 
+For TestPlayer's existing second-computer client on `pyramid`, use
+[PYRAMID-TEST-CLIENT.md](PYRAMID-TEST-CLIENT.md). That procedure updates its existing
+install and preserves the test character; the initial clean-copy setup below is
+historical and should not replace that client.
+
 These paths were verified from WSL on October 23, 2026. Confirm they still exist before use:
 
 | Input | Windows location |

@@ -207,6 +207,13 @@ The current optimistic shared crafting behavior is unchanged for ordinary ingred
 5. **Complete: implement outcomes, persistence, and test controls (2026-10-24).** Uniform server-owned sacrifice, targeted owner-side normal death, Obliterator lightning/audio without damage components, committed-roster punishment and exact message, hidden world deadline, death/life/effect correlation, server reward reservation/deduplication, restart diagnostics without replay, and guarded cooldown-reset/essence-spawn controls. See EINHERJAR-PHASE5-RESULTS.md.
 6. **Validate and document.** Run relevant regressions, real-game hook checks, and isolated host plus remote multiplayer acceptance. Update player/admin documentation without exposing timer state in ordinary player UI. Ship the same compatible version to server and every client.
 
+Phase 6 preparation (2026-10-24): TestPlayer's existing isolated client on `pyramid`
+was updated in place from 0.4.1 to 0.4.5, preserving its test saves/configuration.
+Fresh startup under TestPlayer's interactive Windows session passed with both plugins
+and the save-isolation guard. See [second-computer instructions](PYRAMID-TEST-CLIENT.md)
+and [verification evidence](PYRAMID-TEST-CLIENT-RESULTS.md). A joined two-account
+session and the Phase 6 gameplay/deployment acceptance are still outstanding.
+
 ### Phase 1 completion record
 
 - Gameplay defaults confirmed, including punishment restart, elapsed offline time, and permanent essence loss under enemy destruction.
