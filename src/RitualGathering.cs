@@ -78,18 +78,22 @@ internal sealed class RitualGathering
 
 // Client view of the server's monotonic schedule. Revisions reject delayed
 // starts after cancellation; probe echoes estimate clock offset without sharing
-// a machine clock or any hidden gameplay deadline.
+// a machine clock or any hidden gameplay deadline. The punishment announcement
+// stays independent of the game's center message, which OnDeath overwrites.
 internal sealed class RitualCountdown
 {
     private string session = "", attempt = "";
     private long revision;
     private double offset = double.NaN, start = double.NaN;
     private int lastNumber = 5;
+    private double punishmentUntil = double.NegativeInfinity;
+    public string Announcement(double now) => now < punishmentUntil ? RitualOutcomes.PunishmentMessage : "";
     public bool Apply(double now, string token, long serial, string id, double serverTime,
-        double echo, bool countdown, double serverStart)
+        double echo, bool countdown, double serverStart, string message = "")
     {
         if (session.Length != 0 && session != token || serial <= revision) return false;
         session = token; revision = serial;
+        if (message == RitualOutcomes.PunishmentMessage) punishmentUntil = now + 6;
         if (echo > 0) offset = serverTime - (now + echo) / 2;
         else if (double.IsNaN(offset)) offset = serverTime - now;
         if (countdown && id.Length != 0)
@@ -109,5 +113,5 @@ internal sealed class RitualCountdown
         lastNumber = Math.Min(lastNumber, number);
         return lastNumber;
     }
-    public void Clear() { start = double.NaN; attempt = ""; }
+    public void Clear() { start = double.NaN; attempt = ""; punishmentUntil = double.NegativeInfinity; }
 }

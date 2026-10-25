@@ -120,5 +120,31 @@ internal static partial class Program
             view.Apply(107, "session", 4, "new", 107, 107, true, 107);
             Equal(5, view.Number(107));
         });
+        Test("Odin's punishment announcement survives death messages and subsequent empty display updates", () =>
+        {
+            var view = new RitualCountdown();
+            view.Apply(100, "session", 1, "attempt", 100, 0, true, 100);
+            Equal("", view.Announcement(104));
+            view.Apply(105, "session", 2, "attempt", 105, 0, false, 100, RitualOutcomes.PunishmentMessage);
+            // OnDeath replaces the game's center text with this message. The
+            // independent ritual overlay must retain Odin's text through death.
+            view.Apply(105, "session", 3, "", 105, 0, false, 100, "$msg_youdied");
+            view.Apply(106, "session", 4, "attempt", 106, 0, false, 100);
+            Equal(0, view.Number(106));
+            Equal(RitualOutcomes.PunishmentMessage, view.Announcement(110.999));
+            Equal("", view.Announcement(111));
+        });
+        Test("Stale and foreign punishment packets cannot revive or extend Odin's announcement", () =>
+        {
+            var view = new RitualCountdown();
+            view.Apply(100, "session", 2, "attempt", 100, 0, false, 0, RitualOutcomes.PunishmentMessage);
+            Equal(false, view.Apply(105, "session", 2, "attempt", 100, 0, false, 0, RitualOutcomes.PunishmentMessage));
+            Equal(false, view.Apply(105, "session", 1, "attempt", 100, 0, false, 0, RitualOutcomes.PunishmentMessage));
+            Equal(false, view.Apply(105, "other", 99, "attempt", 100, 0, false, 0, RitualOutcomes.PunishmentMessage));
+            Equal("", view.Announcement(106));
+            view.Apply(107, "session", 3, "next", 107, 0, false, 0, RitualOutcomes.PunishmentMessage);
+            Equal(RitualOutcomes.PunishmentMessage, view.Announcement(107));
+            view.Clear(); Equal("", view.Announcement(107));
+        });
     }
 }

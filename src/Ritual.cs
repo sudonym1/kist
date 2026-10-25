@@ -38,6 +38,7 @@ internal sealed partial class Ritual
     internal bool Active => pending || gathering.Active || outcomes?.Active == true;
     internal RitualGathering Gathering => gathering;
     internal int CountdownNumber => display.Number(Now);
+    internal string Announcement => display.Announcement(Now);
     internal event Action<string, IReadOnlyList<RitualMember>>? Committed;
 
     private sealed class Confirmation
@@ -288,7 +289,7 @@ internal sealed partial class Ritual
         var token = p.ReadString(); var serial = p.ReadLong();
         var attempt = p.ReadString(); var message = p.ReadString(); var presence = p.ReadString();
         var serverTime = p.ReadDouble(); var echo = p.ReadDouble(); var countdown = p.ReadBool(); var start = p.ReadDouble();
-        if (!display.Apply(Now, token, serial, attempt, serverTime, echo, countdown, start)) return;
+        if (!display.Apply(Now, token, serial, attempt, serverTime, echo, countdown, start, message)) return;
         if (presence.Length != 0) Presence = presence;
         if (message.Length != 0) Player.m_localPlayer?.Message(MessageHud.MessageType.Center, message);
     }
@@ -296,6 +297,17 @@ internal sealed partial class Ritual
     public void Draw()
     {
         if (stopped) return;
+        var announcement = Announcement;
+        if (announcement.Length != 0)
+        {
+            var width = Math.Min(1000, Screen.width - 40);
+            var announcementStyle = new GUIStyle(GUI.skin.label) {
+                fontSize = (int)Mathf.Clamp(Screen.height / 24f, 28, 42), alignment = TextAnchor.MiddleCenter, wordWrap = true
+            };
+            announcementStyle.normal.textColor = new Color(1, .79f, .32f);
+            GUI.Label(new Rect((Screen.width - width) / 2f, Screen.height * .22f, width, 120), announcement, announcementStyle);
+            return;
+        }
         var number = CountdownNumber;
         if (number == 0) return;
         var style = new GUIStyle(GUI.skin.label) { fontSize = 58, alignment = TextAnchor.MiddleCenter };
