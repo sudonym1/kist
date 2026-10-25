@@ -22,7 +22,8 @@ internal static class ContentAcceptance
     {
         var accessTests = Array.IndexOf(Environment.GetCommandLineArgs(), "-einherjar-access-tests") >= 0;
         var ritualTests = Array.IndexOf(Environment.GetCommandLineArgs(), "-einherjar-ritual-tests") >= 0;
-        if (!accessTests && !ritualTests && Array.IndexOf(Environment.GetCommandLineArgs(), "-einherjar-asset-tests") < 0) return;
+        var outcomeTests = Array.IndexOf(Environment.GetCommandLineArgs(), "-einherjar-outcome-tests") >= 0;
+        if (!accessTests && !ritualTests && !outcomeTests && Array.IndexOf(Environment.GetCommandLineArgs(), "-einherjar-asset-tests") < 0) return;
         if (!bootstrapped && Content.Chest != null && FejdStartup.instance != null)
         {
             bootstrapped = true;
@@ -37,7 +38,7 @@ internal static class ContentAcceptance
             AccessTools.Field(typeof(FejdStartup), "m_startingWorld").SetValue(FejdStartup.instance, true);
             AccessTools.Method(typeof(FejdStartup), "TransitionToMainScene").Invoke(FejdStartup.instance, null);
         }
-        if (accessTests || ritualTests) return; // Share guarded bootstrap; separate acceptance run.
+        if (accessTests || ritualTests || outcomeTests) return; // Share guarded bootstrap; separate acceptance run.
         if (started || ZNetScene.instance == null || Game.instance == null) return;
         if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null && Player.m_localPlayer == null) return;
         started = true;

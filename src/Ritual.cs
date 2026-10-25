@@ -10,7 +10,7 @@ namespace SharedInventory;
 
 // Main-thread ritual endpoint. No inventory worker, stock RPC, or save format is
 // involved. Only active validation/countdowns send presence probes (4 Hz).
-internal sealed class Ritual
+internal sealed partial class Ritual
 {
     private const string Prefix = "SharedInventory.Ritual.v1.";
     private static double Now => (double)Stopwatch.GetTimestamp() / Stopwatch.Frequency;
@@ -24,6 +24,7 @@ internal sealed class Ritual
     private readonly string session = Guid.NewGuid().ToString("N");
     private string probe = "";
     private double probeSent, nextProbe, localNextRequest, localNextInspect;
+    private double lastClientProbe = double.NegativeInfinity;
     private long initiator;
     private ZDOID stone;
     private bool pending, stopped;
@@ -34,7 +35,7 @@ internal sealed class Ritual
     private readonly RitualCountdown display = new RitualCountdown();
     private readonly Dictionary<string, double> probes = new Dictionary<string, double>();
     public string Presence { get; private set; } = "";
-    internal bool Active => pending || gathering.Active;
+    internal bool Active => pending || gathering.Active || outcomes?.Active == true;
     internal RitualGathering Gathering => gathering;
     internal int CountdownNumber => display.Number(Now);
     internal event Action<string, IReadOnlyList<RitualMember>>? Committed;
@@ -45,9 +46,11 @@ internal sealed class Ritual
         public string Error = "";
         public Vector3 Position;
         public double At;
+        public double ClientTime;
+        public string OwnerLife = "";
     }
 
-    public Ritual(ZRoutedRpc router, ManualLogSource log)
+    public Ritual(ZRoutedRpc router, ManualLogSource log, Func<double> minutes)
     {
         this.router = router; this.log = log;
         server = ZNet.instance.IsServer(); world = ZNet.instance.GetWorldUID();
@@ -55,6 +58,7 @@ internal sealed class Ritual
         router.Register<ZPackage>(Prefix + "Probe", ReceiveProbe);
         router.Register<ZPackage>(Prefix + "Presence", ReceivePresence);
         router.Register<ZPackage>(Prefix + "Display", ReceiveDisplay);
+        InitializeOutcomes(minutes);
     }
 
     private long ServerId => server ? ZNet.GetUID() : ZNet.instance.GetServerPeer()?.m_uid ?? 0;
@@ -96,6 +100,8 @@ internal sealed class Ritual
             return;
         }
         if (Active) { Display(sender, "", "A ritual is already in progress."); return; }
+        if (outcomes?.Ready != true || !outcomes.ValidInterval())
+        { Display(sender, "", "The ritual is unavailable. Ask the server administrator to check its state."); return; }
         var error = RitualGathering.Missing(roster);
         if (error.Length != 0) { Display(sender, "", error, PresenceText(roster)); return; }
         initiator = sender; stone = target; pendingAt = Now; pending = true;
@@ -161,6 +167,7 @@ internal sealed class Ritual
                 member.Unavailable = "confirmation unavailable";
             else if (confirmation.Error.Length != 0) member.Unavailable = confirmation.Error;
             else if (!site!.Contains(confirmation.Position)) member.Unavailable = "outside the circle";
+            else member.OwnerLife = confirmation.OwnerLife;
         }
         return roster;
     }
@@ -180,12 +187,19 @@ internal sealed class Ritual
     {
         if (!FromServer(sender) || !Accept(p)) return;
         var token = p.ReadString(); var attempt = p.ReadString(); var nonce = p.ReadString(); var sent = p.ReadDouble();
+        if ((clientSession.Length != 0 && clientSession != token) || double.IsNaN(sent) || double.IsInfinity(sent) || sent <= lastClientProbe) return;
+        lastClientProbe = sent;
         var player = Player.m_localPlayer;
         var error = player == null ? "loading/respawning" : player.IsDead() ? "dead" :
-            player.InIntro() || player.IsTeleporting() || player.GetPlayerID() == 0 ? "loading/respawning" : "";
-        var reply = Package(); reply.Write(token); reply.Write(attempt); reply.Write(nonce); reply.Write(sent); reply.Write(Now);
+            player.InIntro() || player.IsTeleporting() || player.GetPlayerID() == 0 ? "loading/respawning" :
+            !RitualLightning.Ready ? "ritual lightning unavailable" : "";
+        var received = Now;
+        clientSession = token; clientAttempt = attempt; clientProbedAt = received;
+        var ownerLife = error.Length == 0 ? deathGuard.Probe(player!.GetZDOID().ToString(), token, attempt, received) : "";
+        var reply = Package(); reply.Write(token); reply.Write(attempt); reply.Write(nonce); reply.Write(sent); reply.Write(received);
         reply.Write(player == null ? ZDOID.None : player.GetZDOID()); reply.Write(error);
         reply.Write(player == null ? Vector3.zero : player.transform.position);
+        reply.Write(ownerLife);
         Send(sender, "Presence", reply);
     }
     private void ReceivePresence(long sender, ZPackage p)
@@ -194,17 +208,32 @@ internal sealed class Ritual
         if (p.ReadString() != session) return;
         if (p.ReadString() != AttemptId) return;
         var nonce = p.ReadString(); var sent = p.ReadDouble(); var clientTime = p.ReadDouble();
+        if (double.IsNaN(clientTime) || double.IsInfinity(clientTime)) return;
         if (!probes.TryGetValue(nonce, out var issued) || issued != sent || Now - sent > 1.25) return;
         var character = p.ReadZDOID(); var error = p.ReadString(); var position = p.ReadVector3();
+        if (!Finite(position)) return;
+        var ownerLife = p.ReadString();
+        if (error.Length == 0 && ownerLife.Length == 0) return;
         if (!Roster(false).Any(m => m.Peer == sender) || Character(sender)?.m_uid != character) return;
         if (confirmations.TryGetValue(sender, out var old) && old.At >= sent) return;
-        confirmations[sender] = new Confirmation { At = sent, Character = character, Error = error, Position = position };
+        confirmations[sender] = new Confirmation { At = sent, Character = character, Error = error, Position = position,
+            OwnerLife = ownerLife, ClientTime = clientTime };
         // Echo client monotonic time to estimate clock offset using half RTT.
         Display(sender, AttemptId, "", "", clientTime, gathering.State == RitualGathering.Stage.Countdown);
     }
 
     public void Update()
     {
+        storage?.Pump();
+        if (stopped) return;
+        if (Player.m_localPlayer == null || Player.m_localPlayer.IsDead()) deathGuard.Invalidate();
+        if (server && gathering.State == RitualGathering.Stage.Committed)
+        {
+            ConfirmDeaths();
+            outcomes?.Update();
+            if (outcomes?.Active == false) { gathering.Reset(); confirmations.Clear(); probes.Clear(); deathReports.Clear(); }
+            return;
+        }
         if (stopped || !server || !Active) return;
         if (Now >= nextProbe) Probe();
         var roster = Roster(true);
@@ -226,11 +255,11 @@ internal sealed class Ritual
         }
         if (gathering.Advance(Now, roster, out var cancellation))
         {
-            Broadcast("The gathering is complete.", false);
-            log.LogInfo("Einherjar gathering committed: " + gathering.Id + " (" + gathering.Members.Count + " participants)");
+            Broadcast("", false);
+            if (outcomes?.Commit(gathering.Id, gathering.Members) != true)
+            { Cancel(); return; }
+            log.LogInfo("Einherjar ritual committed: " + gathering.Id + " (" + gathering.Members.Count + " participants)");
             Committed?.Invoke(gathering.Id, gathering.Members);
-            // Phase 5 will retain the committed state until outcomes complete.
-            gathering.Reset(); confirmations.Clear(); probes.Clear();
         }
         else if (cancellation.Length != 0) Cancel();
     }
@@ -275,6 +304,7 @@ internal sealed class Ritual
     }
     public void Stop()
     {
+        outcomes?.Stop(); storage?.Stop(); deathGuard.Invalidate(); deathReports.Clear(); strikes.Clear();
         stopped = true; pending = false; gathering.Reset(); confirmations.Clear(); probes.Clear(); nextRequest.Clear();
         display.Clear(); Presence = "";
     }

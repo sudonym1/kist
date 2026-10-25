@@ -19,6 +19,13 @@ internal static class PatchChecks
                 throw new Exception("Ritual stone hook signature changed: " + type);
         }
         var location = game.MainModule.Types.Single(t => t.Name == "Location");
+        var player = game.MainModule.Types.Single(t => t.Name == "Player");
+        var death = player.Methods.Single(m => m.Name == "OnDeath");
+        if (game.MainModule.Types.Single(t => t.Name == "Character").Fields.Single(f => f.Name == "m_lastHit").FieldType.Name != "HitData")
+            throw new Exception("Ritual death attribution field changed");
+        if (!death.IsPublic || !death.IsVirtual || death.Parameters.Count != 0 || death.ReturnType.FullName != "System.Void" ||
+            !death.Body.Instructions.Any(i => i.Operand is MethodReference method && method.Name == "CreateTombStone"))
+            throw new Exception("Ritual owner-side normal death path changed");
         foreach (var name in new[] { "Awake", "OnDestroy" })
             if (location.Methods.Single(m => m.Name == name).Parameters.Count != 0)
                 throw new Exception("Original-site lifecycle hook signature changed");
@@ -34,11 +41,15 @@ internal static class PatchChecks
     public static int CheckHarness(string path, bool expected)
     {
         using var mod = AssemblyDefinition.ReadAssembly(path);
-        foreach (var name in new[] { "TestSettings", "TestHarness", "LabMetrics", "TestPanel", "AssetCapture", "ContentAcceptance", "AccessAcceptance", "RitualAcceptance" })
+        foreach (var name in new[] { "TestSettings", "TestHarness", "LabMetrics", "TestPanel", "AssetCapture", "ContentAcceptance", "AccessAcceptance", "RitualAcceptance", "RitualTestControls", "RitualTestAction", "RitualOutcomeAcceptance" })
         {
             var present = mod.MainModule.Types.Any(type => type.FullName == "SharedInventory." + name);
             if (present != expected) throw new Exception("Test harness inclusion mismatch: " + name);
         }
+        var literals = mod.MainModule.Types.SelectMany(type => type.Methods).Where(method => method.HasBody)
+            .SelectMany(method => method.Body.Instructions).Select(instruction => instruction.Operand).OfType<string>().ToList();
+        foreach (var literal in new[] { "Reset cooldown", "Spawn essence", "Test lightning", "SharedInventory.Ritual.Test.v1.Request" })
+            if (literals.Contains(literal) != expected) throw new Exception("Ritual test UI/endpoint isolation mismatch: " + literal);
         System.Console.WriteLine(expected ? "PASS test harness included in explicitly opted-in build" : "PASS production DLL contains no test harness types");
         return 0;
     }

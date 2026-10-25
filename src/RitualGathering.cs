@@ -9,8 +9,8 @@ namespace SharedInventory;
 internal sealed class RitualMember
 {
     public long Peer;
-    public string Life = "", Name = "", Unavailable = "";
-    public RitualMember Copy() => new RitualMember { Peer = Peer, Life = Life, Name = Name, Unavailable = Unavailable };
+    public string Life = "", OwnerLife = "", Name = "", Unavailable = "";
+    public RitualMember Copy() => new RitualMember { Peer = Peer, Life = Life, OwnerLife = OwnerLife, Name = Name, Unavailable = Unavailable };
 }
 
 internal sealed class RitualGathering
@@ -50,7 +50,7 @@ internal sealed class RitualGathering
     {
         cancellation = "";
         if (State != Stage.Countdown) return false;
-        if (roster.Count != Members.Count || Members.Any(p => !roster.Any(q => q.Peer == p.Peer && q.Life == p.Life)))
+        if (roster.Count != Members.Count || Members.Any(p => !roster.Any(q => q.Peer == p.Peer && q.Life == p.Life && q.OwnerLife == p.OwnerLife)))
             cancellation = Cancelled;
         else
         {

@@ -249,28 +249,6 @@ internal static class RitualAcceptance
         }
         finally { ZNet.instance.GetPeers().Remove(fake); }
         yield return new WaitForSeconds(.8f);
-        var commits = 0;
-        ritual.Committed += (_, roster) => { commits++; Check(roster.Count == 1, "Commit captures the validated host life exactly once"); };
-        rune.Interact(player, false, true);
-        var numbers = new List<int>();
-        timeout = TimeNow + 9;
-        double began = 0;
-        while (commits == 0 && TimeNow < timeout)
-        {
-            var number = Number(ritual);
-            if (number != 0 && (numbers.Count == 0 || numbers[numbers.Count - 1] != number))
-            {
-                numbers.Add(number); if (began == 0) began = TimeNow;
-                Debug.Log("EINHERJAR RITUAL VISIBLE COUNTDOWN: " + number + "... at " + TimeNow);
-            }
-            yield return null;
-        }
-        var elapsed = TimeNow - began;
-        Check(numbers.SequenceEqual(new[] { 5, 4, 3, 2, 1 }) && commits == 1 && elapsed >= 4.9 && elapsed < 5.3,
-            "Live client displays all five one-second steps and commits at five seconds without extra delay");
-        yield return new WaitForSeconds(.5f);
-        Check(commits == 1 && Number(ritual) == 0 && !player.IsDead(), "Phase 4 ends with one gathering handoff and no phase 5 death/reward");
-        Check(MessageHud.instance != null && messages.Count > 0, "Errors and cancellation use the actual game message UI");
         if (!stand.HaveAttachment())
         {
             var power = player.GetGuardianPowerName();
@@ -293,6 +271,28 @@ internal static class RitualAcceptance
                 if (player.GetInventory().ContainsItem(trophy)) player.GetInventory().RemoveItem(trophy);
             }
         }
+        var commits = 0;
+        ritual.Committed += (_, roster) => { commits++; Check(roster.Count == 1, "Commit captures the validated host life exactly once"); };
+        rune.Interact(player, false, true);
+        var numbers = new List<int>();
+        timeout = TimeNow + 9;
+        double began = 0;
+        while (commits == 0 && TimeNow < timeout)
+        {
+            var number = Number(ritual);
+            if (number != 0 && (numbers.Count == 0 || numbers[numbers.Count - 1] != number))
+            {
+                numbers.Add(number); if (began == 0) began = TimeNow;
+                Debug.Log("EINHERJAR RITUAL VISIBLE COUNTDOWN: " + number + "... at " + TimeNow);
+            }
+            yield return null;
+        }
+        var elapsed = TimeNow - began;
+        Check(numbers.SequenceEqual(new[] { 5, 4, 3, 2, 1 }) && commits == 1 && elapsed >= 4.9 && elapsed < 5.3,
+            "Live client displays all five one-second steps and commits at five seconds without extra delay");
+        yield return new WaitForSeconds(.5f);
+        Check(commits == 1 && Number(ritual) == 0 && player.IsDead(), "Countdown hands off once to the phase 5 lethal outcome");
+        Check(MessageHud.instance != null && messages.Count > 0, "Errors and cancellation use the actual game message UI");
         CaptureSite(site);
     }
     private static void CaptureSite(RitualSite site)

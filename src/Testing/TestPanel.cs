@@ -15,6 +15,7 @@ internal sealed class TestPanel
     private RpcApi? api;
     private Client? client;
     private TestHarness? harness;
+    internal RitualTestControls? RitualControls { get; private set; }
     private string status = "";
     private string diagnostics = "";
     private double nextDiagnostics;
@@ -55,8 +56,10 @@ internal sealed class TestPanel
         });
     }
     public void Attach(RpcApi api, Client client) { this.api = api; this.client = client; }
+    public void AttachRitual(ZRoutedRpc router, Ritual ritual) => RitualControls = new RitualTestControls(router, ritual);
     public void Update()
     {
+        RitualControls?.Update();
         if (harness == null || api == null) return;
         harness.Metrics.Observe("frameMs", Time.unscaledDeltaTime * 1000);
         if (harness.Now < nextDiagnostics) return;
@@ -93,6 +96,7 @@ internal sealed class TestPanel
     }
     public void Detach()
     {
+        RitualControls?.Stop(); RitualControls = null;
         Export();
         api = null; client = null; harness = null;
     }
@@ -100,7 +104,7 @@ internal sealed class TestPanel
     {
         if (harness == null) return;
         var settings = harness.Settings;
-        scroll = GUI.BeginScrollView(new Rect(0, 0, width, height), scroll, new Rect(0, 0, width - 18, 690));
+        scroll = GUI.BeginScrollView(new Rect(0, 0, width, height), scroll, new Rect(0, 0, width - 18, 860));
         var w = width - 20;
         GUI.Label(new Rect(0, 0, w, 25), "ISOLATED TEST HARNESS - " + (settings.Active ? "FAULTS ACTIVE" : "faults off"));
         if (GUI.Button(new Rect(0, 28, w, 25), "Disable faults and release queued packets")) harness.DisableFaults();
@@ -121,7 +125,14 @@ internal sealed class TestPanel
         GUI.Label(new Rect(0, 242, w, 44), $"Request {settings.RequestDelayMs} ms | Reply {settings.ReplyDelayMs} ms\nJitter {settings.JitterMs} ms | Rate {settings.BytesPerSecond} B/s (0 unlimited)");
         GUI.Label(new Rect(0, 290, w, 200), diagnostics);
         GUI.Label(new Rect(0, 500, w, 75), "These faults affect Einherjar Chest RPCs.\nDiscarding a reply can leave a transfer uncertain.\nItem mutations are never automatically retried or restored.");
-        GUI.Label(new Rect(0, 580, w, 100), status);
+        var enabled = GUI.enabled;
+        GUI.enabled = enabled && RitualControls?.Operator == true && RitualControls.Pending == false;
+        if (GUI.Button(new Rect(0, 580, w / 2 - 3, 28), "Reset cooldown")) RitualControls?.Press(RitualTestAction.ResetCooldown);
+        if (GUI.Button(new Rect(w / 2, 580, w / 2, 28), "Spawn essence")) RitualControls?.Press(RitualTestAction.SpawnEssence);
+        if (GUI.Button(new Rect(0, 614, w, 28), "Test lightning")) RitualControls?.Press(RitualTestAction.PreviewLightning);
+        GUI.enabled = enabled;
+        GUI.Label(new Rect(0, 650, w, 80), RitualControls?.Status ?? "Ritual test controls unavailable.");
+        GUI.Label(new Rect(0, 744, w, 100), status);
         GUI.EndScrollView();
     }
 }

@@ -8,13 +8,14 @@ using UnityEngine;
 
 namespace SharedInventory;
 
-[BepInPlugin(Guid, "Einherjar Chest", "0.4.4")]
+[BepInPlugin(Guid, "Einherjar Chest", "0.4.5")]
 public sealed class Plugin : BaseUnityPlugin
 {
     public const string Guid = "local.sharedinventory";
     internal static Plugin? Instance;
     private Harmony harmony = null!;
     private ConfigEntry<KeyCode> toggleKey = null!;
+    private ConfigEntry<double> ritualMinutes = null!;
     private ChestRadiusVisual? radiusVisual;
     private ZRoutedRpc? router;
     private RpcApi? api;
@@ -23,6 +24,7 @@ public sealed class Plugin : BaseUnityPlugin
     internal Ritual? Ritual { get; private set; }
 #if SHAREDINVENTORY_TESTING
     private TestPanel? testPanel;
+    internal TestPanel? TestingPanel => testPanel;
 #endif
     private readonly WindowInput windowInput = new WindowInput();
     internal static ResourceInventory? Resources { get; private set; }
@@ -41,6 +43,8 @@ public sealed class Plugin : BaseUnityPlugin
     {
         Instance = this;
         toggleKey = Config.Bind("Client", "ToggleKey", KeyCode.F3, "Open shared inventory. Transfers require an Einherjar Chest in range.");
+        ritualMinutes = Config.Bind("Server", "RitualAngerMinutes", 30d,
+            "Hidden world-wide ritual interval. Must be finite and positive. Changes apply to future timer starts; existing deadlines remain unchanged.");
 #if SHAREDINVENTORY_TESTING
         testPanel = TestPanel.Create(Config, Logger);
 #endif
@@ -59,7 +63,7 @@ public sealed class Plugin : BaseUnityPlugin
 #endif
         window?.Dispose();
         router = ZRoutedRpc.instance;
-        Ritual = new Ritual(router, Logger);
+        Ritual = new Ritual(router, Logger, () => ritualMinutes.Value);
         radiusVisual = new ChestRadiusVisual();
         api = new RpcApi(router, Logger,
             reply => client?.OnList(reply),
@@ -77,6 +81,7 @@ public sealed class Plugin : BaseUnityPlugin
         window = new Window(client);
 #if SHAREDINVENTORY_TESTING
         testPanel?.Attach(api, client);
+        testPanel?.AttachRitual(router, Ritual);
         window.TestingPanel = testPanel;
 #endif
     }
@@ -93,6 +98,7 @@ public sealed class Plugin : BaseUnityPlugin
         if (testPanel != null) ContentAcceptance.Update(this);
         if (testPanel != null) AccessAcceptance.Update(this);
         if (testPanel != null) RitualAcceptance.Update(this);
+        if (testPanel != null) RitualOutcomeAcceptance.Update(this);
 #endif
         // Read the same input backend as Valheim. Track held-key edges so the
         // game's manual input updates cannot clear a press before our Update.
@@ -144,6 +150,7 @@ public sealed class Plugin : BaseUnityPlugin
     {
         ResetSession();
         Content.Dispose();
+        RitualLightning.Dispose();
         harmony.UnpatchSelf();
         Instance = null;
     }
@@ -152,6 +159,7 @@ public sealed class Plugin : BaseUnityPlugin
     {
         ResetSession();
         RpcApi.FinishShutdown();
+        RitualStorage.FinishShutdown();
     }
 
     [HarmonyPatch(typeof(Game), "Start")]
