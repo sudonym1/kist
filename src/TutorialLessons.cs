@@ -31,9 +31,9 @@ internal static class TutorialLessons
             "A life is the price of his favor. Read the warning before you call upon him."),
         new TutorialLessonText(TutorialLesson.Essence, "essence", "A gift dearly earned",
             "An Einherjar Essence can become an Einherjar Chest with your hammer. No other materials or workbench are needed. " +
-            "Dismantle the chest with your hammer to recover a Dimmed Essence. It can rebuild within 100 metres of the original " +
-            "site in this same world; moving it again never extends that reach. Its tooltip shows the bound site. " +
-            "A chest destroyed by damage returns nothing."),
+            "Dismantling the chest with your hammer or destroying it by damage returns a Dimmed Essence. " +
+            "It can rebuild within 100 metres of the original site in this same world; moving it again never extends that reach. " +
+            "Its tooltip shows the bound site."),
         new TutorialLessonText(TutorialLesson.Chest, "chest", "One hoard, many doors",
             "Every Einherjar Chest in this world opens the same hoard. Alt-click a carried stack to deposit it; choose an amount " +
             "here to withdraw. You may browse anywhere with F3, but using the hoard requires a nearby chest."),

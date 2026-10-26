@@ -4,9 +4,9 @@ Normal builds exclude all harness types, diagnostics, configuration, and UI. `En
 
 ## Build and enable the in-game harness
 
-For the Dimmed Essence feature, run `tools/Test-Assets.ps1 -TestRoot '<marked isolated root>' -Mode Review -ExitAfter`, then repeat with `-Mode Headless`. Asset acceptance creates a fresh isolated test character on each run and cleans test chests/materials in its own EinherjarAssets world. It checks real hammer placement, one bound refund, local rebuilding with immutable origin, dimmed-first payment and regular fallback, inventory trade/save/load, both portal policies, damage/legacy/admin behavior, and the hammer ingredient tooltip. It also exports the purple model and inventory icon to `asset-capture`. Headless acceptance verifies registration without render assets and recovery after actual chest unload/reload. Reports are `asset-acceptance.txt` and `headless-acceptance.txt` beneath the test root.
+For the Dimmed Essence feature, run `tools/Test-Assets.ps1 -TestRoot '<marked isolated root>' -Mode Review -ExitAfter`, then repeat with `-Mode Headless`. Asset acceptance creates a fresh isolated test character on each run and cleans test chests/materials in its own EinherjarAssets world. It checks real hammer placement, one bound refund, local rebuilding with immutable origin, dimmed-first payment and regular fallback, inventory trade/save/load, both portal policies, damage/legacy/admin behavior, nonlethal damage without refunds, and the hammer ingredient tooltip. It also exports the purple model and inventory icon to `asset-capture`. Headless acceptance verifies registration without render assets and recovery after actual chest unload/reload, damage recovery with duplicate resource-drop callbacks, and explicitly blocked drops. Reports are `asset-acceptance.txt` and `headless-acceptance.txt` beneath the test root.
 
-Separate host-plus-remote acceptance should verify a refund picked up by another player, a transfer through an ordinary container and tombstone, save/restart with a rebuilt chest, and two clients attempting to dismantle the same chest. All peers must use the same 0.11.1 build. Item-local metadata and owner-side refund deduplication do not turn the trusted-client mod into an anti-cheat boundary.
+Separate host-plus-remote acceptance should verify a refund picked up by another player, a transfer through an ordinary container and tombstone, save/restart with a rebuilt chest, and two clients attempting to dismantle the same chest. All peers must use the same 0.11.2 build. Item-local metadata and owner-side refund deduplication do not turn the trusted-client mod into an anti-cheat boundary.
 
 Use a .NET 8 or newer SDK and the same game/BepInEx references as the normal build:
 
@@ -46,7 +46,7 @@ vanilla messages can delay the raven; queuing never marks a lesson seen.
 | Lesson | First eligible event |
 | --- | --- |
 | Odin's bargain | First fully spawned world load with this mod, directing the player explicitly to the sacrificial stones. |
-| A gift dearly earned | Successful pickup of regular or Dimmed Einherjar Essence; explains hammer recovery and the original-site rebuilding limit. |
+| A gift dearly earned | Successful pickup of regular or Dimmed Einherjar Essence; explains hammer/damage recovery and the original-site rebuilding limit. |
 | One hoard, many doors | Opening an actual Einherjar Chest, including another player's; F3 alone does not qualify. |
 | The hoard lends a hand | A positive successful player deposit; rejected deposits and internal withdrawal returns do not qualify. |
 | Feed the fires | Targeting a supported input/fuel control with chest coverage and suitable shared stock. |

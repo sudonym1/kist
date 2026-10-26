@@ -229,7 +229,7 @@ internal static class Content
             AddWord(__instance, "item_dimmedeinherjaressence_description", "A fading purple soul bound to its original chest site. Builds an Einherjar Chest only near that site. Must be carried; cannot enter shared storage." +
                 (EssencePortalsAllowed ? "" : " Cannot pass through portals."));
             AddWord(__instance, "piece_einherjarchest", "Einherjar Chest");
-            AddWord(__instance, "piece_einherjarchest_description", "A reliquary connected to the world's shared inventory. Build with an Einherjar Essence or a Dimmed Essence bound to this area. Hammer deconstruction returns a Dimmed Essence; damage destruction returns none.");
+            AddWord(__instance, "piece_einherjarchest_description", "A reliquary connected to the world's shared inventory. Build with an Einherjar Essence or a Dimmed Essence bound to this area. Removing or destroying the chest returns a Dimmed Essence bound to its original site.");
             AddWord(__instance, "einherjar_open", "Open shared inventory");
             AddWord(__instance, "einherjar_noportal", "Einherjar Essence cannot pass through portals.");
         }

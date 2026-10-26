@@ -1,7 +1,7 @@
 {
   "name": "ThorsKist",
   "description": "Einherjar Chest: earn a shared world inventory through Odin's ritual. Build permanent access chests, then deposit, withdraw, craft and load machines within 100 metres.",
-  "version_number": "0.11.1",
+  "version_number": "0.11.2",
   "website_url": "https://github.com/sudonym1/kist",
   "dependencies": []
 }
