@@ -1,0 +1,10 @@
+interface:
+  display_name: "Integrate workspace"
+  short_description: "Merge a Paseo workspace, validate, then rebase its agent"
+  default_prompt: "Use $integrate to integrate the named Paseo workspace into main and have its agent rebase afterward."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "paseo"
+      description: "Required for workspace discovery, source-agent coordination, and rebase completion notifications."
