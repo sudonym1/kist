@@ -139,12 +139,12 @@ internal static partial class Program
             Test(name + " sacrifice announcement names the victim and survives death and empty updates on every client", () =>
             {
                 var message = RitualOutcomes.SacrificeMessage(name);
-                Equal("Oden honors " + name + "'s sacrifice...", message);
+                Equal("Oden honors " + name + " in Valhalla. Their saga continues in the tenth realm.", message);
                 foreach (var localBase in new[] { 100d, 10000d })
                 {
                     var view = new RitualCountdown();
                     view.Apply(localBase, "session", 1, "attempt", 100, 0, true, 100);
-                    view.Apply(localBase + 5, "session", 2, "attempt", 105, 0, false, 100, name + " has been chosen by Oden.");
+                    view.Apply(localBase + 5, "session", 2, "attempt", 105, 0, false, 100, "Oden has chosen " + name + " for Valhalla.");
                     Equal("", view.Announcement(localBase + 5));
                     view.Apply(localBase + 6, "session", 3, "attempt", 106, 0, false, 100, message);
                     view.Apply(localBase + 6, "session", 4, "", 106, 0, false, 100, "$msg_youdied");

@@ -1,6 +1,6 @@
 # Einherjar Chest
 
-Earn a shared inventory for your world. Gather at the sacrificial stones, face Oden's judgment, and carry the reward home to build an Einherjar Chest.
+In the tenth realm, earn a shared hoard through Oden's ritual. His lightning brings one chosen warrior before him in Valhalla, then he sends them back to finish their saga. An echo of their essence remains in the tenth realm as his gift to the gathering. Carry it home to build an Einherjar Chest.
 
 **Einherjar Chest replaces Thor's Kist starting with version 0.10.0.** Install the same version on the server and every client, including the host. The existing Hexium package identity remains `ThorsKist` so this release updates the original listing.
 
@@ -9,7 +9,7 @@ Earn a shared inventory for your world. Gather at the sacrificial stones, face O
 1. Gather **every connected player** inside the original seven-stone sacrificial circle. Everyone must be alive and fully spawned.
 2. Hover any original boss stone's reading or trophy surface and use **Begin Einherjar ritual**: **Shift+E** with default bindings. Normal reading, trophy placement and boss-power selection still work.
 3. Stay inside for the **5... 4... 3... 2... 1...** countdown. Leaving, dying, joining or disconnecting cancels it.
-4. Oden chooses one player at random, kills them with lightning, and leaves **one Einherjar Essence** at their death position. Everyone sees `Oden honors <Player>'s sacrifice...` after the essence is created. Solo rituals work. Normal tombstone and death consequences apply.
+4. Oden chooses one player at random and kills them with lightning, bringing the warrior before him in Valhalla. Their saga is unfinished, so he sends them back to the tenth realm: this is why the warrior respawns. An echo of their essence remains as his gift to the gathering: **one Einherjar Essence** at their death position. Everyone sees `Oden honors <Player> in Valhalla. Their saga continues in the tenth realm.` after the essence is created. Solo rituals work. Normal death, tombstone and respawn rules still apply.
 5. Pick up the essence to discover the hammer recipe. Build an **Einherjar Chest** for exactly **one carried essence**, with no other ingredients or workbench required.
 
 Oden punishes avarice. Another gathering can bring lightning to every participant and yield no essence. The stone's warning deserves your attention.

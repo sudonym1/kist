@@ -102,7 +102,8 @@ internal sealed class RitualSite
             var ritual = Plugin.Instance?.Ritual;
             ritual?.Inspect(stone);
             __result += Localization.instance.Localize("\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] Begin Einherjar ritual") +
-                "\nGather every connected player inside the stones.\nOne will be chosen at random. Oden punishes avarice.";
+                "\nGather every connected player inside the stones.\nOne will be chosen at random. Oden's lightning kills them and brings them to Valhalla." +
+                "\nHe sends them back to finish their saga, leaving an echo of their essence in the tenth realm.\nOden punishes avarice.";
             if (ritual != null && ritual.Presence.Length != 0) __result += "\n" + ritual.Presence;
         }
     }

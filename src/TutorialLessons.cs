@@ -23,14 +23,18 @@ internal static class TutorialLessons
     {
         new TutorialLessonText(TutorialLesson.Wrath, "wrath", "Oden's wrath",
             "The thunder that felled you was Oden’s judgment. Your gathering sought another gift while his anger still burned, " +
-            "and every life within the circle paid the price. No essence follows such a sacrifice. Leave these stones in peace " +
+            "and every life within the circle paid the price. No essence is left behind after this punishment. Leave these stones in peace " +
             "for a long while. Let many deeds fill your saga before you seek his favor again."),
         new TutorialLessonText(TutorialLesson.Arrival, "arrival", "Oden's bargain",
-            "Go to the sacrificial stones where you first arrived in this world. There, Oden offers a path to a shared hoard. " +
-            "Gather every companion within the circle, then use a boss stone’s Begin Einherjar ritual action. " +
-            "A life is the price of his favor. Read the warning before you call upon him."),
+            "You still walk the tenth realm, warrior. Valhalla awaits. Gather every connected companion at the sacrificial stones " +
+            "where you first arrived, then use a boss stone’s Begin Einherjar ritual action. Oden chooses one warrior at random. " +
+            "His lightning takes your life and brings you before him in Valhalla. But your saga is unfinished. He sends you back " +
+            "to the tenth realm, where an echo of your essence remains—a gift your companions may shape into an Einherjar Chest " +
+            "to open a shared hoard. Read the warning before you call upon him."),
         new TutorialLessonText(TutorialLesson.Essence, "essence", "A gift dearly earned",
-            "An Einherjar Essence can become an Einherjar Chest with your hammer. No other materials or workbench are needed. " +
+            "When Oden brings a chosen warrior before him in Valhalla, an echo of their essence remains in the tenth realm. " +
+            "He sends the warrior back to finish their saga, leaving that echo as his gift to the gathering. With your hammer, " +
+            "this Einherjar Essence can become an Einherjar Chest. No other materials or workbench are needed. " +
             "Dismantle the chest with your hammer to recover a Dimmed Essence. It can rebuild within 100 metres of the original " +
             "site in this same world; moving it again never extends that reach. Its tooltip shows the bound site. " +
             "A chest destroyed by damage returns nothing."),

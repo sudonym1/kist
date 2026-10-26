@@ -11,8 +11,9 @@ internal sealed class RavenTestControls
 {
     internal const string Key = "local.sharedinventory.testing.raven-poc.v1";
     private const string Topic = "Einherjar Chest";
-    private const string Text = "Gather your companions at the sacrificial stones and begin the Einherjar ritual. " +
-        "Oden may grant an Einherjar Essence. Carry it home to build an Einherjar Chest. " +
+    private const string Text = "You walk the tenth realm. Gather every connected companion at the sacrificial stones and begin the Einherjar ritual. " +
+        "Oden's lightning takes one chosen warrior's life and brings them before him in Valhalla. He sends them back to finish their saga, " +
+        "leaving an echo of their essence here as his gift. Carry this Einherjar Essence home to build an Einherjar Chest. " +
         "Every chest shares your world's stock. Stay within 100 metres of a loaded chest to use that stock. " +
         "Press F3 to browse it anywhere.";
     // Valheim exposes adding/acknowledging messages, but no scoped removal API.
