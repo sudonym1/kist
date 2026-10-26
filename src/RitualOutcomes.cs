@@ -37,8 +37,8 @@ internal sealed class RitualVictim
 
 internal sealed class RitualOutcomes
 {
-    public const string PunishmentMessage = "Odin is enraged by your avarice";
-    public const string SacrificeMessagePrefix = "Odin honors ";
+    public const string PunishmentMessage = "Oden is enraged by your avarice";
+    public const string SacrificeMessagePrefix = "Oden honors ";
     public const string SacrificeMessageSuffix = "'s sacrifice...";
     public static string SacrificeMessage(string player) => SacrificeMessagePrefix + player + SacrificeMessageSuffix;
     public const double DeathTimeout = 15;

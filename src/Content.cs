@@ -223,7 +223,7 @@ internal static class Content
         internal static void Postfix(Localization __instance)
         {
             AddWord(__instance, "item_einherjaressence", "Einherjar Essence");
-            AddWord(__instance, "item_einherjaressence_description", "An amber soul bound by Odin. Builds an Einherjar Chest. Must be carried; cannot enter shared storage." +
+            AddWord(__instance, "item_einherjaressence_description", "An amber soul bound by Oden. Builds an Einherjar Chest. Must be carried; cannot enter shared storage." +
                 (EssencePortalsAllowed ? "" : " Cannot pass through portals.") + " Deconstructing its chest returns a Dimmed Essence bound to that site.");
             AddWord(__instance, "item_dimmedeinherjaressence", "Dimmed Einherjar Essence");
             AddWord(__instance, "item_dimmedeinherjaressence_description", "A fading purple soul bound to its original chest site. Builds an Einherjar Chest only near that site. Must be carried; cannot enter shared storage." +

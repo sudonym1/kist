@@ -3,7 +3,7 @@
 ## 0.11.1
 
 - Match Dimmed Essence's rebuilding radius to the chest access radius, currently 100 metres. Placement checks and tooltips share the same radius; the original site binding remains unchanged.
-- Add persistent per-character Hugin guidance for rituals, essence, chests, shared supplies, stations, coverage and Odin's wrath. The essence lesson explains Dimmed Essence recovery and its original-site rebuilding limit.
+- Add persistent per-character Hugin guidance for rituals, essence, chests, shared supplies, stations, coverage and Oden's wrath. The essence lesson explains Dimmed Essence recovery and its original-site rebuilding limit.
 
 ## 0.11.0
 
@@ -19,7 +19,7 @@
 
 ## 0.10.2
 
-- Show `Odin honors <Player>'s sacrifice...` on every participant's countdown overlay for six seconds after essence creation, including the sacrificed player. The announcement survives death messages.
+- Show `Oden honors <Player>'s sacrifice...` on every participant's countdown overlay for six seconds after essence creation, including the sacrificed player. The announcement survives death messages.
 
 ## 0.10.1
 
@@ -28,7 +28,7 @@
 ## 0.10.0
 
 - Replace Thor's Kist with Einherjar Chest, a new implementation with one shared inventory per world.
-- Earn Einherjar Essence through a five-second ritual at the original sacrificial stones. All connected players must gather; Odin chooses one sacrifice and drops one essence. Avarice can bring punishment to the whole gathering.
+- Earn Einherjar Essence through a five-second ritual at the original sacrificial stones. All connected players must gather; Oden chooses one sacrifice and drops one essence. Avarice can bring punishment to the whole gathering.
 - Build an original Einherjar Chest using one carried essence. Shared transfers, crafting, building and machine loading require a loaded chest within 100 metres. Shared stock can be browsed anywhere.
 - Add original chest and essence models, matching icons, a centered inventory window, stack transfers and machine input shortcuts.
 - Keep essence out of portals and shared storage. Chest destruction never refunds essence or deletes shared stock.

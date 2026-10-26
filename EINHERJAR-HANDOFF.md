@@ -38,7 +38,7 @@ The inventory window now uses the planned reliquary palette: dark charcoal timbe
 - There is no visible cooldown, remaining-time display, or unavailable-until indicator. Players must still be able to initiate a ritual during the hidden interval.
 - Punishment message, with spelling and capitalization corrected:
 
-  > Odin is enraged by your avarice
+  > Oden is enraged by your avarice
 
 ## Phase 1 decisions: gameplay defaults
 
@@ -49,7 +49,7 @@ On 2026-10-24, the user selected **Adopt all recommended rules** while executing
 | Timer scope | One timer per world, shared by all players and all ritual initiators. |
 | Timer starts | After a confirmed successful ritual sacrifice. |
 | Early-repeat punishment | Kill every participant in the validated connected-player roster; award no essence. |
-| Timer after punishment | Restart the hidden interval when punishment is committed. Repeated early attempts continue to anger Odin. |
+| Timer after punishment | Restart the hidden interval when punishment is committed. Repeated early attempts continue to anger Oden. |
 | Cancelled or invalid attempt | No deaths, no reward, no timer change. |
 | Timer during shutdown | Real elapsed time counts; persist an absolute UTC deadline. |
 | Boundary | At or after the deadline, a valid ritual succeeds normally. |
@@ -71,7 +71,7 @@ Chest destruction never deletes or refunds shared contents: the stock remains in
 
 Preserve every sacrificial stone's normal reading function. Show the same clearly labelled alternate-use ritual action on all seven original stones, including their trophy/power controls. Do not trigger a lethal ritual merely by hovering or reading. Preserve trophy placement and boss-power selection.
 
-The plaque explains that all connected players must gather and that one player will be chosen at random. It may warn thematically that Odin punishes avarice, without revealing a timer, numeric interval, or current anger state. This reconciles discoverability with the deliberately hidden rule.
+The plaque explains that all connected players must gather and that one player will be chosen at random. It may warn thematically that Oden punishes avarice, without revealing a timer, numeric interval, or current anger state. This reconciles discoverability with the deliberately hidden rule.
 
 Show connected-player presence and missing/unavailable names. Connected players who are dead, respawning, or not fully spawned block the ritual rather than disappearing from the required group. Private map-position settings do not exempt a player. Once all prerequisites pass, a deliberate ritual interaction starts the countdown; do not add the previously suggested individual readiness-confirmation step.
 
@@ -283,7 +283,7 @@ checkout. Two-account ritual acceptance still requires retrying the session.
 - All participants see `5... 4... 3... 2... 1...` at one-second intervals; the outcome commits after five seconds. Verify host and remote-client timing, cancellation clearing the display, held interaction not spamming errors/restarts, and no cooldown or outcome preview.
 - A cancelled countdown creates no reward, kills nobody, and leaves the timer unchanged. Concurrent triggers produce a single attempt.
 - Eligible ritual visibly strikes one uniformly selected participant with lightning, kills that character, and produces exactly one essence in ordinary operation. Nearby players and structures take no incidental damage. Duplicate and late messages never repeat a strike, create another reward, or kill a new life.
-- An early repeat displays exactly: **Odin is enraged by your avarice**. Every committed participant receives a visible lightning strike and dies; no essence drops from any of those deaths, and incidental structure damage is absent.
+- An early repeat displays exactly: **Oden is enraged by your avarice**. Every committed participant receives a visible lightning strike and dies; no essence drops from any of those deaths, and incidental structure damage is absent.
 - Test timer boundaries immediately before, at, and after expiry using an injected clock, including server restart, world switching, punishment reset, and configuration changes. No remaining-time or anger-state UI leaks.
 - Verify normal death protections/settings do not prevent ritual death. Retain ordinary tombstone/respawn consequences; do not rely on an arbitrary large damage number that armour/resistance can defeat.
 - Essence cannot be deposited or withdrawn through any shared path, transported through portals, spent from shared counts, or refunded by hammer dismantling. Verify the chosen damage-destruction rule.

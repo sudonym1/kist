@@ -45,13 +45,13 @@ vanilla messages can delay the raven; queuing never marks a lesson seen.
 
 | Lesson | First eligible event |
 | --- | --- |
-| Odin's bargain | First fully spawned world load with this mod, directing the player explicitly to the sacrificial stones. |
+| Oden's bargain | First fully spawned world load with this mod, directing the player explicitly to the sacrificial stones. |
 | A gift dearly earned | Successful pickup of regular or Dimmed Einherjar Essence; explains hammer recovery and the original-site rebuilding limit. |
 | One hoard, many doors | Opening an actual Einherjar Chest, including another player's; F3 alone does not qualify. |
 | The hoard lends a hand | A positive successful player deposit; rejected deposits and internal withdrawal returns do not qualify. |
 | Feed the fires | Targeting a supported input/fuel control with chest coverage and suitable shared stock. |
 | Beyond the chest's reach | An actual denied out-of-coverage transfer, such as Alt-clicking a carried stack; passive range checks do not qualify. |
-| Odin's wrath | Each local player actually killed by a validated punishment death, delivered after respawn. Ordinary sacrifice and bystanders do not qualify. |
+| Oden's wrath | Each local player actually killed by a validated punishment death, delivered after respawn. Ordinary sacrifice and bystanders do not qualify. |
 
 Seen keys are permanent per-character `local.sharedinventory.tutorial.<lesson>.v1`
 native tutorial keys. Native Talk records acknowledgement and the journal text.

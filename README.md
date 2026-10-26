@@ -1,6 +1,6 @@
 # Einherjar Chest
 
-Earn a shared inventory for your world. Gather at the sacrificial stones, face Odin's judgment, and carry the reward home to build an Einherjar Chest.
+Earn a shared inventory for your world. Gather at the sacrificial stones, face Oden's judgment, and carry the reward home to build an Einherjar Chest.
 
 **Einherjar Chest replaces Thor's Kist starting with version 0.10.0.** Install the same version on the server and every client, including the host. The existing Hexium package identity remains `ThorsKist` so this release updates the original listing.
 
@@ -9,16 +9,16 @@ Earn a shared inventory for your world. Gather at the sacrificial stones, face O
 1. Gather **every connected player** inside the original seven-stone sacrificial circle. Everyone must be alive and fully spawned.
 2. Hover any original boss stone's reading or trophy surface and use **Begin Einherjar ritual**: **Shift+E** with default bindings. Normal reading, trophy placement and boss-power selection still work.
 3. Stay inside for the **5... 4... 3... 2... 1...** countdown. Leaving, dying, joining or disconnecting cancels it.
-4. Odin chooses one player at random, kills them with lightning, and leaves **one Einherjar Essence** at their death position. Everyone sees `Odin honors <Player>'s sacrifice...` after the essence is created. Solo rituals work. Normal tombstone and death consequences apply.
+4. Oden chooses one player at random, kills them with lightning, and leaves **one Einherjar Essence** at their death position. Everyone sees `Oden honors <Player>'s sacrifice...` after the essence is created. Solo rituals work. Normal tombstone and death consequences apply.
 5. Pick up the essence to discover the hammer recipe. Build an **Einherjar Chest** for exactly **one carried essence**, with no other ingredients or workbench required.
 
-Odin punishes avarice. Another gathering can bring lightning to every participant and yield no essence. The stone's warning deserves your attention.
+Oden punishes avarice. Another gathering can bring lightning to every participant and yield no essence. The stone's warning deserves your attention.
 
 Hammer deconstruction returns one purple **Dimmed Einherjar Essence**. It rebuilds a chest within **the chest access radius (currently 100 metres) of the original chest position**, measured in three dimensions, in the same world. Rebuilding preserves that original site, so repeated moves cannot extend its range. Its tooltip shows bound X/Y/Z coordinates and whether your current position is in range; placement checks the actual proposed chest position. Dimmed Essence can be traded and stored in ordinary containers, and does not stack. Building uses a valid carried Dimmed Essence first, otherwise one regular Essence. Damage destruction returns nothing; newly built free/admin chests also yield no refund. Existing chests use their current site when first recovered.
 
 Neither Essence type can enter shared storage. By default they also cannot pass through portals, including unrestricted portals; the host/server can enable portal travel for both with **Server / AllowEssenceThroughPortals**. The lightning does not damage nearby structures.
 
-Hugin offers guidance the first time your character loads with the mod, directing you to the sacrificial stones. Further lessons explain essence, chests, shared supplies, stations and chest coverage as you encounter them. Every player killed by Odin's punishment receives its explanation after respawning. Enable **Tutorials** in Valheim's settings to see these ravens. Talking to Hugin saves each lesson as seen for that character across worlds and adds it to the native text collection; unacknowledged lessons remain pending through normal saves and logout.
+Hugin offers guidance the first time your character loads with the mod, directing you to the sacrificial stones. Further lessons explain essence, chests, shared supplies, stations and chest coverage as you encounter them. Every player killed by Oden's punishment receives its explanation after respawning. Enable **Tutorials** in Valheim's settings to see these ravens. Talking to Hugin saves each lesson as seen for that character across worlds and adds it to the native text collection; unacknowledged lessons remain pending through normal saves and logout.
 
 ## Use shared stock
 

@@ -21,12 +21,12 @@ internal static class TutorialLessons
     private const string Preferred = "local.sharedinventory.tutorial.preferred.v1";
     internal static readonly TutorialLessonText[] All =
     {
-        new TutorialLessonText(TutorialLesson.Wrath, "wrath", "Odin's wrath",
-            "The thunder that felled you was Odin’s judgment. Your gathering sought another gift while his anger still burned, " +
+        new TutorialLessonText(TutorialLesson.Wrath, "wrath", "Oden's wrath",
+            "The thunder that felled you was Oden’s judgment. Your gathering sought another gift while his anger still burned, " +
             "and every life within the circle paid the price. No essence follows such a sacrifice. Leave these stones in peace " +
             "for a long while. Let many deeds fill your saga before you seek his favor again."),
-        new TutorialLessonText(TutorialLesson.Arrival, "arrival", "Odin's bargain",
-            "Go to the sacrificial stones where you first arrived in this world. There, Odin offers a path to a shared hoard. " +
+        new TutorialLessonText(TutorialLesson.Arrival, "arrival", "Oden's bargain",
+            "Go to the sacrificial stones where you first arrived in this world. There, Oden offers a path to a shared hoard. " +
             "Gather every companion within the circle, then use a boss stone’s Begin Einherjar ritual action. " +
             "A life is the price of his favor. Read the warning before you call upon him."),
         new TutorialLessonText(TutorialLesson.Essence, "essence", "A gift dearly earned",

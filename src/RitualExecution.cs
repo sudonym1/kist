@@ -62,7 +62,7 @@ internal sealed partial class Ritual
 
     private void DispatchDeaths(RitualRecord record)
     {
-        Broadcast(record.Punishment ? RitualOutcomes.PunishmentMessage : record.Victims.Single().Name + " has been chosen by Odin.", false);
+        Broadcast(record.Punishment ? RitualOutcomes.PunishmentMessage : record.Victims.Single().Name + " has been chosen by Oden.", false);
         // No retry or substitute victim. Every committed punishment target is
         // handled independently; missing owners expire without blocking others.
         foreach (var victim in record.Victims)

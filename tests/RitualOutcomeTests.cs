@@ -130,7 +130,7 @@ internal static partial class Program
             Equal(true, lab.Saved.DeadlineUtcTicks > previous); Equal(true, lab.Dispatches.Last().Punishment);
             Equal(2, lab.Dispatches.Last().Victims.Count); lab.ConfirmAll(); lab.Flush();
             Equal(1, lab.Rewards); Equal(1, lab.Draws); Equal("none", lab.Saved.Attempts.Last().Reward);
-            Equal("Odin is enraged by your avarice", RitualOutcomes.PunishmentMessage);
+            Equal("Oden is enraged by your avarice", RitualOutcomes.PunishmentMessage);
         });
         Test("One disconnected punishment victim cannot prevent the other death or change the outcome", () =>
         {
