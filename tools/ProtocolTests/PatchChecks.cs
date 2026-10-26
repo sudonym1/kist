@@ -112,6 +112,37 @@ internal static class PatchChecks
         if (open.ReturnType.FullName != "System.Boolean") throw new Exception("Chest tutorial needs successful window-open confirmation");
         System.Console.WriteLine("PASS production tutorial pickup, native character persistence, chest-open confirmation and validated punishment death contracts");
     }
+    private static void CheckChestConstruction(AssemblyDefinition mod, AssemblyDefinition game)
+    {
+        var player = game.MainModule.Types.Single(type => type.Name == "Player");
+        var attempt = player.Methods.Single(method => method.Name == "TryPlacePiece");
+        var placementCalls = attempt.Body.Instructions.Where(i => i.Operand is MethodReference method &&
+            method.DeclaringType.Name == "Player" && method.Name == "PlacePiece").ToArray();
+        if (placementCalls.Length != 1 || placementCalls[0].Next.OpCode.Code != Mono.Cecil.Cil.Code.Ldc_I4_1 ||
+            placementCalls[0].Next.Next.OpCode.Code != Mono.Cecil.Cil.Code.Ret)
+            throw new Exception("Chest placement success-return hook changed");
+        var original = (MethodReference)placementCalls[0].Operand;
+        var construction = mod.MainModule.Types.Single(type => type.FullName == "SharedInventory.ChestConstruction");
+        var wrapper = construction.Methods.Single(method => method.Name == "Place");
+        if (wrapper.ReturnType.FullName != "System.Boolean" || !wrapper.Parameters.Select(p => p.ParameterType.FullName)
+                .SequenceEqual(new[] { original.DeclaringType.FullName }.Concat(original.Parameters.Select(p => p.ParameterType.FullName))))
+            throw new Exception("Chest placement replacement signature changed");
+        var actualPlacement = player.Methods.Single(method => method.Name == "PlacePiece");
+        if (!actualPlacement.Body.Instructions.Any(i => i.Operand is MethodReference method &&
+                method.DeclaringType.Name == "IPlaced" && method.Name == "OnPlaced") ||
+            !mod.MainModule.Types.Single(type => type.FullName == "SharedInventory.SharedChest").Interfaces.Any(i => i.InterfaceType.Name == "IPlaced"))
+            throw new Exception("Chest binding placement callback changed");
+        var removal = game.MainModule.Types.Single(type => type.Name == "WearNTear").Methods.Single(method => method.Name == "RPC_Remove");
+        if (!removal.Parameters.Select(p => p.ParameterType.FullName).SequenceEqual(new[] { "System.Int64", "System.Boolean" }) ||
+            !removal.Body.Instructions.Any(i => i.Operand is MethodReference method && method.Name == "Destroy"))
+            throw new Exception("Owner-side hammer refund hook changed");
+        var item = game.MainModule.Types.Single(type => type.Name == "ItemDrop").NestedTypes.Single(type => type.Name == "ItemData");
+        foreach (var methodName in new[] { "Save", "Load", "Clone" })
+            if (!item.Methods.Where(m => m.Name == methodName && m.HasBody).Any(m => m.Body.Instructions.Any(i =>
+                    i.Operand is FieldReference field && field.Name == "m_customData")))
+                throw new Exception("Item-local binding persistence hook changed: " + methodName);
+        System.Console.WriteLine("PASS chest placement, IPlaced binding, owner hammer refund and item metadata persistence signatures");
+    }
     public static int CheckHarness(string path, bool expected)
     {
         using var mod = AssemblyDefinition.ReadAssembly(path);
@@ -171,6 +202,7 @@ internal static class PatchChecks
         using var utils = AssemblyDefinition.ReadAssembly(Path.Combine(managedPath, "assembly_utils.dll"));
         CheckWindowInput(mod, utils);
         CheckChestRadius(game);
+        CheckChestConstruction(mod, game);
         CheckRitualHooks(game);
         CheckRavenHooks(mod, game);
         var hooks = mod.MainModule.Types.Single(type => type.FullName == "SharedInventory.Crafting");

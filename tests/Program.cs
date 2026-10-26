@@ -50,6 +50,7 @@ internal static partial class Program
     {
         WindowInputTests();
         ContentTests();
+        EssenceBindingTests();
         AccessTests();
         RitualTests();
         RitualOutcomeTests();

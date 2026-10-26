@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.11.1
+
+- Match Dimmed Essence's rebuilding radius to the chest access radius, currently 100 metres. Placement checks and tooltips share the same radius; the original site binding remains unchanged.
+- Add persistent per-character Hugin guidance for rituals, essence, chests, shared supplies, stations, coverage and Odin's wrath. The essence lesson explains Dimmed Essence recovery and its original-site rebuilding limit.
+
+## 0.11.0
+
+- Hammer deconstruction returns one purple, nonstackable Dimmed Einherjar Essence. It can rebuild a chest within 20 metres of its original site in the same world; repeated rebuilding preserves that original site. Damage destruction returns nothing.
+- Prefer a valid carried Dimmed Essence when building, falling back to regular carried Essence. The hammer shows the selected ingredient. Invalid placement consumes neither item.
+- Show bound X/Y/Z coordinates, rebuilding radius and current location validity in Dimmed Essence tooltips. Binding travels with the item through ordinary trades, drops and saves.
+- Exclude both Essence types from shared storage and apply the existing server portal setting to both. Existing chests bind to their current site on recovery; newly placed free/admin chests cannot create refunds.
+
 ## 0.10.3
 
 - Add `Server / AllowEssenceThroughPortals` (default `false`) to allow carried Einherjar Essence through portals. The host/server's setting synchronizes to clients; other portal restrictions still apply.

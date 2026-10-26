@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace SharedInventory;
 
-[BepInPlugin(Guid, "Einherjar Chest", "0.10.3")]
+[BepInPlugin(Guid, "Einherjar Chest", "0.11.1")]
 [BepInIncompatibility("posixone_ThorsKist")]
 public sealed class Plugin : BaseUnityPlugin
 {
@@ -51,7 +51,7 @@ public sealed class Plugin : BaseUnityPlugin
         ritualMinutes = Config.Bind("Server", "RitualAngerMinutes", 30d,
             "Hidden world-wide ritual interval. Must be finite and positive. Changes apply to future timer starts; existing deadlines remain unchanged.");
         allowEssencePortals = Config.Bind("Server", "AllowEssenceThroughPortals", false,
-            "Allow carried Einherjar Essence through portals. The host/server value is synchronized to every client. Other portal restrictions still apply.");
+            "Allow carried regular and Dimmed Einherjar Essence through portals. The host/server value is synchronized to every client. Other portal restrictions still apply.");
 #if SHAREDINVENTORY_TESTING
         testPanel = TestPanel.Create(Config, Logger);
 #endif

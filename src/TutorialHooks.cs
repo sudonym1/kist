@@ -11,7 +11,7 @@ internal static class TutorialHooks
         private static void Prefix(Humanoid __instance, GameObject go, out bool __state)
         {
             var item = go != null ? go.GetComponent<ItemDrop>()?.m_itemData : null;
-            __state = __instance == Player.m_localPlayer && item?.m_dropPrefab != null && Items.Id(item) == ContentIds.Essence;
+            __state = __instance == Player.m_localPlayer && item?.m_dropPrefab != null && !ContentIds.CanShare(Items.Id(item));
         }
         private static void Postfix(Humanoid __instance, bool __state, bool __result)
         {

@@ -14,7 +14,9 @@ Earn a shared inventory for your world. Gather at the sacrificial stones, face O
 
 Odin punishes avarice. Another gathering can bring lightning to every participant and yield no essence. The stone's warning deserves your attention.
 
-Essence cannot enter shared storage. By default it also cannot pass through portals, including unrestricted portals; the host/server can enable portal travel with **Server / AllowEssenceThroughPortals**. Removing or destroying a chest never returns its essence. The lightning does not damage nearby structures.
+Hammer deconstruction returns one purple **Dimmed Einherjar Essence**. It rebuilds a chest within **the chest access radius (currently 100 metres) of the original chest position**, measured in three dimensions, in the same world. Rebuilding preserves that original site, so repeated moves cannot extend its range. Its tooltip shows bound X/Y/Z coordinates and whether your current position is in range; placement checks the actual proposed chest position. Dimmed Essence can be traded and stored in ordinary containers, and does not stack. Building uses a valid carried Dimmed Essence first, otherwise one regular Essence. Damage destruction returns nothing; newly built free/admin chests also yield no refund. Existing chests use their current site when first recovered.
+
+Neither Essence type can enter shared storage. By default they also cannot pass through portals, including unrestricted portals; the host/server can enable portal travel for both with **Server / AllowEssenceThroughPortals**. The lightning does not damage nearby structures.
 
 Hugin offers guidance the first time your character loads with the mod, directing you to the sacrificial stones. Further lessons explain essence, chests, shared supplies, stations and chest coverage as you encounter them. Every player killed by Odin's punishment receives its explanation after respawning. Enable **Tutorials** in Valheim's settings to see these ravens. Talking to Hugin saves each lesson as seen for that character across worlds and adds it to the native text collection; unacknowledged lessons remain pending through normal saves and logout.
 
@@ -44,7 +46,7 @@ Requires **Valheim and BepInEx 5**. Install on **both the server and every clien
 1. Close the game/server and back up your world, characters and mod saves.
 2. Uninstall the old Thor's Kist package on every peer. For a manual install, remove its plugin directory and any duplicate `ThorsKist.dll`, `ThorsKist.Sync.dll` or `ThorsKist.Sync.Sqlite.dll` from other plugin directories. Keep old saves separately if you need them.
 3. Install this release through your mod manager, or copy `plugins/SharedInventory.dll` from the ZIP into `BepInEx/plugins/EinherjarChest/`.
-4. Start every peer with the same version. Keep only one copy of `SharedInventory.dll` in the plugins tree. The startup log should show **Einherjar Chest 0.10.3**.
+4. Start every peer with the same version. Keep only one copy of `SharedInventory.dll` in the plugins tree. The startup log should show **Einherjar Chest 0.11.1**.
 
 This is a new implementation with one shared inventory per world. Thor's Kist hirds, anchors, configuration and inventory data are not imported. **There is no automatic data migration.** Do any conversion manually while the server is stopped.
 
