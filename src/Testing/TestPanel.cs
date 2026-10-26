@@ -17,6 +17,7 @@ internal sealed class TestPanel
     private TestHarness? harness;
     internal RitualTestControls? RitualControls { get; private set; }
     private readonly RavenTestControls ravenControls;
+    internal bool RavenSampleActive => ravenControls.Active;
     private string status = "";
     private string diagnostics = "";
     private double nextDiagnostics;
@@ -141,7 +142,8 @@ internal sealed class TestPanel
         GUI.enabled = enabled;
         GUI.Label(new Rect(0, 650, w, 80), RitualControls?.Status ?? "Ritual test controls unavailable.");
         GUI.enabled = enabled && ravenControls.CanQueue;
-        if (GUI.Button(new Rect(0, 738, w, 28), "Queue / replay Hugin tutorial (POC)")) ravenControls.Press();
+        if (GUI.Button(new Rect(0, 738, w, 28), "Queue / replay Hugin tutorial (POC)"))
+        { Plugin.Instance?.Tutorials?.Pause(); ravenControls.Press(); }
         GUI.enabled = enabled;
         ravenStatusStyle ??= new GUIStyle(GUI.skin.label) { wordWrap = true, alignment = TextAnchor.UpperLeft };
         GUI.Label(new Rect(0, 772, w, 140), ravenControls.Status, ravenStatusStyle);

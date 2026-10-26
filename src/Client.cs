@@ -42,6 +42,8 @@ internal sealed class Client
 #endif
     public bool Ready => api.Connected && Player.m_localPlayer != null && !Player.m_localPlayer.IsDead();
     public bool CanAccessSharedInventory => Ready && canAccess();
+    public event Action<Inventory>? Deposited;
+    public event Action? AccessDenied;
 
     private long CachedAvailable(string item) => ContentIds.CanShare(item) && Counts.TryGetValue(item, out var count) ? count : 0;
     public long Available(string item) => CanAccessSharedInventory ? CachedAvailable(item) : 0;
@@ -286,6 +288,7 @@ internal sealed class Client
         var deposited = reply.Amount;
         SetTotal(item, reply.Total, reply.Quality, id);
         Status = "Deposited " + deposited + ".";
+        if (transfer.Original != null && deposited > 0) Deposited?.Invoke(transfer.Inventory);
     }
 
     public void OnWithdrawal(TransferReply reply)
@@ -341,5 +344,6 @@ internal sealed class Client
     {
         Status = ChestAccess.Unavailable;
         Player.m_localPlayer?.Message(MessageHud.MessageType.Center, Status);
+        AccessDenied?.Invoke();
     }
 }

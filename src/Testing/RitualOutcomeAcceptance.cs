@@ -67,7 +67,8 @@ internal static class RitualOutcomeAcceptance
     {
         var victim = record.Victims.Single(); var p = new ZPackage(); p.Write(ZNet.instance.GetWorldUID());
         p.Write((string)AccessTools.Field(typeof(Ritual), "session").GetValue(ritual));
-        p.Write(record.Id); p.Write(victim.Life); p.Write(victim.OwnerLife); p.Write(Now + 15); return new ZPackage(p.GetArray());
+        p.Write(record.Id); p.Write(victim.Life); p.Write(victim.OwnerLife); p.Write(Now + 15); p.Write(record.Punishment);
+        return new ZPackage(p.GetArray());
     }
     private static IEnumerator Checks(Plugin plugin)
     {

@@ -182,6 +182,7 @@ public sealed class Player
     public bool Dead;
     public bool Intro, Teleporting;
     public ZNetView View = new ZNetView();
+    public Dictionary<string, string> m_customData = new Dictionary<string, string>();
     private readonly HashSet<string> m_shownTutorials = new HashSet<string>();
     public T? GetComponent<T>() where T : class => View as T;
     public bool InIntro() => Intro;
@@ -200,7 +201,13 @@ public sealed class Player
     public void UnequipItem(ItemDrop.ItemData item, bool effects) => item.m_equipped = false;
 }
 
-public sealed class Game { public static int m_worldLevel; public static Game? instance = new Game(); }
+public sealed class Game
+{
+    public static int m_worldLevel;
+    public static Game? instance = new Game();
+    public bool ShuttingDown;
+    public bool IsShuttingDown() => ShuttingDown;
+}
 public static class MessageHud { public enum MessageType { Center } }
 public sealed class ZNetView : UnityEngine.Component
 {

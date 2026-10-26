@@ -41,7 +41,8 @@ internal static class PatchChecks
     private static void CheckRavenHooks(AssemblyDefinition mod, AssemblyDefinition game)
     {
         var controls = mod.MainModule.Types.SingleOrDefault(t => t.FullName == "SharedInventory.RavenTestControls");
-        if (controls == null) return;
+        var production = mod.MainModule.Types.SingleOrDefault(t => t.FullName == "SharedInventory.TutorialRavens");
+        if (controls == null && production == null) return;
         var raven = game.MainModule.Types.Single(t => t.Name == "Raven");
         var player = game.MainModule.Types.Single(t => t.Name == "Player");
         var tutorial = game.MainModule.Types.Single(t => t.Name == "Tutorial");
@@ -65,17 +66,59 @@ internal static class PatchChecks
             !Calls(spawn, "UnityEngine.Object", "Instantiate") || !Calls(spawn, "Raven", "AddTempText") ||
             !Calls(raven.Methods.Single(m => m.Name == "Talk"), "Player", "SetSeenTutorial"))
             throw new Exception("Native raven instantiation/acknowledgement path changed");
-        var calls = controls.Methods.Where(m => m.HasBody).SelectMany(m => m.Body.Instructions)
-            .Select(i => i.Operand).OfType<MethodReference>().ToArray();
-        if (!calls.Any(m => m.DeclaringType.FullName == "Player" && m.Name == "ShowTutorial") ||
-            calls.Any(m => m.Name == "ResetSeenTutorials" || m.DeclaringType.FullName == "ZRoutedRpc"))
-            throw new Exception("Raven POC must use the native local tutorial path without global reset or RPCs");
-        System.Console.WriteLine("PASS scoped raven cleanup fields and native instantiate/acknowledge path; POC has no global reset or RPC calls");
+        foreach (var controller in new[] { controls, production }.Where(t => t != null))
+        {
+            var calls = controller!.Methods.Where(m => m.HasBody).SelectMany(m => m.Body.Instructions)
+                .Select(i => i.Operand).OfType<MethodReference>().ToArray();
+            if (!calls.Any(m => m.DeclaringType.FullName == "Player" && m.Name == "ShowTutorial") ||
+                calls.Any(m => m.Name == "ResetSeenTutorials" || m.Name == "SetSeenTutorial" || m.DeclaringType.FullName == "ZRoutedRpc"))
+                throw new Exception("Raven controller must use native acknowledgement without global reset, marking seen early or new RPCs: " + controller.Name);
+        }
+        if (production != null) CheckProductionTutorialHooks(mod, game);
+        System.Console.WriteLine("PASS scoped raven cleanup fields and native instantiate/acknowledge path; controllers have no early acknowledgement, global reset or RPC calls");
+    }
+    private static void CheckProductionTutorialHooks(AssemblyDefinition mod, AssemblyDefinition game)
+    {
+        var player = game.MainModule.Types.Single(t => t.Name == "Player");
+        var shutdown = game.MainModule.Types.Single(t => t.Name == "Game").Methods.Single(m => m.Name == "IsShuttingDown");
+        if (!shutdown.IsPublic || shutdown.Parameters.Count != 0 || shutdown.ReturnType.FullName != "System.Boolean")
+            throw new Exception("Native tutorial shutdown-readiness guard changed");
+        var custom = player.Fields.Single(f => f.Name == "m_customData");
+        if (!custom.IsPublic || custom.FieldType.FullName != "System.Collections.Generic.Dictionary`2<System.String,System.String>")
+            throw new Exception("Per-character tutorial pending storage field changed");
+        foreach (var method in new[] { "Save", "Load" })
+            if (!player.Methods.Single(m => m.Name == method).Body.Instructions.Any(i =>
+                i.Operand is FieldReference field && field.Name == "m_customData"))
+                throw new Exception("Native character tutorial pending persistence path changed: " + method);
+        var pickup = game.MainModule.Types.Single(t => t.Name == "Humanoid").Methods.Single(m => m.Name == "Pickup");
+        if (!pickup.IsPublic || pickup.ReturnType.FullName != "System.Boolean" ||
+            !pickup.Parameters.Select(p => p.ParameterType.Name).SequenceEqual(new[] { "GameObject", "Boolean", "Boolean" }) ||
+            pickup.Parameters[0].Name != "go") throw new Exception("Essence pickup hook signature changed");
+        var ritual = mod.MainModule.Types.Single(t => t.FullName == "SharedInventory.Ritual");
+        var receive = ritual.Methods.Single(m => m.Name == "ReceiveDeath").Body.Instructions;
+        int Call(string type, string name) => receive.ToList().FindIndex(i =>
+            i.Operand is MethodReference method && method.DeclaringType.FullName == type && method.Name == name);
+        // C# emits callvirt to the base declaration; native Player overrides it.
+        var death = Call("Character", "OnDeath");
+        if (Call("SharedInventory.RitualDeathGuard", "Claim") < 0 || death < 0 ||
+            Call("SharedInventory.RitualDeathGuard", "Claim") >= death ||
+            death >= Call("SharedInventory.TutorialRavens", "RitualDeath"))
+            throw new Exception("Wrath tutorial must follow the life claim and actual owner-side death");
+        var dispatch = ritual.Methods.Single(m => m.Name == "DispatchDeaths").Body.Instructions;
+        if (!dispatch.Any(i => i.Operand is FieldReference field && field.Name == "Punishment") ||
+            !receive.Any(i => i.Operand is MethodReference method && method.Name == "ReadBool"))
+            throw new Exception("Validated ritual death payload lost its punishment discriminator");
+        var open = mod.MainModule.Types.Single(t => t.FullName == "SharedInventory.Plugin").Methods.Single(m => m.Name == "OpenChest");
+        if (open.ReturnType.FullName != "System.Boolean") throw new Exception("Chest tutorial needs successful window-open confirmation");
+        System.Console.WriteLine("PASS production tutorial pickup, native character persistence, chest-open confirmation and validated punishment death contracts");
     }
     public static int CheckHarness(string path, bool expected)
     {
         using var mod = AssemblyDefinition.ReadAssembly(path);
         var types = AllTypes(mod.MainModule.Types).ToArray();
+        foreach (var name in new[] { "TutorialRavens", "TutorialLessons", "TutorialHooks" })
+            if (!types.Any(t => t.FullName == "SharedInventory." + name))
+                throw new Exception("Production release is missing tutorial guidance: " + name);
         foreach (var name in new[] { "TestSettings", "TestHarness", "LabMetrics", "TestPanel", "AssetCapture", "ContentAcceptance", "AccessAcceptance", "RitualAcceptance", "RitualTestControls", "RitualTestAction", "RitualOutcomeAcceptance", "RavenTestControls" })
         {
             var present = types.Any(type => type.FullName == "SharedInventory." + name);

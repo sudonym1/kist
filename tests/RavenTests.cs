@@ -18,7 +18,9 @@ public sealed class Chat
 {
     public static Chat? instance = new Chat();
     public readonly List<GameObject> Cleared = new List<GameObject>();
-    public void ClearNpcText(GameObject raven) => Cleared.Add(raven);
+    public readonly HashSet<GameObject> Visible = new HashSet<GameObject>();
+    public bool IsDialogVisible(GameObject raven) => Visible.Contains(raven);
+    public void ClearNpcText(GameObject raven) { Cleared.Add(raven); Visible.Remove(raven); }
 }
 public sealed class Tutorial
 {
@@ -51,6 +53,9 @@ public sealed class Raven
     private RavenText? m_currentText;
     public static readonly List<Raven> Instances = new List<Raven>();
     public GameObject gameObject = new GameObject();
+    public bool Away = true, Flying;
+    public bool IsAway() => Away;
+    public bool IsFlying() => Flying;
     public static List<RavenText> Queue => m_tempTexts;
     public RavenText? Current { get => m_currentText; set => m_currentText = value; }
     public static void AddTempText(string key, string topic, string text, string label, bool munin)
@@ -70,6 +75,14 @@ internal static partial class Program
     }
     private static void RavenTests()
     {
+        Test("POC keeps real tutorials paused while its recreated native raven dialog is being read", () =>
+        {
+            var control = RavenSetup(); control.Press(); Raven.Instances.Clear();
+            var replacement = new Raven { Current = Raven.Queue.Single() }; Raven.Instances.Add(replacement);
+            Chat.instance!.Visible.Add(replacement.gameObject);
+            Player.m_localPlayer.SetSeenTutorial(RavenTestControls.Key); control.Update();
+            Equal(true, control.Active); Chat.instance.Visible.Clear(); Equal(false, control.Active); control.Stop();
+        });
         Test("Raven partial queue failure rolls back only the sample and blocks retries until a new session", () =>
         {
             RavenSetup(); var errors = 0; var control = new RavenTestControls(_ => errors++);

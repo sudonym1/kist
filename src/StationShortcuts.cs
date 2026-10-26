@@ -77,6 +77,8 @@ internal sealed class StationShortcuts
         var hover = player.GetHoverObject();
         if (hover == null || !ReferenceEquals(hover.GetComponentInParent<Hoverable>(), source)) return original;
         var context = StationLoading.Context(station, kind);
+        if (inputs.HasSharedInput(context, StationLoading.AcceptedInputs(station, kind)))
+            Plugin.Instance?.Tutorials?.Record(player, TutorialLesson.Station);
         var options = inputs.Options(player.GetInventory(), context, StationLoading.AcceptedInputs(station, kind), Name);
         menu.Show(context, options);
         var displayed = menu.Options;

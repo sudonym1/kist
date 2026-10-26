@@ -29,6 +29,20 @@ internal sealed class RavenTestControls
     private bool acknowledged;
     private string result = "No sample queued. Tutorials setting is respected.";
     private string failure = "";
+    private Raven[] ravens = Array.Empty<Raven>();
+
+    public bool Active
+    {
+        get
+        {
+            if (owner == null) return false;
+            if (!acknowledged) return true;
+            foreach (var raven in ravens)
+                if (raven != null && (CurrentText?.GetValue(raven) as Raven.RavenText)?.m_key == Key &&
+                    Chat.instance != null && Chat.instance.IsDialogVisible(raven.gameObject)) return true;
+            return false;
+        }
+    }
 
     public RavenTestControls(Action<Exception> reportError) => this.reportError = reportError;
 
@@ -83,6 +97,7 @@ internal sealed class RavenTestControls
             // This native path instantiates Hugin if missing, then adds a tutorial temp text.
             // An empty label avoids adding a persistent Known Text / journal entry.
             owner.ShowTutorial(Key);
+            ravens = UnityEngine.Object.FindObjectsByType<Raven>(FindObjectsSortMode.None);
             result = "Hugin sample queued. Close F3 and look for Hugin; native landing and other messages may delay him. " +
                 "Interact to acknowledge. Clicking again while queued adds no duplicates.";
         }
@@ -107,6 +122,7 @@ internal sealed class RavenTestControls
         if (!acknowledged && owner.HaveSeenTutorial(Key))
         {
             acknowledged = true;
+            ravens = UnityEngine.Object.FindObjectsByType<Raven>(FindObjectsSortMode.None);
             result = "Hugin sample acknowledged. Queue again to replay only this POC.";
         }
     }
@@ -135,5 +151,6 @@ internal sealed class RavenTestControls
         if (catalog != null && definition != null) catalog.m_texts.Remove(definition);
         seen?.Remove(Key); // Captured collection still belongs to the original character on a switch.
         owner = null; game = null; catalog = null; definition = null; seen = null; acknowledged = false;
+        ravens = Array.Empty<Raven>();
     }
 }

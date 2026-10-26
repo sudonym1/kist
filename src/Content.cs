@@ -227,7 +227,8 @@ public sealed class SharedChest : MonoBehaviour, Hoverable, Interactable
     public bool Interact(Humanoid user, bool hold, bool alt)
     {
         if (hold || user != Player.m_localPlayer || GetComponent<ZNetView>()?.IsValid() != true) return false;
-        Plugin.Instance?.OpenChest();
+        if (Plugin.Instance?.OpenChest() == true)
+            Plugin.Instance.Tutorials?.Record(Player.m_localPlayer, TutorialLesson.Chest);
         return true;
     }
     public bool UseItem(Humanoid user, ItemDrop.ItemData item) => false;

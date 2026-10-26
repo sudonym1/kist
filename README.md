@@ -16,6 +16,8 @@ Odin punishes avarice. Another gathering can bring lightning to every participan
 
 Essence cannot enter shared storage. By default it also cannot pass through portals, including unrestricted portals; the host/server can enable portal travel with **Server / AllowEssenceThroughPortals**. Removing or destroying a chest never returns its essence. The lightning does not damage nearby structures.
 
+Hugin offers guidance the first time your character loads with the mod, directing you to the sacrificial stones. Further lessons explain essence, chests, shared supplies, stations and chest coverage as you encounter them. Every player killed by Odin's punishment receives its explanation after respawning. Enable **Tutorials** in Valheim's settings to see these ravens. Talking to Hugin saves each lesson as seen for that character across worlds and adds it to the native text collection; unacknowledged lessons remain pending through normal saves and logout.
+
 ## Use shared stock
 
 Every Einherjar Chest accesses the same world inventory. Transfers and shared spending require a living player within **100 metres of a chest loaded on their client**. The distance is a three-dimensional sphere; placement and inspection display its boundary. Lower loading-distance settings can reduce usable coverage. The radius is fixed.

@@ -32,6 +32,48 @@ On a host/server, request delays apply at server receipt and reply delays apply 
 
 The panel shows queue depths, oldest queued/pending ages, pending transfers and crafting batches, cache age, RTT percentiles, reply throughput, traffic rate, frame time, worker wait, and save duration. Exported reports contain settings, counters, latency distributions, a bounded event trace, and cached inventory counts/qualities. Reports are written to `BepInEx/config/SharedInventory-TestReports`; their full paths appear in the BepInEx log. Samples retain the latest 8,192 observations per metric and traces retain the latest 10,000 events. Expired refresh attempts produce terminal refreshExpired events with an Outcome, separate from successful RTT samples and server rejections. Counters refreshTimeouts, refreshRetries, and ignoredRefreshReplies describe recovery. PendingRefreshes and PendingMutations distinguish refreshes from uncertain mutations; client transfer/batch counts remain visible independently. Request correlation retains at most 10,000 entries and emits correlationEvicted if exhausted. Active diagnostics add overhead, so compare equivalent configurations.
 
+## Production Hugin tutorials
+
+Normal and testing builds both include native Hugin guidance. Enable Valheim's
+**Tutorials** setting and use a living, fully spawned local character. No test
+flag is required for real guidance. Native landing sites, enemies, events and
+vanilla messages can delay the raven; queuing never marks a lesson seen.
+
+| Lesson | First eligible event |
+| --- | --- |
+| Odin's bargain | First fully spawned world load with this mod, directing the player explicitly to the sacrificial stones. |
+| A gift dearly earned | Successful pickup of Einherjar Essence. |
+| One hoard, many doors | Opening an actual Einherjar Chest, including another player's; F3 alone does not qualify. |
+| The hoard lends a hand | A positive successful player deposit; rejected deposits and internal withdrawal returns do not qualify. |
+| Feed the fires | Targeting a supported input/fuel control with chest coverage and suitable shared stock. |
+| Beyond the chest's reach | An actual denied out-of-coverage transfer, such as Alt-clicking a carried stack; passive range checks do not qualify. |
+| Odin's wrath | Each local player actually killed by a validated punishment death, delivered after respawn. Ordinary sacrifice and bystanders do not qualify. |
+
+Seen keys are permanent per-character `local.sharedinventory.tutorial.<lesson>.v1`
+native tutorial keys. Native Talk records acknowledgement and the journal text.
+Pending event flags and the preferred waiting lesson use only this mod's bounded
+keys in `Player.m_customData`, saved/loaded with the character. This includes wrath
+before native respawn snapshots the dead character. Normal character save/crash
+limitations still apply; this adds no separate save file or forced disk writes.
+
+Only one production lesson occupies the native raven queue at a time. New event
+lessons can replace unread older hints when no owned dialog is visible; deferred
+lessons remain pending, not falsely acknowledged. Wrath takes priority, and the
+introduction follows pending event lessons. Repeated triggers do not repeatedly
+steal priority. After acknowledgement, Hugin's native dialog/departure is respected
+and the next lesson waits at least five seconds. Tutorials off, death, teleport,
+logout and character/world changes clear only owned runtime messages; pending
+events and native seen history remain with their character. No timer is revealed.
+
+In the existing isolated environment, use a fresh test character for arrival.
+Then check each event above, ignored introduction → friend's chest, readable
+dialog before the next lesson, Tutorials off/on, ordinary sacrifice versus repeat
+punishment, every participant's post-respawn wrath, and logout before reading it.
+Verify rejoining/another world preserves pending guidance, another character has
+independent history, acknowledged text is rereadable, and vanilla ravens remain
+unchanged. Automated doubles and game IL checks do not establish native landing,
+animation, interaction, journal layout or multiplayer runtime acceptance.
+
 ## Hugin tutorial proof of concept
 
 With the guarded testing build enabled as above, enter a world with a living,
@@ -55,6 +97,10 @@ only that key's temporary message/seen state and this controller's tutorial
 definition/current dialog. Vanilla and other mods' messages retain their state
 and queue order. The sample has no journal label, so it adds no Known Text entry.
 It uses native game assets and introduces no dependencies or network messages.
+
+The POC temporarily suspends real guidance while its sample is pending or its
+dialog is visible. Its replay/cleanup never resets permanent production seen
+keys or pending flags; real guidance resumes afterward.
 
 For manual acceptance in the existing isolated install, check the first queue,
 rapid repeated clicks, native interaction/dialog, replay while the previous

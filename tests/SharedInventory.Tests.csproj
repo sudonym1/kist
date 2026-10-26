@@ -24,6 +24,8 @@
     <Compile Include="../src/Worker.cs" Link="Worker.cs" />
     <Compile Include="../src/Testing/TestHarness.cs" Link="Testing/TestHarness.cs" />
     <Compile Include="../src/Testing/RavenTestControls.cs" Link="Testing/RavenTestControls.cs" />
+    <Compile Include="../src/TutorialLessons.cs" Link="TutorialLessons.cs" />
+    <Compile Include="../src/TutorialRavens.cs" Link="TutorialRavens.cs" />
     <Compile Include="../src/ResourceInventory.cs" Link="ResourceInventory.cs" />
     <Compile Include="../src/WindowInput.cs" Link="WindowInput.cs" />
     <Compile Include="../src/StationInventory.cs" Link="StationInventory.cs" />

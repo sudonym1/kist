@@ -76,6 +76,7 @@ internal sealed partial class Ritual
             { Trace(record.Id, "death-dispatch-skipped", "victimPeer=" + victim.Peer + " reason=" + skip); continue; }
             var p = Package(); p.Write(session); p.Write(record.Id); p.Write(victim.Life); p.Write(victim.OwnerLife);
             p.Write(confirmation!.ClientTime + RitualOutcomes.DeathTimeout);
+            p.Write(record.Punishment); // Same validated death operation; no new endpoint or timer data.
             Trace(record.Id, "death-dispatch", "targetPeer=" + victim.Peer + " life=" + victim.Life);
             try { Send(victim.Peer, "Death", p); }
             catch (Exception error) { log.LogError("Ritual death dispatch failed for " + record.Id + "/" + victim.Life + ": " + error); }
@@ -86,6 +87,7 @@ internal sealed partial class Ritual
     {
         if (!FromServer(sender) || !Accept(p)) return;
         var token = p.ReadString(); var id = p.ReadString(); var life = p.ReadString(); var ownerLife = p.ReadString(); var expires = p.ReadDouble();
+        var punishment = p.GetPos() < p.Size() && p.ReadBool(); // Older packets contain no guidance flag.
         var player = Player.m_localPlayer;
         if (player == null || player.IsDead() || player.InIntro() || player.IsTeleporting() ||
             player.GetComponent<ZNetView>()?.IsOwner() != true || player.GetZDOID().ToString() != life ||
@@ -102,6 +104,7 @@ internal sealed partial class Ritual
         player.OnDeath();
         Trace(id, "death-result", "victimPeer=" + ZNet.GetUID() + " life=" + life + " dead=" + player.IsDead());
         if (!player.IsDead()) return;
+        Plugin.Instance?.Tutorials?.RitualDeath(player, punishment);
         var reply = Package(); reply.Write(token); reply.Write(id); reply.Write(life); reply.Write(ownerLife); reply.Write(position);
         Send(sender, "DeathComplete", reply);
     }
