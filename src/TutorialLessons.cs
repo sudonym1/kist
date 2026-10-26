@@ -22,7 +22,7 @@ internal static class TutorialLessons
     internal static readonly TutorialLessonText[] All =
     {
         new TutorialLessonText(TutorialLesson.Wrath, "wrath", "Oden's wrath",
-            "The thunder that felled you was Oden’s judgment. Your gathering sought another gift while his anger still burned, " +
+            "The thunder that felled you was Oden’s judgment. Your gathering sought another gift too soon " +
             "and every life within the circle paid the price. No essence is left behind after this punishment. Leave these stones in peace " +
             "for a long while. Let many deeds fill your saga before you seek his favor again."),
         new TutorialLessonText(TutorialLesson.Arrival, "arrival", "Oden's bargain",
