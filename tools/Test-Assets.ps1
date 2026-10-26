@@ -14,7 +14,7 @@ $repo = Split-Path $PSScriptRoot -Parent
 $executable = Join-Path $game 'valheim.exe'
 $marker = Join-Path $root '.sharedinventory-test'
 if (!(Test-Path -LiteralPath $marker) -or ([IO.File]::ReadAllText($marker).Trim() -ne 'sharedinventory-test-v1')) {
-    throw 'Use an existing marked isolated test copy, prepared with WINDOWS-CODEX-SETUP.md.'
+    throw 'Run just create-isolated-environment, then follow TESTING.md to enable the guarded test harness.'
 }
 foreach ($required in @($executable, (Join-Path $game 'BepInEx/core/BepInEx.Preloader.dll'),
         (Join-Path $game 'BepInEx/plugins/SharedInventory.TestIsolation.dll'), (Join-Path $root 'saves'))) {

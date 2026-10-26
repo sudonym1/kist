@@ -67,7 +67,8 @@ internal static class RitualOutcomeAcceptance
     {
         var victim = record.Victims.Single(); var p = new ZPackage(); p.Write(ZNet.instance.GetWorldUID());
         p.Write((string)AccessTools.Field(typeof(Ritual), "session").GetValue(ritual));
-        p.Write(record.Id); p.Write(victim.Life); p.Write(victim.OwnerLife); p.Write(Now + 15); return new ZPackage(p.GetArray());
+        p.Write(record.Id); p.Write(victim.Life); p.Write(victim.OwnerLife); p.Write(Now + 15); p.Write(record.Punishment);
+        return new ZPackage(p.GetArray());
     }
     private static IEnumerator Checks(Plugin plugin)
     {
@@ -193,10 +194,10 @@ internal static class RitualOutcomeAcceptance
         timeout = Now + 10;
         while (!player.IsDead() && Now < timeout) yield return null;
         Check(player.IsDead() && messages.Contains(RitualOutcomes.PunishmentMessage) && RitualLightning.Played == bolts + 2,
-            "Early repeat shows exact Odin punishment text and strikes every committed solo participant");
+            "Early repeat shows exact Oden punishment text and strikes every committed solo participant");
         yield return new WaitForEndOfFrame();
         Check(messages.Last() == "$msg_youdied" && ritual.Announcement == RitualOutcomes.PunishmentMessage,
-            "Odin's visible ritual announcement survives the game's center-text replacement on death");
+            "Oden's visible ritual announcement survives the game's center-text replacement on death");
         timeout = Now + 5;
         while (ritual.Active && Now < timeout) yield return null;
         Check(!ritual.Active && EssenceCount() == drops && engine.State.Attempts.Last().Punishment && engine.State.Attempts.Last().Reward == "none" &&

@@ -1,18 +1,40 @@
 # Publishing Einherjar Chest on Hexium
 
-Version **0.10.3** adds a host/server setting to allow Einherjar Essence through portals, synchronized to clients and disabled by default. It updates the existing [cmos/ThorsKist listing](https://valheim.hexium.gg/mods/cmos/ThorsKist), continuing the version sequence used by the 0.10.0 Einherjar Chest replacement release.
+Einherjar Chest is published under its own **`EinherjarChest`** package identity
+under the **cmos** team. Earlier packages used `ThorsKist`; leave that listing
+separate. Keep the existing version sequence, `local.sharedinventory` plugin ID,
+`SharedInventory.dll` name and save/config paths for compatibility.
 
-The game plugin, README, description and icon use **Einherjar Chest**. The manifest's `ThorsKist` name deliberately preserves the existing registry identity. Upload under the **cmos** team to update that listing. Changing the manifest name to `EinherjarChest` would target a different package identity. A visible listing-name change, if supported by Hexium, must preserve the existing listing; the public API documents no rename operation. No listing rename or upload is performed by these scripts.
+The README and manifest description are spoiler-light teasers. Full player
+instructions live in [GUIDE.md](GUIDE.md), with a spoiler warning. Push the guide
+to the repository's `main` branch before publishing so the mod page's absolute
+links work. The bundled changelog contains detailed gameplay changes; keep those
+out of the teaser description.
 
 ## Build the upload
 
+From a configured Windows checkout, run:
+
 ```powershell
-.\build.ps1 -ValheimDir '<Valheim installation>' -BepInExDir '<BepInEx folder>'
+just build
 ```
 
-The script runs regressions, protocol checks, fault-harness checks and game-hook checks. It verifies the compiled production DLL excludes all test types and controls even when `-SkipTests` is used. It then creates and validates `dist/ThorsKist-0.10.3.zip` and writes its SHA-256 alongside it. `dist/EinherjarChest.zip` is an identical convenience copy.
+See [DEVELOPMENT.md](DEVELOPMENT.md) for prerequisites, local paths, and test-data
+setup. The final output line gives the absolute path to
+`dist/<manifest.name>-<manifest.version_number>.zip`. The package identity and
+version come directly from [manifest.json](manifest.json); use that versioned ZIP
+for the intended listing. The build does not upload or publish anything.
 
-The upload includes only these files:
+Use the newly built archive; older `ThorsKist-*.zip` archives may still be present
+in `dist/`.
+
+The build runs regressions, protocol checks, deterministic fault-harness checks,
+and game-hook checks. Production sets `EnableTestHarness=false`; the Testing
+menu, fault injection, and test operator endpoints are excluded at compile time.
+Assembly checks verify their absence even when a direct `build.ps1` caller skips
+regression tests. Use the full `just build` checks for a release.
+
+The release ZIP contains exactly:
 
 ```text
 manifest.json
@@ -23,14 +45,29 @@ LICENSE
 plugins/SharedInventory.dll
 ```
 
-The icon is the original chest render. No development handoffs, test plugins, private inventories, game assemblies or native SQLite runtime are included. Production keeps the existing `local.sharedinventory` plugin ID and `SharedInventory.dll` name.
+The packager validates manifest identity/version against the DLL, the 256 x 256
+icon, exact ZIP contents, and packaged file hashes. It writes a `.zip.sha256`
+checksum beside the versioned ZIP. `dist/EinherjarChest.zip` is a convenience
+copy. Neither archive includes the isolation helper, test saves, hoards, game
+assemblies, archived docs, or development scripts.
 
-## Manual upload
+## Upload
 
-1. Sign in to Hexium and update the existing **cmos / ThorsKist** listing with the versioned ZIP. Confirm it is an update to that listing before publishing.
-2. Set installation location to **Client & Server**. Review the README, new chest icon and breaking-change notice.
-3. Review the current categories. The existing listing was tagged **Outdated** when checked; remove that tag if the site's controls permit and the release is ready for the current game. Appropriate categories include Storage, Crafting, Pieces and User Interface.
-4. Publish after your final gameplay acceptance. The recorded checks cover automated behavior and real host/remote sacrifices and cancellation; dedicated-server deployment, full remote punishment and adverse-network acceptance are not certified by the package validator.
-5. Install the same version on the host/server and every client. Remove old Thor's Kist plugins before launch; their plugin ID differs, so a file overwrite alone is insufficient. Follow the public README. Data conversion is manual and outside this release.
+Review [CHANGELOG.md](CHANGELOG.md), the teaser README, chest icon, migration
+notice and your multiplayer acceptance results. Verify the player-guide link
+works. Sign in to Hexium under **cmos** and upload the versioned ZIP printed by
+`just build` as the separate **cmos / EinherjarChest** package, preserving the
+identity in its manifest. Set installation location to Client & Server. Choose
+appropriate categories, such as Storage, Crafting, Pieces and User Interface.
 
-The package format follows [Hexium's packaging documentation](https://hexium.gg/packaging). BepInExPack_Valheim is assumed by Hexium, so the manifest has no redundant dependency entry.
+Install the same version on every peer, following [README.md](README.md). Remove
+the old `ThorsKist` package first, including earlier Einherjar Chest releases
+distributed under that name; keep only one `SharedInventory.dll`. Preserve
+existing Einherjar Chest saves and configuration. Original Thor's Kist plugins
+also require removal, and their data is not automatically imported. See the
+[installation and migration details](GUIDE.md#installation-and-replacing-thors-kist).
+
+Never upload `dist/EinherjarChest-Testing.zip`. That opt-in development package
+contains the Testing code and is not the production release. Automated checks
+do not certify separate dedicated-server deployment, real adverse-network
+behavior, or every multiplayer gameplay case; see [TESTING.md](TESTING.md).

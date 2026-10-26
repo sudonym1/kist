@@ -1,3 +1,5 @@
+> Archived: superseded instructions and historical evidence. See [current development instructions](../DEVELOPMENT.md).
+
 # Handoff plan: recover from lost inventory refresh replies
 
 Historical refresh-recovery handoff. Current gameplay access is defined in EINHERJAR-HANDOFF.md: a fixed 100-metre client-side check against loaded Einherjar Chests only, with lower effective range from client loading settings accepted. There is no server chest registry, access RPC, or radius setting. Repeat the refresh acceptance steps below while a valid chest is loaded within range; the guarded Testing tab remains reachable without one. Historical execution records and counts below describe their original versions.
@@ -45,8 +47,8 @@ This handoff authorizes planning only. Implementation and a further test-install
 
 The user ran the instrumented isolated game, exercised fault controls, exported a report, and exited normally. Two exports contain the same request history from one approximately four-minute host session:
 
-- [Manual export, 15:50:45 local](SharedInventory-Test-20261023/game/BepInEx/config/SharedInventory-TestReports/20261023-225045-675.json).
-- [Shutdown export, 15:50:56 local](SharedInventory-Test-20261023/game/BepInEx/config/SharedInventory-TestReports/20261023-225056-560.json).
+- Manual export, 15:50:45 local (historical path: `SharedInventory-Test-20261023/game/BepInEx/config/SharedInventory-TestReports/20261023-225045-675.json`).
+- Shutdown export, 15:50:56 local (historical path: `SharedInventory-Test-20261023/game/BepInEx/config/SharedInventory-TestReports/20261023-225056-560.json`).
 - Logs: `SharedInventory-Test-20261023/game/BepInEx/LogOutput.log` and `SharedInventory-Test-20261023/Player.log`.
 
 Request 167 was a `List`, started at session time 224.996 seconds. Its `ListReply` was deliberately discarded at 226.341 seconds. At the final export, it had remained pending for 20.606 seconds. Faults were off and scheduled/held packet queues were empty. Request 168, a withdrawal, completed successfully afterward.

@@ -11,6 +11,7 @@ internal sealed class ContentModels : IDisposable
     public readonly Mesh Chest;
     public readonly Mesh Essence;
     public readonly Material[] Materials;
+    public readonly Material[] DimmedMaterials;
 
     public ContentModels(Material source)
     {
@@ -23,6 +24,8 @@ internal sealed class ContentModels : IDisposable
         };
         Chest = BuildChest();
         Essence = BuildEssence();
+        DimmedMaterials = (Material[])Materials.Clone();
+        DimmedMaterials[3] = Material(source, "Dimmed Einherjar violet", new Color(.6f, .2f, .95f), true);
     }
 
     private static Material Material(Material source, string name, Color color, bool glow = false)
@@ -102,6 +105,7 @@ internal sealed class ContentModels : IDisposable
         UnityEngine.Object.Destroy(Chest);
         UnityEngine.Object.Destroy(Essence);
         foreach (var material in Materials) UnityEngine.Object.Destroy(material);
+        UnityEngine.Object.Destroy(DimmedMaterials[3]);
     }
 
     private sealed class Builder

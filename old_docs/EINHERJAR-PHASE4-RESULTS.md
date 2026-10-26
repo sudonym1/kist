@@ -1,3 +1,5 @@
+> Archived: superseded instructions and historical evidence. See [current development instructions](../DEVELOPMENT.md).
+
 # Einherjar phase 4 evidence
 
 Completed 2026-10-24 for version 0.4.4. Phase 4 original-plaque triggering,

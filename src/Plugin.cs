@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace SharedInventory;
 
-[BepInPlugin(Guid, "Einherjar Chest", "0.10.3")]
+[BepInPlugin(Guid, "Einherjar Chest", "0.11.2")]
 [BepInIncompatibility("posixone_ThorsKist")]
 public sealed class Plugin : BaseUnityPlugin
 {
@@ -26,6 +26,7 @@ public sealed class Plugin : BaseUnityPlugin
     private Window? window;
     private bool attachPending;
     internal Ritual? Ritual { get; private set; }
+    internal TutorialRavens? Tutorials { get; private set; }
 #if SHAREDINVENTORY_TESTING
     private TestPanel? testPanel;
     internal TestPanel? TestingPanel => testPanel;
@@ -35,7 +36,7 @@ public sealed class Plugin : BaseUnityPlugin
     internal static StationInventory? StationItems { get; private set; }
     internal static StationShortcuts? Shortcuts { get; private set; }
     internal static bool WindowOpen => Instance?.window?.Visible == true;
-    internal void OpenChest() { if (!WindowOpen) ToggleWindow(); }
+    internal bool OpenChest() { if (!WindowOpen) ToggleWindow(); return WindowOpen; }
 
     private void ToggleWindow()
     {
@@ -50,11 +51,16 @@ public sealed class Plugin : BaseUnityPlugin
         ritualMinutes = Config.Bind("Server", "RitualAngerMinutes", 30d,
             "Hidden world-wide ritual interval. Must be finite and positive. Changes apply to future timer starts; existing deadlines remain unchanged.");
         allowEssencePortals = Config.Bind("Server", "AllowEssenceThroughPortals", false,
-            "Allow carried Einherjar Essence through portals. The host/server value is synchronized to every client. Other portal restrictions still apply.");
+            "Allow carried regular and Dimmed Einherjar Essence through portals. The host/server value is synchronized to every client. Other portal restrictions still apply.");
 #if SHAREDINVENTORY_TESTING
         testPanel = TestPanel.Create(Config, Logger);
 #endif
         harmony = new Harmony(Guid);
+        Tutorials = new TutorialRavens(error => Logger.LogError(error)
+#if SHAREDINVENTORY_TESTING
+            , () => testPanel?.RavenSampleActive == true
+#endif
+            );
         harmony.PatchAll(typeof(Plugin).Assembly);
     }
 
@@ -93,6 +99,16 @@ public sealed class Plugin : BaseUnityPlugin
 #endif
             );
         client = new Client(api);
+        client.Deposited += inventory =>
+        {
+            var player = Player.m_localPlayer;
+            if (player != null && ReferenceEquals(player.GetInventory(), inventory)) Tutorials?.Record(player, TutorialLesson.Deposit);
+        };
+        client.AccessDenied += () =>
+        {
+            var player = Player.m_localPlayer;
+            if (player != null) Tutorials?.Record(player, TutorialLesson.Coverage);
+        };
         Resources = new ResourceInventory(client);
         StationItems = new StationInventory(client);
         Shortcuts = new StationShortcuts(StationItems);
@@ -113,6 +129,7 @@ public sealed class Plugin : BaseUnityPlugin
         radiusVisual?.Update();
         api?.Pump();
         client?.MaintainRefresh();
+        if (client != null) Tutorials?.Update(UnityEngine.Time.realtimeSinceStartupAsDouble);
 #if SHAREDINVENTORY_TESTING
         testPanel?.Update();
         if (testPanel != null) AssetCapture.Update();
@@ -148,6 +165,7 @@ public sealed class Plugin : BaseUnityPlugin
 
     private void ResetSession()
     {
+        Tutorials?.Stop();
         attachPending = false;
         api?.Stop();
         Ritual?.Stop(); Ritual = null;

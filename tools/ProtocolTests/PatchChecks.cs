@@ -38,18 +38,133 @@ internal static class PatchChecks
             throw new Exception("Chest radius placement-ghost field changed");
         System.Console.WriteLine("PASS chest radius placement-ghost reflection signature");
     }
+    private static void CheckRavenHooks(AssemblyDefinition mod, AssemblyDefinition game)
+    {
+        var controls = mod.MainModule.Types.SingleOrDefault(t => t.FullName == "SharedInventory.RavenTestControls");
+        var production = mod.MainModule.Types.SingleOrDefault(t => t.FullName == "SharedInventory.TutorialRavens");
+        if (controls == null && production == null) return;
+        var raven = game.MainModule.Types.Single(t => t.Name == "Raven");
+        var player = game.MainModule.Types.Single(t => t.Name == "Player");
+        var tutorial = game.MainModule.Types.Single(t => t.Name == "Tutorial");
+        void Field(TypeDefinition type, string name, string expected, bool isStatic)
+        {
+            var field = type.Fields.Single(f => f.Name == name);
+            if (field.FieldType.FullName != expected || field.IsStatic != isStatic)
+                throw new Exception("Scoped raven cleanup contract changed: " + type.Name + "." + name);
+        }
+        Field(raven, "m_tempTexts", "System.Collections.Generic.List`1<Raven/RavenText>", true);
+        Field(raven, "m_currentText", "Raven/RavenText", false);
+        Field(player, "m_shownTutorials", "System.Collections.Generic.HashSet`1<System.String>", false);
+        if (!raven.Fields.Single(f => f.Name == "m_tutorialsEnabled").IsPublic ||
+            !tutorial.Fields.Single(f => f.Name == "m_texts").IsPublic)
+            throw new Exception("Native tutorial availability/catalog contract changed");
+        bool Calls(MethodDefinition method, string type, string name) => method.Body.Instructions.Any(i =>
+            i.Operand is MethodReference call && call.DeclaringType.FullName == type && call.Name == name);
+        var show = player.Methods.Single(m => m.Name == "ShowTutorial");
+        var spawn = tutorial.Methods.Single(m => m.Name == "SpawnRaven");
+        if (!Calls(show, "Player", "HaveSeenTutorial") || !Calls(show, "Tutorial", "ShowText") ||
+            !Calls(spawn, "UnityEngine.Object", "Instantiate") || !Calls(spawn, "Raven", "AddTempText") ||
+            !Calls(raven.Methods.Single(m => m.Name == "Talk"), "Player", "SetSeenTutorial"))
+            throw new Exception("Native raven instantiation/acknowledgement path changed");
+        foreach (var controller in new[] { controls, production }.Where(t => t != null))
+        {
+            var calls = controller!.Methods.Where(m => m.HasBody).SelectMany(m => m.Body.Instructions)
+                .Select(i => i.Operand).OfType<MethodReference>().ToArray();
+            if (!calls.Any(m => m.DeclaringType.FullName == "Player" && m.Name == "ShowTutorial") ||
+                calls.Any(m => m.Name == "ResetSeenTutorials" || m.Name == "SetSeenTutorial" || m.DeclaringType.FullName == "ZRoutedRpc"))
+                throw new Exception("Raven controller must use native acknowledgement without global reset, marking seen early or new RPCs: " + controller.Name);
+        }
+        if (production != null) CheckProductionTutorialHooks(mod, game);
+        System.Console.WriteLine("PASS scoped raven cleanup fields and native instantiate/acknowledge path; controllers have no early acknowledgement, global reset or RPC calls");
+    }
+    private static void CheckProductionTutorialHooks(AssemblyDefinition mod, AssemblyDefinition game)
+    {
+        var player = game.MainModule.Types.Single(t => t.Name == "Player");
+        var shutdown = game.MainModule.Types.Single(t => t.Name == "Game").Methods.Single(m => m.Name == "IsShuttingDown");
+        if (!shutdown.IsPublic || shutdown.Parameters.Count != 0 || shutdown.ReturnType.FullName != "System.Boolean")
+            throw new Exception("Native tutorial shutdown-readiness guard changed");
+        var custom = player.Fields.Single(f => f.Name == "m_customData");
+        if (!custom.IsPublic || custom.FieldType.FullName != "System.Collections.Generic.Dictionary`2<System.String,System.String>")
+            throw new Exception("Per-character tutorial pending storage field changed");
+        foreach (var method in new[] { "Save", "Load" })
+            if (!player.Methods.Single(m => m.Name == method).Body.Instructions.Any(i =>
+                i.Operand is FieldReference field && field.Name == "m_customData"))
+                throw new Exception("Native character tutorial pending persistence path changed: " + method);
+        var pickup = game.MainModule.Types.Single(t => t.Name == "Humanoid").Methods.Single(m => m.Name == "Pickup");
+        if (!pickup.IsPublic || pickup.ReturnType.FullName != "System.Boolean" ||
+            !pickup.Parameters.Select(p => p.ParameterType.Name).SequenceEqual(new[] { "GameObject", "Boolean", "Boolean" }) ||
+            pickup.Parameters[0].Name != "go") throw new Exception("Essence pickup hook signature changed");
+        var ritual = mod.MainModule.Types.Single(t => t.FullName == "SharedInventory.Ritual");
+        var receive = ritual.Methods.Single(m => m.Name == "ReceiveDeath").Body.Instructions;
+        int Call(string type, string name) => receive.ToList().FindIndex(i =>
+            i.Operand is MethodReference method && method.DeclaringType.FullName == type && method.Name == name);
+        // C# emits callvirt to the base declaration; native Player overrides it.
+        var death = Call("Character", "OnDeath");
+        if (Call("SharedInventory.RitualDeathGuard", "Claim") < 0 || death < 0 ||
+            Call("SharedInventory.RitualDeathGuard", "Claim") >= death ||
+            death >= Call("SharedInventory.TutorialRavens", "RitualDeath"))
+            throw new Exception("Wrath tutorial must follow the life claim and actual owner-side death");
+        var dispatch = ritual.Methods.Single(m => m.Name == "DispatchDeaths").Body.Instructions;
+        if (!dispatch.Any(i => i.Operand is FieldReference field && field.Name == "Punishment") ||
+            !receive.Any(i => i.Operand is MethodReference method && method.Name == "ReadBool"))
+            throw new Exception("Validated ritual death payload lost its punishment discriminator");
+        var open = mod.MainModule.Types.Single(t => t.FullName == "SharedInventory.Plugin").Methods.Single(m => m.Name == "OpenChest");
+        if (open.ReturnType.FullName != "System.Boolean") throw new Exception("Chest tutorial needs successful window-open confirmation");
+        System.Console.WriteLine("PASS production tutorial pickup, native character persistence, chest-open confirmation and validated punishment death contracts");
+    }
+    private static void CheckChestConstruction(AssemblyDefinition mod, AssemblyDefinition game)
+    {
+        var player = game.MainModule.Types.Single(type => type.Name == "Player");
+        var attempt = player.Methods.Single(method => method.Name == "TryPlacePiece");
+        var placementCalls = attempt.Body.Instructions.Where(i => i.Operand is MethodReference method &&
+            method.DeclaringType.Name == "Player" && method.Name == "PlacePiece").ToArray();
+        if (placementCalls.Length != 1 || placementCalls[0].Next.OpCode.Code != Mono.Cecil.Cil.Code.Ldc_I4_1 ||
+            placementCalls[0].Next.Next.OpCode.Code != Mono.Cecil.Cil.Code.Ret)
+            throw new Exception("Chest placement success-return hook changed");
+        var original = (MethodReference)placementCalls[0].Operand;
+        var construction = mod.MainModule.Types.Single(type => type.FullName == "SharedInventory.ChestConstruction");
+        var wrapper = construction.Methods.Single(method => method.Name == "Place");
+        if (wrapper.ReturnType.FullName != "System.Boolean" || !wrapper.Parameters.Select(p => p.ParameterType.FullName)
+                .SequenceEqual(new[] { original.DeclaringType.FullName }.Concat(original.Parameters.Select(p => p.ParameterType.FullName))))
+            throw new Exception("Chest placement replacement signature changed");
+        var actualPlacement = player.Methods.Single(method => method.Name == "PlacePiece");
+        if (!actualPlacement.Body.Instructions.Any(i => i.Operand is MethodReference method &&
+                method.DeclaringType.Name == "IPlaced" && method.Name == "OnPlaced") ||
+            !mod.MainModule.Types.Single(type => type.FullName == "SharedInventory.SharedChest").Interfaces.Any(i => i.InterfaceType.Name == "IPlaced"))
+            throw new Exception("Chest binding placement callback changed");
+        var removal = game.MainModule.Types.Single(type => type.Name == "WearNTear").Methods.Single(method => method.Name == "RPC_Remove");
+        if (!removal.Parameters.Select(p => p.ParameterType.FullName).SequenceEqual(new[] { "System.Int64", "System.Boolean" }) ||
+            !removal.Body.Instructions.Any(i => i.Operand is MethodReference method && method.Name == "Destroy"))
+            throw new Exception("Hammer destruction path changed");
+        var wear = game.MainModule.Types.Single(type => type.Name == "WearNTear");
+        var destruction = wear.Methods.Single(method => method.Name == "Destroy" && !method.IsStatic);
+        if (!destruction.Parameters.Select(p => p.ParameterType.FullName).SequenceEqual(new[] { "HitData", "System.Boolean" }) ||
+            !destruction.Body.Instructions.Any(i => i.Operand is MethodReference method && method.DeclaringType.Name == "Piece" && method.Name == "DropResources") ||
+            !wear.Methods.Single(method => method.Name == "ApplyDamage").Body.Instructions.Any(i => i.Operand is MethodReference method && method.Name == "Destroy"))
+            throw new Exception("Shared hammer/damage destruction refund hook changed");
+        var item = game.MainModule.Types.Single(type => type.Name == "ItemDrop").NestedTypes.Single(type => type.Name == "ItemData");
+        foreach (var methodName in new[] { "Save", "Load", "Clone" })
+            if (!item.Methods.Where(m => m.Name == methodName && m.HasBody).Any(m => m.Body.Instructions.Any(i =>
+                    i.Operand is FieldReference field && field.Name == "m_customData")))
+                throw new Exception("Item-local binding persistence hook changed: " + methodName);
+        System.Console.WriteLine("PASS chest placement, IPlaced binding, owner hammer/damage refund and item metadata persistence signatures");
+    }
     public static int CheckHarness(string path, bool expected)
     {
         using var mod = AssemblyDefinition.ReadAssembly(path);
         var types = AllTypes(mod.MainModule.Types).ToArray();
-        foreach (var name in new[] { "TestSettings", "TestHarness", "LabMetrics", "TestPanel", "AssetCapture", "ContentAcceptance", "AccessAcceptance", "RitualAcceptance", "RitualTestControls", "RitualTestAction", "RitualOutcomeAcceptance" })
+        foreach (var name in new[] { "TutorialRavens", "TutorialLessons", "TutorialHooks" })
+            if (!types.Any(t => t.FullName == "SharedInventory." + name))
+                throw new Exception("Production release is missing tutorial guidance: " + name);
+        foreach (var name in new[] { "TestSettings", "TestHarness", "LabMetrics", "TestPanel", "AssetCapture", "ContentAcceptance", "AccessAcceptance", "RitualAcceptance", "RitualTestControls", "RitualTestAction", "RitualOutcomeAcceptance", "RavenTestControls" })
         {
             var present = types.Any(type => type.FullName == "SharedInventory." + name);
             if (present != expected) throw new Exception("Test harness inclusion mismatch: " + name);
         }
         var literals = types.SelectMany(type => type.Methods).Where(method => method.HasBody)
             .SelectMany(method => method.Body.Instructions).Select(instruction => instruction.Operand).OfType<string>().ToList();
-        foreach (var literal in new[] { "Reset cooldown", "Spawn essence", "Test lightning", "SharedInventory.Ritual.Test.v1.Request" })
+        foreach (var literal in new[] { "Reset cooldown", "Spawn essence", "Test lightning", "SharedInventory.Ritual.Test.v1.Request",
+            "Queue / replay Hugin tutorial (POC)", "local.sharedinventory.testing.raven-poc.v1" })
             if (literals.Contains(literal) != expected) throw new Exception("Ritual test UI/endpoint isolation mismatch: " + literal);
         System.Console.WriteLine(expected ? "PASS test harness included in explicitly opted-in build" : "PASS production DLL contains no test harness types");
         return 0;
@@ -93,7 +208,9 @@ internal static class PatchChecks
         using var utils = AssemblyDefinition.ReadAssembly(Path.Combine(managedPath, "assembly_utils.dll"));
         CheckWindowInput(mod, utils);
         CheckChestRadius(game);
+        CheckChestConstruction(mod, game);
         CheckRitualHooks(game);
+        CheckRavenHooks(mod, game);
         var hooks = mod.MainModule.Types.Single(type => type.FullName == "SharedInventory.Crafting");
         var replacements = new Dictionary<string, string>
         {

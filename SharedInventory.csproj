@@ -8,7 +8,7 @@
     <Title>Einherjar Chest</Title>
     <AssemblyTitle>Einherjar Chest</AssemblyTitle>
     <Product>Einherjar Chest</Product>
-    <Version>0.10.3</Version>
+    <Version>0.11.2</Version>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <EnableTestHarness Condition="'$(EnableTestHarness)' == ''">false</EnableTestHarness>
     <DefineConstants Condition="'$(EnableTestHarness)' == 'true'">$(DefineConstants);SHAREDINVENTORY_TESTING</DefineConstants>

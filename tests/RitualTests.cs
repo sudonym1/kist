@@ -120,14 +120,14 @@ internal static partial class Program
             view.Apply(107, "session", 4, "new", 107, 107, true, 107);
             Equal(5, view.Number(107));
         });
-        Test("Odin's punishment announcement survives death messages and subsequent empty display updates", () =>
+        Test("Oden's punishment announcement survives death messages and subsequent empty display updates", () =>
         {
             var view = new RitualCountdown();
             view.Apply(100, "session", 1, "attempt", 100, 0, true, 100);
             Equal("", view.Announcement(104));
             view.Apply(105, "session", 2, "attempt", 105, 0, false, 100, RitualOutcomes.PunishmentMessage);
             // OnDeath replaces the game's center text with this message. The
-            // independent ritual overlay must retain Odin's text through death.
+            // independent ritual overlay must retain Oden's text through death.
             view.Apply(105, "session", 3, "", 105, 0, false, 100, "$msg_youdied");
             view.Apply(106, "session", 4, "attempt", 106, 0, false, 100);
             Equal(0, view.Number(106));
@@ -139,12 +139,12 @@ internal static partial class Program
             Test(name + " sacrifice announcement names the victim and survives death and empty updates on every client", () =>
             {
                 var message = RitualOutcomes.SacrificeMessage(name);
-                Equal("Odin honors " + name + "'s sacrifice...", message);
+                Equal("Oden honors " + name + " in Valhalla. Their saga continues in the tenth realm.", message);
                 foreach (var localBase in new[] { 100d, 10000d })
                 {
                     var view = new RitualCountdown();
                     view.Apply(localBase, "session", 1, "attempt", 100, 0, true, 100);
-                    view.Apply(localBase + 5, "session", 2, "attempt", 105, 0, false, 100, name + " has been chosen by Odin.");
+                    view.Apply(localBase + 5, "session", 2, "attempt", 105, 0, false, 100, "Oden has chosen " + name + " for Valhalla.");
                     Equal("", view.Announcement(localBase + 5));
                     view.Apply(localBase + 6, "session", 3, "attempt", 106, 0, false, 100, message);
                     view.Apply(localBase + 6, "session", 4, "", 106, 0, false, 100, "$msg_youdied");
@@ -168,7 +168,7 @@ internal static partial class Program
             Equal(message, view.Announcement(107));
             view.Clear(); Equal("", view.Announcement(107));
         });
-        Test("Stale and foreign punishment packets cannot revive or extend Odin's announcement", () =>
+        Test("Stale and foreign punishment packets cannot revive or extend Oden's announcement", () =>
         {
             var view = new RitualCountdown();
             view.Apply(100, "session", 2, "attempt", 100, 0, false, 0, RitualOutcomes.PunishmentMessage);

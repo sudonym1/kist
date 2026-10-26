@@ -1,3 +1,5 @@
+> Archived: superseded instructions and historical evidence. See [current development instructions](../DEVELOPMENT.md).
+
 # Einherjar phase 2 evidence
 
 Historical phase 2 asset/content evidence. Chest access is now implemented as a fixed 100-metre client-side check against loaded chests only; unloading removes coverage and client loading settings may reduce usable range. The current implementation and verification are in EINHERJAR-PHASE3-RESULTS.md. Later-phase statements below describe the state at phase 2 completion.

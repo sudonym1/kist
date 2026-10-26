@@ -24,10 +24,16 @@ rune matches its inventory/recipe icon. All generated geometry and captured
 artwork are original repository assets; there are no downloaded asset licenses
 or redistributed extracted game textures to manage.
 
+Dimmed Essence reuses the crystal mesh with a separate violet crystal material;
+the regular Essence and chest retain their amber material. Its inventory icon
+is a one-time purple palette variation of the embedded `essence.png`, preserving
+the rendered geometry, neutral rune/highlights, and alpha. Headless registration
+creates neither variant's render assets.
+
 To reproduce after changing a model:
 
-1. Prepare a marked isolated game with the isolation helper as described in
-   [WINDOWS-CODEX-SETUP.md](../WINDOWS-CODEX-SETUP.md). Enable the test harness,
+1. Run `just build` and prepare the guarded harness as described in
+   [TESTING.md](../TESTING.md). Use `.work/isolated` as the test root. Enable the test harness,
    leave impairments off, and set the helper's FreeBuild=false.
 2. Run `tools/Test-Assets.ps1 -TestRoot '<isolated root>' -Mode Review`.
    It builds the testing DLL and creates/loads only its local EinherjarAssets

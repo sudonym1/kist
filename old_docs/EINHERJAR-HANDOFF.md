@@ -1,4 +1,8 @@
+> Archived: superseded instructions and historical evidence. See [current development instructions](../DEVELOPMENT.md).
+
 # Einherjar Chest implementation handoff
+
+Current revision (0.11.2): the historical permanent-consumption rule below is superseded by site-bound Dimmed Essence recovery on hammer deconstruction or damage destruction. See README.md and API.md for the current rebuilding rule matching the 100-metre chest access radius, item metadata, ingredient priority, legacy behavior and validation. Both destruction paths return the same bound Essence.
 
 Prepared: 2026-10-24.
 Status: phases 1 through 5 complete (2026-10-24), version 0.4.5. Content, loaded-chest access, original-plaque gathering/countdown, lethal outcomes, persisted hidden anger, and isolated test controls are implemented. The user-approved access policy remains fixed at 100 metres and may be reduced by client loading settings. Phase 6 full multiplayer acceptance and final deployment validation are next. See EINHERJAR-PHASE5-RESULTS.md for outcome evidence and limits, EINHERJAR-PHASE4-RESULTS.md for gathering evidence, and EINHERJAR-PHASE3-RESULTS.md for access evidence.
@@ -36,7 +40,7 @@ The inventory window now uses the planned reliquary palette: dark charcoal timbe
 - There is no visible cooldown, remaining-time display, or unavailable-until indicator. Players must still be able to initiate a ritual during the hidden interval.
 - Punishment message, with spelling and capitalization corrected:
 
-  > Odin is enraged by your avarice
+  > Oden is enraged by your avarice
 
 ## Phase 1 decisions: gameplay defaults
 
@@ -47,7 +51,7 @@ On 2026-10-24, the user selected **Adopt all recommended rules** while executing
 | Timer scope | One timer per world, shared by all players and all ritual initiators. |
 | Timer starts | After a confirmed successful ritual sacrifice. |
 | Early-repeat punishment | Kill every participant in the validated connected-player roster; award no essence. |
-| Timer after punishment | Restart the hidden interval when punishment is committed. Repeated early attempts continue to anger Odin. |
+| Timer after punishment | Restart the hidden interval when punishment is committed. Repeated early attempts continue to anger Oden. |
 | Cancelled or invalid attempt | No deaths, no reward, no timer change. |
 | Timer during shutdown | Real elapsed time counts; persist an absolute UTC deadline. |
 | Boundary | At or after the deadline, a valid ritual succeeds normally. |
@@ -69,7 +73,7 @@ Chest destruction never deletes or refunds shared contents: the stock remains in
 
 Preserve every sacrificial stone's normal reading function. Show the same clearly labelled alternate-use ritual action on all seven original stones, including their trophy/power controls. Do not trigger a lethal ritual merely by hovering or reading. Preserve trophy placement and boss-power selection.
 
-The plaque explains that all connected players must gather and that one player will be chosen at random. It may warn thematically that Odin punishes avarice, without revealing a timer, numeric interval, or current anger state. This reconciles discoverability with the deliberately hidden rule.
+The plaque explains that all connected players must gather and that one player will be chosen at random. It may warn thematically that Oden punishes avarice, without revealing a timer, numeric interval, or current anger state. This reconciles discoverability with the deliberately hidden rule.
 
 Show connected-player presence and missing/unavailable names. Connected players who are dead, respawning, or not fully spawned block the ritual rather than disappearing from the required group. Private map-position settings do not exempt a player. Once all prerequisites pass, a deliberate ritual interaction starts the countdown; do not add the previously suggested individual readiness-confirmation step.
 
@@ -281,7 +285,7 @@ checkout. Two-account ritual acceptance still requires retrying the session.
 - All participants see `5... 4... 3... 2... 1...` at one-second intervals; the outcome commits after five seconds. Verify host and remote-client timing, cancellation clearing the display, held interaction not spamming errors/restarts, and no cooldown or outcome preview.
 - A cancelled countdown creates no reward, kills nobody, and leaves the timer unchanged. Concurrent triggers produce a single attempt.
 - Eligible ritual visibly strikes one uniformly selected participant with lightning, kills that character, and produces exactly one essence in ordinary operation. Nearby players and structures take no incidental damage. Duplicate and late messages never repeat a strike, create another reward, or kill a new life.
-- An early repeat displays exactly: **Odin is enraged by your avarice**. Every committed participant receives a visible lightning strike and dies; no essence drops from any of those deaths, and incidental structure damage is absent.
+- An early repeat displays exactly: **Oden is enraged by your avarice**. Every committed participant receives a visible lightning strike and dies; no essence drops from any of those deaths, and incidental structure damage is absent.
 - Test timer boundaries immediately before, at, and after expiry using an injected clock, including server restart, world switching, punishment reset, and configuration changes. No remaining-time or anger-state UI leaks.
 - Verify normal death protections/settings do not prevent ritual death. Retain ordinary tombstone/respawn consequences; do not rely on an arbitrary large damage number that armour/resistance can defeat.
 - Essence cannot be deposited or withdrawn through any shared path, transported through portals, spent from shared counts, or refunded by hammer dismantling. Verify the chosen damage-destruction rule.

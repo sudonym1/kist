@@ -21,11 +21,14 @@ internal static class AssetCapture
         Directory.CreateDirectory(path);
         Capture(Content.Models.Chest, "chest", path);
         Capture(Content.Models.Essence, "essence", path);
+        Capture(Content.Models.Essence, "dimmed-essence", path, true);
+        var dimmedIcon = Content.DimmedEssence!.GetComponent<ItemDrop>().m_itemData.GetIcon().texture;
+        File.WriteAllBytes(Path.Combine(path, "dimmed-essence-icon.png"), ImageConversion.EncodeToPNG(dimmedIcon));
         Debug.Log("EINHERJAR ASSET CAPTURE: " + path);
         if (Array.IndexOf(Environment.GetCommandLineArgs(), "-einherjar-exit-after-capture") >= 0) Application.Quit();
     }
 
-    private static void Capture(Mesh mesh, string name, string path)
+    private static void Capture(Mesh mesh, string name, string path, bool dimmed = false)
     {
         var stage = new GameObject("Einherjar icon stage");
         var cameraObject = new GameObject("Einherjar icon camera");
@@ -44,6 +47,7 @@ internal static class AssetCapture
             stage.layer = layer;
             stage.transform.position = Vector3.zero;
             var model = Content.Models!.Attach(stage.transform, mesh);
+            if (dimmed) model.GetComponent<MeshRenderer>().sharedMaterials = Content.Models.DimmedMaterials;
             model.layer = layer;
             var bounds = mesh.bounds;
             var center = stage.transform.position + bounds.center;

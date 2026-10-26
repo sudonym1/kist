@@ -4,6 +4,7 @@ namespace SharedInventory;
 internal static class ContentIds
 {
     public const string Essence = "EinherjarEssence";
+    public const string DimmedEssence = "DimmedEinherjarEssence";
     public const string Chest = "EinherjarChest";
-    public static bool CanShare(string id) => id != Essence;
+    public static bool CanShare(string id) => id != Essence && id != DimmedEssence;
 }

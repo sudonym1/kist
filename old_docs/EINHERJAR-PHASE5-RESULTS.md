@@ -1,3 +1,5 @@
+> Archived: superseded instructions and historical evidence. See [current development instructions](../DEVELOPMENT.md).
+
 # Einherjar phase 5 evidence
 
 Completed 2026-10-24 for version 0.4.5. Ritual outcomes, hidden world persistence,
@@ -31,7 +33,7 @@ host-plus-remote and dedicated-executable acceptance remains next.
   only after that exact invocation returns dead. The server also waits for the
   same connected character's replicated dead flag and matching death position.
   An unrelated death cannot award essence.
-- Punishment displays exactly **Odin is enraged by your avarice** before death
+- Punishment displays exactly **Oden is enraged by your avarice** before death
   dispatch. Targets are independent; a failed/missing owner does not block the
   others. Missing confirmation expires after 15 seconds with no replacement,
   automatic command replay or reward. The owner sees lightning with its death;

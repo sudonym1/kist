@@ -45,6 +45,14 @@ internal sealed class StationInventory
     public bool Applies(Inventory inventory) => client.Ready && inventory == Player.m_localPlayer.GetInventory();
     public bool Allows(StationInputContext context, string itemId) => StationInputRules.Allows(context, itemId) && allows(context, itemId);
 
+    public bool HasSharedInput(StationInputContext context, IEnumerable<string> acceptedPrefabs)
+    {
+        if (Game.m_worldLevel > 0 || !client.CanAccessSharedInventory) return false;
+        foreach (var id in acceptedPrefabs)
+            if (Allows(context, id) && client.Available(id) > 0 && Items.Template(id) != null) return true;
+        return false;
+    }
+
     public ItemDrop.ItemData? Select(Inventory inventory, StationInputContext context,
         IEnumerable<string> acceptedPrefabs, string? requestedPrefab = null)
     {

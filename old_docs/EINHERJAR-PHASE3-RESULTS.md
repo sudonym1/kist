@@ -1,3 +1,5 @@
+> Archived: superseded instructions and historical evidence. See [current development instructions](../DEVELOPMENT.md).
+
 # Einherjar phase 3 evidence
 
 Updated 2026-10-24 for version 0.4.3. Phase 3 access is complete; phase 4

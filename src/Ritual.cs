@@ -314,7 +314,8 @@ internal sealed partial class Ritual
                 fontSize = (int)Mathf.Clamp(Screen.height / 24f, 28, 42), alignment = TextAnchor.MiddleCenter, wordWrap = true
             };
             announcementStyle.normal.textColor = new Color(1, .79f, .32f);
-            GUI.Label(new Rect((Screen.width - width) / 2f, Screen.height * .22f, width, 120), announcement, announcementStyle);
+            var height = Math.Max(120, announcementStyle.CalcHeight(new GUIContent(announcement), width));
+            GUI.Label(new Rect((Screen.width - width) / 2f, Screen.height * .22f, width, height), announcement, announcementStyle);
             return;
         }
         var number = CountdownNumber;
