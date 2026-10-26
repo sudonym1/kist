@@ -1,5 +1,15 @@
 # Load and network testing
 
+On this Windows machine, run `just build` for the current worktree's testing build
+and automated checks. Run `just launch` to build, install that DLL into the shared
+isolated test installation, and open the game for manual testing (with Steam
+running). Close the shared test game before relaunching. The recipes locate the
+main checkout through Git and use its `SharedInventory-Test-20261023` installation
+and local `.work/dotnet` SDK. Set `SHAREDINVENTORY_TEST_ROOT` to override the test
+installation. Previous installed mod DLLs are backed up under this worktree's
+ignored `.work/test-plugin-backups`. The launch recipe preserves the isolation
+helper and existing configurations and uses only the isolated saves.
+
 Normal builds exclude all harness types, diagnostics, configuration, and UI. `EnableTestHarness` defaults to `false`. No test plugin or load runner is packaged with the normal mod. The harness uses SharedInventory's existing RPC protocol; it adds no server endpoints or gameplay recovery behavior.
 
 ## Build and enable the in-game harness
