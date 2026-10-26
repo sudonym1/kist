@@ -20,6 +20,7 @@
     <Compile Include="../src/RitualDeathGuard.cs" Link="RitualDeathGuard.cs" />
     <Compile Include="../src/Items.cs" Link="Items.cs" />
     <Compile Include="../src/ContentIds.cs" Link="ContentIds.cs" />
+    <Compile Include="../src/EssenceBinding.cs" Link="EssenceBinding.cs" />
     <Compile Include="../src/Replies.cs" Link="Replies.cs" />
     <Compile Include="../src/Worker.cs" Link="Worker.cs" />
     <Compile Include="../src/Testing/TestHarness.cs" Link="Testing/TestHarness.cs" />

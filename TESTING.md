@@ -4,6 +4,10 @@ Normal builds exclude all harness types, diagnostics, configuration, and UI. `En
 
 ## Build and enable the in-game harness
 
+For the Dimmed Essence feature, run `tools/Test-Assets.ps1 -TestRoot '<marked isolated root>' -Mode Review -ExitAfter`, then repeat with `-Mode Headless`. Asset acceptance creates a fresh isolated test character on each run and cleans test chests/materials in its own EinherjarAssets world. It checks real hammer placement, one bound refund, local rebuilding with immutable origin, dimmed-first payment and regular fallback, inventory trade/save/load, both portal policies, damage/legacy/admin behavior, and the hammer ingredient tooltip. It also exports the purple model and inventory icon to `asset-capture`. Headless acceptance verifies registration without render assets and recovery after actual chest unload/reload. Reports are `asset-acceptance.txt` and `headless-acceptance.txt` beneath the test root.
+
+Separate host-plus-remote acceptance should verify a refund picked up by another player, a transfer through an ordinary container and tombstone, save/restart with a rebuilt chest, and two clients attempting to dismantle the same chest. All peers must use the same 0.11.1 build. Item-local metadata and owner-side refund deduplication do not turn the trusted-client mod into an anti-cheat boundary.
+
 Use a .NET 8 or newer SDK and the same game/BepInEx references as the normal build:
 
 ```powershell

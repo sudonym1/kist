@@ -15,6 +15,7 @@ internal static class Content
 {
     private static GameObject? root;
     internal static GameObject? Essence { get; private set; }
+    internal static GameObject? DimmedEssence { get; private set; }
     internal static GameObject? Chest { get; private set; }
     internal static ContentModels? Models { get; private set; }
     internal static bool EssencePortalsAllowed { get; private set; }
@@ -23,6 +24,8 @@ internal static class Content
     {
         EssencePortalsAllowed = allowed;
         if (Essence != null) Essence.GetComponent<ItemDrop>().m_itemData.m_shared.m_teleportable = allowed;
+        if (DimmedEssence != null) DimmedEssence.GetComponent<ItemDrop>().m_itemData.m_shared.m_teleportable = allowed;
+        if (Player.m_localPlayer != null) SyncPortalEligibility(Player.m_localPlayer.GetInventory());
         if (Localization.instance != null) Localize.Postfix(Localization.instance);
     }
     private static readonly List<UnityEngine.Object> icons = new List<UnityEngine.Object>();
@@ -87,6 +90,26 @@ internal static class Content
             drop.m_autoDestroy = false;
         }
         if (!db.m_items.Contains(Essence)) db.m_items.Add(Essence);
+        if (DimmedEssence == null)
+        {
+            DimmedEssence = UnityEngine.Object.Instantiate(Essence, Root);
+            DimmedEssence.name = ContentIds.DimmedEssence;
+            if (Models != null) DimmedEssence.GetComponentInChildren<MeshRenderer>(true).sharedMaterials = Models.DimmedMaterials;
+            var drop = DimmedEssence.GetComponent<ItemDrop>();
+            drop.m_itemData = Essence.GetComponent<ItemDrop>().m_itemData.Clone();
+            drop.m_itemData.m_dropPrefab = DimmedEssence;
+            drop.m_itemData.m_shared = new ItemDrop.ItemData.SharedData
+            {
+                m_name = "$item_dimmedeinherjaressence",
+                m_description = "$item_dimmedeinherjaressence_description",
+                m_itemType = ItemDrop.ItemData.ItemType.Material,
+                m_weight = 1f, m_maxStackSize = 1, m_maxQuality = 1,
+                m_teleportable = EssencePortalsAllowed,
+                m_icons = LoadIcon("essence", true) is Sprite dimmedIcon ? new[] { dimmedIcon } : Array.Empty<Sprite>()
+            };
+            drop.m_autoDestroy = false;
+        }
+        if (!db.m_items.Contains(DimmedEssence)) db.m_items.Add(DimmedEssence);
         if (Chest == null)
         {
             Chest = UnityEngine.Object.Instantiate(vanillaChest, Root);
@@ -132,7 +155,7 @@ internal static class Content
             UnityEngine.Object.DestroyImmediate(prefab.transform.GetChild(i).gameObject);
     }
 
-    private static Sprite? LoadIcon(string name)
+    private static Sprite? LoadIcon(string name, bool dimmed = false)
     {
         if (Headless) return null;
         using var stream = typeof(Content).Assembly.GetManifestResourceStream("SharedInventory.assets." + name + ".png");
@@ -141,6 +164,22 @@ internal static class Content
         stream.CopyTo(bytes);
         var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false) { name = "Einherjar " + name, filterMode = FilterMode.Bilinear };
         if (!ImageConversion.LoadImage(texture, bytes.ToArray())) throw new InvalidDataException("Invalid Einherjar icon: " + name);
+        if (dimmed)
+        {
+            // Reuse the original rendered geometry and alpha, with a purple
+            // palette. Neutral rune/highlight pixels retain their appearance.
+            texture.name = "Einherjar dimmed essence";
+            var pixels = texture.GetPixels();
+            for (var i = 0; i < pixels.Length; i++)
+            {
+                Color.RGBToHSV(pixels[i], out _, out var saturation, out var value);
+                if (saturation < .15f) continue;
+                var purple = Color.HSVToRGB(.76f, saturation, value * .85f);
+                purple.a = pixels[i].a;
+                pixels[i] = purple;
+            }
+            texture.SetPixels(pixels); texture.Apply();
+        }
         var sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(.5f, .5f), 100);
         icons.Add(texture); icons.Add(sprite);
         return sprite;
@@ -151,7 +190,7 @@ internal static class Content
         if (root != null) UnityEngine.Object.Destroy(root);
         Models?.Dispose();
         foreach (var icon in icons) UnityEngine.Object.Destroy(icon);
-        icons.Clear(); Models = null; Chest = null; Essence = null; root = null;
+        icons.Clear(); Models = null; Chest = null; Essence = null; DimmedEssence = null; root = null;
     }
 
     [HarmonyPatch(typeof(ObjectDB), "UpdateRegisters")]
@@ -167,7 +206,7 @@ internal static class Content
         {
             // ObjectDB and its Hammer table are also available on dedicated servers.
             if (ObjectDB.instance != null) Register(ObjectDB.instance);
-            foreach (var prefab in new[] { Essence, Chest })
+            foreach (var prefab in new[] { Essence, DimmedEssence, Chest })
             {
                 if (prefab == null) throw new InvalidOperationException("Einherjar content was not registered before world loading.");
                 var collision = __instance.m_prefabs.Find(p => p.name.GetStableHashCode() == prefab.name.GetStableHashCode());
@@ -185,9 +224,12 @@ internal static class Content
         {
             AddWord(__instance, "item_einherjaressence", "Einherjar Essence");
             AddWord(__instance, "item_einherjaressence_description", "An amber soul bound by Odin. Builds an Einherjar Chest. Must be carried; cannot enter shared storage." +
-                (EssencePortalsAllowed ? "" : " Cannot pass through portals.") + " Permanently consumed by construction.");
+                (EssencePortalsAllowed ? "" : " Cannot pass through portals.") + " Deconstructing its chest returns a Dimmed Essence bound to that site.");
+            AddWord(__instance, "item_dimmedeinherjaressence", "Dimmed Einherjar Essence");
+            AddWord(__instance, "item_dimmedeinherjaressence_description", "A fading purple soul bound to its original chest site. Builds an Einherjar Chest only near that site. Must be carried; cannot enter shared storage." +
+                (EssencePortalsAllowed ? "" : " Cannot pass through portals."));
             AddWord(__instance, "piece_einherjarchest", "Einherjar Chest");
-            AddWord(__instance, "piece_einherjarchest_description", "A reliquary connected to the world's shared inventory. Its essence is never returned when removed or destroyed.");
+            AddWord(__instance, "piece_einherjarchest_description", "A reliquary connected to the world's shared inventory. Build with an Einherjar Essence or a Dimmed Essence bound to this area. Hammer deconstruction returns a Dimmed Essence; damage destruction returns none.");
             AddWord(__instance, "einherjar_open", "Open shared inventory");
             AddWord(__instance, "einherjar_noportal", "Einherjar Essence cannot pass through portals.");
         }
@@ -200,7 +242,7 @@ internal static class Content
     {
         private static void Postfix(Humanoid __instance, ref bool __result)
         {
-            if (__result && !EssencePortalsAllowed && Items.Count(__instance.GetInventory(), ContentIds.Essence) > 0) __result = false;
+            if (__result && !EssencePortalsAllowed && CarriesEssence(__instance)) __result = false;
         }
     }
 
@@ -209,16 +251,35 @@ internal static class Content
     {
         private static bool Prefix(Player player)
         {
-            if (EssencePortalsAllowed || Items.Count(player.GetInventory(), ContentIds.Essence) == 0) return true;
+            if (EssencePortalsAllowed || !CarriesEssence(player)) return true;
             player.Message(MessageHud.MessageType.Center, "$einherjar_noportal");
             return false;
         }
     }
+
+    private static bool CarriesEssence(Humanoid player) => Items.Count(player.GetInventory(), ContentIds.Essence) > 0 ||
+        Items.Count(player.GetInventory(), ContentIds.DimmedEssence) > 0;
+
+    // Dropped prefabs can carry their own SharedData copy. Refresh item instances
+    // at the actual inventory eligibility check, including traded/old pickups.
+    internal static void SyncPortalEligibility(Inventory inventory)
+    {
+        foreach (var item in inventory.GetAllItems())
+            if (item.m_dropPrefab != null && !ContentIds.CanShare(Items.Id(item)))
+                item.m_shared.m_teleportable = EssencePortalsAllowed;
+    }
+
+    [HarmonyPatch(typeof(Inventory), nameof(Inventory.IsTeleportable))]
+    private static class InventoryPortalEligibility
+    {
+        private static void Prefix(Inventory __instance) => SyncPortalEligibility(__instance);
+    }
 }
 
 // No Update, duplicate inventory, or vanilla Container on these pieces.
-public sealed class SharedChest : MonoBehaviour, Hoverable, Interactable
+public sealed class SharedChest : MonoBehaviour, Hoverable, Interactable, IPlaced
 {
+    public void OnPlaced() => ChestConstruction.OnPlaced(this);
     private void OnEnable() => ChestAccess.Register(this);
     private void OnDisable() => ChestAccess.Unregister(this);
     public float GetHoverOffset() => .7f;

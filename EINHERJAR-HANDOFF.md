@@ -1,5 +1,7 @@
 # Einherjar Chest implementation handoff
 
+Current revision (0.11.1): the historical permanent-consumption rule below is superseded by site-bound Dimmed Essence recovery on hammer deconstruction. See README.md and API.md for the current rebuilding rule matching the 100-metre chest access radius, item metadata, ingredient priority, legacy behavior and validation. Damage destruction still refunds nothing.
+
 Prepared: 2026-10-24.
 Status: phases 1 through 5 complete (2026-10-24), version 0.4.5. Content, loaded-chest access, original-plaque gathering/countdown, lethal outcomes, persisted hidden anger, and isolated test controls are implemented. The user-approved access policy remains fixed at 100 metres and may be reduced by client loading settings. Phase 6 full multiplayer acceptance and final deployment validation are next. See EINHERJAR-PHASE5-RESULTS.md for outcome evidence and limits, EINHERJAR-PHASE4-RESULTS.md for gathering evidence, and EINHERJAR-PHASE3-RESULTS.md for access evidence.
 Repository: `C:\Users\seamu\source\repos\SharedInventory`.

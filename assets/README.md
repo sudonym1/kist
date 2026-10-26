@@ -24,6 +24,12 @@ rune matches its inventory/recipe icon. All generated geometry and captured
 artwork are original repository assets; there are no downloaded asset licenses
 or redistributed extracted game textures to manage.
 
+Dimmed Essence reuses the crystal mesh with a separate violet crystal material;
+the regular Essence and chest retain their amber material. Its inventory icon
+is a one-time purple palette variation of the embedded `essence.png`, preserving
+the rendered geometry, neutral rune/highlights, and alpha. Headless registration
+creates neither variant's render assets.
+
 To reproduce after changing a model:
 
 1. Prepare a marked isolated game with the isolation helper as described in
