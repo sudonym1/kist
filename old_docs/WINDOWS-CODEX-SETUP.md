@@ -1,3 +1,5 @@
+> Archived: superseded instructions and historical evidence. See [current development instructions](../DEVELOPMENT.md).
+
 # Windows Codex handoff: isolated SharedInventory test
 
 Carry out this setup on Windows. The user has authorized a separate test environment using synthetic test stock. Prepare it for the user to play-test. Build and test the actual DLLs; fix compilation problems in the isolated source copy if needed, and retain a patch/report of any changes. The WSL authoring session checked syntax and game API signatures but could not execute Windows .NET or run the C# tests.

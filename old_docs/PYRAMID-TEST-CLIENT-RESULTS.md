@@ -1,3 +1,5 @@
+> Archived: superseded instructions and historical evidence. See [current development instructions](../DEVELOPMENT.md).
+
 # Pyramid client setup verification
 
 **Update, October 24:** both test installations now have **0.4.6**, fixing
@@ -49,7 +51,7 @@ These live checks established the baseline; old session claims alone were not
 treated as current verification.
 
 Parsed all six PowerShell blocks in [the instructions](PYRAMID-TEST-CLIENT.md)
-and the [update helper](tools/Update-TestClient.ps1). Extracted and executed the
+and the update helper (historical path: `tools/Update-TestClient.ps1`). Extracted and executed the
 first four blocks as the actual build/upload/update procedure. Inspected the
 existing interactive task, started it as TestPlayer, then checked fresh startup logs,
 process identity, and unchanged saves. A later hostname lookup failed; the

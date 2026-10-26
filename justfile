@@ -1,13 +1,21 @@
-set windows-shell := ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"]
+set windows-shell := ["pwsh.exe", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"]
 
-# Show available commands.
-default:
-    @just --list
+# Run the existing production build, tests, and package checks.
+build: create-isolated-environment
+    & ./tools/Dev.ps1 -Action Build
 
-# Build this worktree's testing mod and run the automated checks.
-build:
-    & ./tools/Worktree-Test.ps1 -Action Build
+# Remove build outputs, keeping the isolated game and saves.
+clean:
+    & ./tools/Dev.ps1 -Action Clean
 
-# Build, install this worktree's mod, and open the shared isolated game.
-launch:
-    & ./tools/Worktree-Test.ps1 -Action Launch
+# Remove build outputs and the isolated game, including its test saves.
+clean-all:
+    & ./tools/Dev.ps1 -Action CleanAll
+
+# Copy the game/loader and restore preserved test characters, worlds, and hoards.
+create-isolated-environment:
+    & ./tools/Dev.ps1 -Action Create
+
+# Build and test before installing and launching the isolated game.
+run: build
+    & ./tools/Dev.ps1 -Action Run

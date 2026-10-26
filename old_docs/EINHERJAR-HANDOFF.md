@@ -1,3 +1,5 @@
+> Archived: superseded instructions and historical evidence. See [current development instructions](../DEVELOPMENT.md).
+
 # Einherjar Chest implementation handoff
 
 Current revision (0.11.2): the historical permanent-consumption rule below is superseded by site-bound Dimmed Essence recovery on hammer deconstruction or damage destruction. See README.md and API.md for the current rebuilding rule matching the 100-metre chest access radius, item metadata, ingredient priority, legacy behavior and validation. Both destruction paths return the same bound Essence.

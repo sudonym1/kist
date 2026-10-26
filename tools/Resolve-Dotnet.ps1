@@ -14,6 +14,15 @@ if (-not $Dotnet) {
             (Join-Path $repo '.tools/dotnet'), (Join-Path $repo '.work/dotnet'))) {
         if ($root) { $candidates += Join-Path $root 'dotnet.exe' }
     }
+    # Worktrees share the main checkout's SDK, just as they share restore data.
+    if ((Test-Path -LiteralPath (Join-Path $repo '.git')) -and (Get-Command git -ErrorAction SilentlyContinue)) {
+        $commonGit = & git -C $repo rev-parse --path-format=absolute --git-common-dir
+        if ($LASTEXITCODE -eq 0) {
+            $mainCheckout = Split-Path $commonGit -Parent
+            $candidates += Join-Path $mainCheckout '.work/dotnet/dotnet.exe'
+            $candidates += Join-Path $mainCheckout '.tools/dotnet/dotnet.exe'
+        }
+    }
     if ($env:USERPROFILE) { $candidates += Join-Path $env:USERPROFILE '.dotnet/dotnet.exe' }
     if ($env:ProgramFiles) { $candidates += Join-Path $env:ProgramFiles 'dotnet/dotnet.exe' }
 }

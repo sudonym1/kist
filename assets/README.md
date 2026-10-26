@@ -32,8 +32,8 @@ creates neither variant's render assets.
 
 To reproduce after changing a model:
 
-1. Prepare a marked isolated game with the isolation helper as described in
-   [WINDOWS-CODEX-SETUP.md](../WINDOWS-CODEX-SETUP.md). Enable the test harness,
+1. Run `just build` and prepare the guarded harness as described in
+   [TESTING.md](../TESTING.md). Use `.work/isolated` as the test root. Enable the test harness,
    leave impairments off, and set the helper's FreeBuild=false.
 2. Run `tools/Test-Assets.ps1 -TestRoot '<isolated root>' -Mode Review`.
    It builds the testing DLL and creates/loads only its local EinherjarAssets

@@ -1,3 +1,5 @@
+> Archived: superseded instructions and historical evidence. See [current development instructions](../DEVELOPMENT.md).
+
 # Einherjar phase 5 evidence
 
 Completed 2026-10-24 for version 0.4.5. Ritual outcomes, hidden world persistence,

@@ -1,3 +1,5 @@
+> Archived: superseded instructions and historical evidence. See [current development instructions](../DEVELOPMENT.md).
+
 # TestPlayer's second-computer test client
 
 Use this procedure to update the **existing** isolated client on Pyramid and join
@@ -168,7 +170,7 @@ if ((Get-FileHash -LiteralPath '$RemoteStage\Update-TestClient.ps1').Hash -ne '$
 "@
 ```
 
-The versioned [update helper](tools/Update-TestClient.ps1) validates the incoming
+The versioned update helper (historical path: `tools/Update-TestClient.ps1`) validates the incoming
 DLL hashes against the manifest and Pyramid's game hashes against the host. It
 copies and checksum-verifies a backup of test saves, configs, installed/staged
 plugins, and launch/update scripts before installing both DLLs through the
