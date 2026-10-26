@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$TestRoot,
-    [Parameter(Mandatory = $true)][string]$PayloadDirectory
+    [Parameter(Mandatory = $true)][string]$PayloadDirectory,
+    [ValidateNotNullOrEmpty()][string]$PlayerUser = $env:USERNAME
 )
 
 # Run on the joining Windows computer, after its isolated game has exited.
@@ -78,8 +79,8 @@ if ($testing -notmatch '(?m)^Enabled\s*=\s*true\s*$' -or $testing -notmatch '(?m
 }
 $launcher = [IO.File]::ReadAllText("$root\Launch-Test.cmd")
 if ($launcher -notmatch '-sharedinventory-test' -or $launcher -notmatch '-savedir' -or
-    $launcher -notmatch 'Apply-Update.ps1' -or $launcher -notmatch 'testplayer') {
-    throw 'Expected the existing TestPlayer-only guarded launcher with staged updates.'
+    $launcher -notmatch 'Apply-Update.ps1' -or $launcher -notmatch [regex]::Escape($PlayerUser)) {
+    throw 'Expected the existing player-only guarded launcher with staged updates.'
 }
 
 $before = @(SaveHashes)
@@ -101,7 +102,7 @@ foreach ($file in @(Get-ChildItem -LiteralPath $backup -File -Recurse -Force)) {
 }
 # The old sync helper embeds the 0.4.1 hash and could reinstall its old incoming
 # DLL. Preserve its task XML but disable it; the normal launch task is retained.
-$legacyTask = Get-ScheduledTask -TaskName 'SharedInventory-TestPlayer-Sync-20261023' -ErrorAction SilentlyContinue
+$legacyTask = Get-ScheduledTask -TaskName "SharedInventory-$PlayerUser-Sync-20261023" -ErrorAction SilentlyContinue
 if ($legacyTask) {
     Export-ScheduledTask -TaskName $legacyTask.TaskName | Set-Content -LiteralPath (Join-Path $backup 'legacy-sync-task.xml') -Encoding UTF8
     Disable-ScheduledTask -TaskName $legacyTask.TaskName | Out-Null

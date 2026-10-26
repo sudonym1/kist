@@ -10,3 +10,7 @@ __pycache__/
 /.work/
 /SharedInventory-Test-*/
 
+# Personal inventory snapshots stay local.
+/seed/
+/old_docs/seed/
+

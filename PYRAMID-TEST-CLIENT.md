@@ -1,4 +1,6 @@
-# TestPlayer's second-computer test client
+# Second-computer test client
+
+`TestPlayer` and `testplayer` below are placeholders for the local gameplay account. Substitute the account and task names for your own test installation.
 
 Use this procedure to update the **existing** isolated client on Pyramid and join
 the test host on the first computer. SSH administration is `seamus@pyramid`;
@@ -57,7 +59,8 @@ On the first computer, open PowerShell in the current repository checkout:
 $ErrorActionPreference = 'Stop'
 $Repo = $PWD.Path
 $HostGame = Join-Path $Repo 'SharedInventory-Test-Phase2\game'
-$RemoteRoot = 'C:\Users\testplayer\SharedInventory-Test-20261023'
+$PlayerUser = 'testplayer' # Replace with the local gameplay account name.
+$RemoteRoot = "C:\Users\$PlayerUser\SharedInventory-Test-20261023"
 # This existing file contains Pyramid's previously trusted host key.
 $KnownHosts = 'C:\Users\seamu\ThorsKist\.pyramid-known-hosts'
 $SshOptions = @('-o', 'BatchMode=yes', '-o', "UserKnownHostsFile=$KnownHosts")
@@ -164,7 +167,7 @@ Invoke-Pyramid @"
 `$ErrorActionPreference = 'Stop'
 `$ProgressPreference = 'SilentlyContinue'
 if ((Get-FileHash -LiteralPath '$RemoteStage\Update-TestClient.ps1').Hash -ne '$UpdaterHash') { throw 'Updater checksum mismatch.' }
-& '$RemoteStage\Update-TestClient.ps1' -TestRoot '$RemoteRoot' -PayloadDirectory '$RemoteStage'
+& '$RemoteStage\Update-TestClient.ps1' -TestRoot '$RemoteRoot' -PayloadDirectory '$RemoteStage' -PlayerUser '$PlayerUser'
 "@
 ```
 
