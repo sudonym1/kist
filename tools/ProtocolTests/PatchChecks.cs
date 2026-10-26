@@ -135,13 +135,19 @@ internal static class PatchChecks
         var removal = game.MainModule.Types.Single(type => type.Name == "WearNTear").Methods.Single(method => method.Name == "RPC_Remove");
         if (!removal.Parameters.Select(p => p.ParameterType.FullName).SequenceEqual(new[] { "System.Int64", "System.Boolean" }) ||
             !removal.Body.Instructions.Any(i => i.Operand is MethodReference method && method.Name == "Destroy"))
-            throw new Exception("Owner-side hammer refund hook changed");
+            throw new Exception("Hammer destruction path changed");
+        var wear = game.MainModule.Types.Single(type => type.Name == "WearNTear");
+        var destruction = wear.Methods.Single(method => method.Name == "Destroy" && !method.IsStatic);
+        if (!destruction.Parameters.Select(p => p.ParameterType.FullName).SequenceEqual(new[] { "HitData", "System.Boolean" }) ||
+            !destruction.Body.Instructions.Any(i => i.Operand is MethodReference method && method.DeclaringType.Name == "Piece" && method.Name == "DropResources") ||
+            !wear.Methods.Single(method => method.Name == "ApplyDamage").Body.Instructions.Any(i => i.Operand is MethodReference method && method.Name == "Destroy"))
+            throw new Exception("Shared hammer/damage destruction refund hook changed");
         var item = game.MainModule.Types.Single(type => type.Name == "ItemDrop").NestedTypes.Single(type => type.Name == "ItemData");
         foreach (var methodName in new[] { "Save", "Load", "Clone" })
             if (!item.Methods.Where(m => m.Name == methodName && m.HasBody).Any(m => m.Body.Instructions.Any(i =>
                     i.Operand is FieldReference field && field.Name == "m_customData")))
                 throw new Exception("Item-local binding persistence hook changed: " + methodName);
-        System.Console.WriteLine("PASS chest placement, IPlaced binding, owner hammer refund and item metadata persistence signatures");
+        System.Console.WriteLine("PASS chest placement, IPlaced binding, owner hammer/damage refund and item metadata persistence signatures");
     }
     public static int CheckHarness(string path, bool expected)
     {

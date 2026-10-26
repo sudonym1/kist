@@ -15,7 +15,7 @@ internal static class ChestConstruction
     private static readonly AccessTools.FieldRef<Player, GameObject> ghost = AccessTools.FieldRefAccess<Player, GameObject>("m_placementGhost");
     private static readonly AccessTools.FieldRef<Player, Player.PlacementStatus> status = AccessTools.FieldRefAccess<Player, Player.PlacementStatus>("m_placementStatus");
     private static readonly Action<Player, bool> setGhostValid = AccessTools.MethodDelegate<Action<Player, bool>>(AccessTools.Method(typeof(Player), "SetPlacementGhostValid"));
-    private static readonly HashSet<Piece> removals = new HashSet<Piece>();
+    private static readonly HashSet<Piece> destructions = new HashSet<Piece>();
     private static Placement? placing;
 
     private sealed class Placement
@@ -178,8 +178,11 @@ internal static class ChestConstruction
         }
     }
 
-    [HarmonyPatch(typeof(WearNTear), "RPC_Remove")]
-    private static class HammerRemoval
+    // Hammer removal, lethal damage and structural destruction converge here.
+    // Scope recovery to that actual destruction, rather than a standalone call
+    // to DropResources on a chest which is still alive.
+    [HarmonyPatch(typeof(WearNTear), "Destroy", new[] { typeof(HitData), typeof(bool) })]
+    private static class Destruction
     {
         private static void Prefix(WearNTear __instance, bool blockDrop, out Piece? __state)
         {
@@ -187,15 +190,15 @@ internal static class ChestConstruction
             var view = __instance.GetComponent<ZNetView>();
             if (blockDrop || __instance.GetComponent<SharedChest>() == null || view == null || !view.IsValid() || !view.IsOwner()) return;
             var piece = __instance.GetComponent<Piece>();
-            if (removals.Add(piece)) __state = piece;
+            if (destructions.Add(piece)) __state = piece;
         }
-        private static void Finalizer(Piece? __state) { if (!ReferenceEquals(__state, null)) removals.Remove(__state!); }
+        private static void Finalizer(Piece? __state) { if (!ReferenceEquals(__state, null)) destructions.Remove(__state!); }
     }
 
     [HarmonyPatch(typeof(Piece), nameof(Piece.DropResources))]
     private static class ResourceDrop
     {
-        private static void Postfix(Piece __instance) { if (removals.Contains(__instance)) Refund(__instance); }
+        private static void Postfix(Piece __instance) { if (destructions.Contains(__instance)) Refund(__instance); }
     }
 
     internal static string BindingText(ItemDrop.ItemData item)

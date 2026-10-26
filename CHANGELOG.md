@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.2
+
+- Clarify that Oden brings the chosen warrior from the tenth realm to Valhalla, then sends them back to finish their saga, leaving an echo of their essence as a gift. Update Hugin, ritual messages, item descriptions and player instructions.
+- Damage destruction now returns one Dimmed Einherjar Essence, preserving the same original world/site and 100-metre rebuilding area as hammer recovery. Legacy chests also recover their Essence after damage destruction.
+- Keep refunds restricted to actual owner-side destruction, deduplicate repeated resource drops, and retain no-refund behavior for new free/admin chests and explicitly blocked drops. Update Hugin and chest descriptions to explain damage recovery.
+
 ## 0.11.1
 
 - Match Dimmed Essence's rebuilding radius to the chest access radius, currently 100 metres. Placement checks and tooltips share the same radius; the original site binding remains unchanged.

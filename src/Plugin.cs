@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace SharedInventory;
 
-[BepInPlugin(Guid, "Einherjar Chest", "0.11.1")]
+[BepInPlugin(Guid, "Einherjar Chest", "0.11.2")]
 [BepInIncompatibility("posixone_ThorsKist")]
 public sealed class Plugin : BaseUnityPlugin
 {

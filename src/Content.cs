@@ -224,12 +224,12 @@ internal static class Content
         {
             AddWord(__instance, "item_einherjaressence", "Einherjar Essence");
             AddWord(__instance, "item_einherjaressence_description", "An amber echo left in the tenth realm when Oden brought a warrior to Valhalla. Builds an Einherjar Chest. Must be carried; cannot enter shared storage." +
-                (EssencePortalsAllowed ? "" : " Cannot pass through portals.") + " Deconstructing its chest returns a Dimmed Essence bound to that site.");
+                (EssencePortalsAllowed ? "" : " Cannot pass through portals.") + " Removing or destroying its chest returns a Dimmed Essence bound to that site.");
             AddWord(__instance, "item_dimmedeinherjaressence", "Dimmed Einherjar Essence");
             AddWord(__instance, "item_dimmedeinherjaressence_description", "A fading purple remnant of an Einherjar Essence, bound to its original chest site. Builds an Einherjar Chest only near that site. Must be carried; cannot enter shared storage." +
                 (EssencePortalsAllowed ? "" : " Cannot pass through portals."));
             AddWord(__instance, "piece_einherjarchest", "Einherjar Chest");
-            AddWord(__instance, "piece_einherjarchest_description", "A reliquary connected to the world's shared inventory. Build with an Einherjar Essence or a Dimmed Essence bound to this area. Hammer deconstruction returns a Dimmed Essence; damage destruction returns none.");
+            AddWord(__instance, "piece_einherjarchest_description", "A reliquary connected to the world's shared inventory. Build with an Einherjar Essence or a Dimmed Essence bound to this area. Removing or destroying the chest returns a Dimmed Essence bound to its original site.");
             AddWord(__instance, "einherjar_open", "Open shared inventory");
             AddWord(__instance, "einherjar_noportal", "Einherjar Essence cannot pass through portals.");
         }

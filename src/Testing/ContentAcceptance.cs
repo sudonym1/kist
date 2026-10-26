@@ -124,6 +124,21 @@ internal static class ContentAcceptance
             Check(UnityEngine.Object.FindObjectsByType<ItemDrop>(FindObjectsSortMode.None).Any(drop =>
                 drop.m_itemData.m_dropPrefab == Content.DimmedEssence && drop.m_itemData.m_customData.TryGetValue(EssenceBinding.Key, out var value) && value == bindingData),
                 "Headless owner can publish the bound hammer refund without render assets");
+            var damaged = UnityEngine.Object.Instantiate(chest, headlessOrigin + Vector3.right * 4, Quaternion.identity);
+            var damageRecord = damaged.GetComponent<ZNetView>().GetZDO();
+            damageRecord.Set(EssenceBinding.Key, bindingData);
+            damageRecord.Set("local.sharedinventory.essencePaid", true);
+            var damageWear = damaged.GetComponent<WearNTear>();
+            damageWear.m_onDestroyed += () => damaged.GetComponent<Piece>().DropResources();
+            damageWear.ApplyDamage(100000);
+            Check(UnityEngine.Object.FindObjectsByType<ItemDrop>(FindObjectsSortMode.None).Count(drop =>
+                drop.m_itemData.m_dropPrefab == Content.DimmedEssence && drop.m_itemData.m_customData.TryGetValue(EssenceBinding.Key, out var value) && value == bindingData) == 2,
+                "Headless lethal damage preserves the binding and repeated resource dropping cannot duplicate its refund");
+            var blocked = UnityEngine.Object.Instantiate(chest, headlessOrigin + Vector3.right * 8, Quaternion.identity);
+            blocked.GetComponent<WearNTear>().Remove(true);
+            Check(UnityEngine.Object.FindObjectsByType<ItemDrop>(FindObjectsSortMode.None).Count(drop =>
+                drop.m_itemData.m_dropPrefab == Content.DimmedEssence) == 2,
+                "Explicitly blocked destruction drops still create no essence");
             yield break;
         }
         Check(chest.GetComponentsInChildren<MeshRenderer>(true).Length == 1 && essence.GetComponentsInChildren<MeshRenderer>(true).Length == 1,
@@ -307,10 +322,14 @@ internal static class ContentAcceptance
             .Single(c => c.GetComponent<ZNetView>()?.IsValid() == true && c.GetComponent<ZNetView>().GetZDO().GetString(EssenceBinding.Key) == encoded);
         Check(rebuilt.GetComponent<ZNetView>().GetZDO().GetString(EssenceBinding.Key) == encoded,
             "Rebuilt chest retains immutable original site rather than its new location");
-        rebuilt.GetComponent<WearNTear>().Remove(); yield return null;
+        rebuilt.GetComponent<WearNTear>().ApplyDamage(1);
+        rebuilt.GetComponent<Piece>().DropResources();
+        Check(!UnityEngine.Object.FindObjectsByType<ItemDrop>(FindObjectsSortMode.None).Any(drop => drop.m_itemData.m_dropPrefab == Content.DimmedEssence),
+            "Nonlethal damage and standalone resource drops cannot refund a living chest");
+        rebuilt.GetComponent<WearNTear>().ApplyDamage(100000); yield return null;
         refund = UnityEngine.Object.FindObjectsByType<ItemDrop>(FindObjectsSortMode.None)
             .Single(drop => drop.m_itemData.m_dropPrefab == Content.DimmedEssence);
-        Check(refund.m_itemData.m_customData[EssenceBinding.Key] == encoded, "Repeated hammer recovery preserves the original binding");
+        Check(refund.m_itemData.m_customData[EssenceBinding.Key] == encoded, "Damage destruction of a rebuilt chest returns exactly one essence preserving its original binding");
         refund.Pickup(player);
         var pickupDeadline = Time.realtimeSinceStartup + 3;
         while (Items.Count(inventory, ContentIds.DimmedEssence) == 0 && Time.realtimeSinceStartup < pickupDeadline) yield return null;
@@ -323,8 +342,12 @@ internal static class ContentAcceptance
         Check(EssenceBinding.TryRead(fresh.GetComponent<ZNetView>().GetZDO().GetString(EssenceBinding.Key), out var freshBinding) &&
             freshBinding.Origin == outside, "Regular essence establishes a new origin at the new site");
         fresh.GetComponent<WearNTear>().ApplyDamage(100000); yield return null;
-        Check(!UnityEngine.Object.FindObjectsByType<ItemDrop>(FindObjectsSortMode.None).Any(drop => drop.m_itemData.m_dropPrefab == Content.DimmedEssence),
-            "Damage destruction never returns a dimmed essence");
+        var damageRefunds = UnityEngine.Object.FindObjectsByType<ItemDrop>(FindObjectsSortMode.None)
+            .Where(drop => drop.m_itemData.m_dropPrefab == Content.DimmedEssence).ToArray();
+        Check(damageRefunds.Length == 1 && damageRefunds[0].m_itemData.m_customData[EssenceBinding.Key] == freshBinding.Encode(),
+            "Damage destruction of a new chest returns exactly one essence bound to its site");
+        foreach (var drop in damageRefunds) ZNetScene.instance.Destroy(drop.gameObject);
+        yield return null;
         player.SetNoPlacementCost(true);
         Check(ChestConstruction.Place(player, piece, outside, Quaternion.identity, false, false), "Admin construction remains available");
         player.SetNoPlacementCost(false);
@@ -333,8 +356,8 @@ internal static class ContentAcceptance
         admin.GetComponent<WearNTear>().Remove(); yield return null;
         Check(!UnityEngine.Object.FindObjectsByType<ItemDrop>(FindObjectsSortMode.None).Any(drop => drop.m_itemData.m_dropPrefab == Content.DimmedEssence),
             "Free construction cannot mint refundable dimmed essence");
-        // Old chests have no binding keys. Hammer recovery binds to their saved
-        // location, while damage still never refunds anything.
+        // Old chests have no binding keys. Both destruction paths bind their
+        // returned Essence to the existing saved location.
         foreach (var damage in new[] { false, true })
         {
             var instance = UnityEngine.Object.Instantiate(chest, position + Vector3.right * (damage ? 4 : -4), Quaternion.identity);
@@ -343,8 +366,8 @@ internal static class ContentAcceptance
             yield return null;
             var drops = UnityEngine.Object.FindObjectsByType<ItemDrop>(FindObjectsSortMode.None)
                 .Where(drop => drop.m_itemData.m_dropPrefab == Content.DimmedEssence).ToArray();
-            Check(damage ? drops.Length == 0 : drops.Length == 1 && EssenceBinding.TryRead(drops[0].m_itemData, out var legacy) &&
-                legacy.Origin == position + Vector3.right * -4, damage ? "Legacy damage destruction refunds nothing" : "Legacy hammer removal creates a site-bound dimmed essence");
+            Check(drops.Length == 1 && EssenceBinding.TryRead(drops[0].m_itemData, out var legacy) &&
+                legacy.Origin == position + Vector3.right * (damage ? 4 : -4), damage ? "Legacy damage destruction creates a site-bound dimmed essence" : "Legacy hammer removal creates a site-bound dimmed essence");
             foreach (var drop in drops) ZNetScene.instance.Destroy(drop.gameObject);
         }
         inventory.AddItem(Items.Default(ContentIds.Essence)!); // Leave one for manual placement inspection.
