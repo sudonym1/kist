@@ -16,12 +16,18 @@ internal sealed class TestPanel
     private Client? client;
     private TestHarness? harness;
     internal RitualTestControls? RitualControls { get; private set; }
+    private readonly RavenTestControls ravenControls;
     private string status = "";
     private string diagnostics = "";
     private double nextDiagnostics;
     private Vector2 scroll;
+    private GUIStyle? ravenStatusStyle;
 
-    private TestPanel(ConfigFile config, ManualLogSource log) { this.config = config; this.log = log; }
+    private TestPanel(ConfigFile config, ManualLogSource log)
+    {
+        this.config = config; this.log = log;
+        ravenControls = new RavenTestControls(error => log.LogError(error));
+    }
     public static TestPanel? Create(ConfigFile config, ManualLogSource log)
     {
         if (!config.Bind("Testing", "Enabled", false, "Enable the test panel only in a guarded isolated test launch. Restart required.").Value) return null;
@@ -59,6 +65,7 @@ internal sealed class TestPanel
     public void AttachRitual(ZRoutedRpc router, Ritual ritual) => RitualControls = new RitualTestControls(router, ritual);
     public void Update()
     {
+        ravenControls.Update();
         RitualControls?.Update();
         if (harness == null || api == null) return;
         harness.Metrics.Observe("frameMs", Time.unscaledDeltaTime * 1000);
@@ -96,6 +103,7 @@ internal sealed class TestPanel
     }
     public void Detach()
     {
+        ravenControls.Stop();
         RitualControls?.Stop(); RitualControls = null;
         Export();
         api = null; client = null; harness = null;
@@ -104,7 +112,7 @@ internal sealed class TestPanel
     {
         if (harness == null) return;
         var settings = harness.Settings;
-        scroll = GUI.BeginScrollView(new Rect(0, 0, width, height), scroll, new Rect(0, 0, width - 18, 860));
+        scroll = GUI.BeginScrollView(new Rect(0, 0, width, height), scroll, new Rect(0, 0, width - 18, 1030));
         var w = width - 20;
         GUI.Label(new Rect(0, 0, w, 25), "ISOLATED TEST HARNESS - " + (settings.Active ? "FAULTS ACTIVE" : "faults off"));
         if (GUI.Button(new Rect(0, 28, w, 25), "Disable faults and release queued packets")) harness.DisableFaults();
@@ -132,7 +140,12 @@ internal sealed class TestPanel
         if (GUI.Button(new Rect(0, 614, w, 28), "Test lightning")) RitualControls?.Press(RitualTestAction.PreviewLightning);
         GUI.enabled = enabled;
         GUI.Label(new Rect(0, 650, w, 80), RitualControls?.Status ?? "Ritual test controls unavailable.");
-        GUI.Label(new Rect(0, 744, w, 100), status);
+        GUI.enabled = enabled && ravenControls.CanQueue;
+        if (GUI.Button(new Rect(0, 738, w, 28), "Queue / replay Hugin tutorial (POC)")) ravenControls.Press();
+        GUI.enabled = enabled;
+        ravenStatusStyle ??= new GUIStyle(GUI.skin.label) { wordWrap = true, alignment = TextAnchor.UpperLeft };
+        GUI.Label(new Rect(0, 772, w, 140), ravenControls.Status, ravenStatusStyle);
+        GUI.Label(new Rect(0, 920, w, 100), status);
         GUI.EndScrollView();
     }
 }

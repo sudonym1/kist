@@ -38,18 +38,53 @@ internal static class PatchChecks
             throw new Exception("Chest radius placement-ghost field changed");
         System.Console.WriteLine("PASS chest radius placement-ghost reflection signature");
     }
+    private static void CheckRavenHooks(AssemblyDefinition mod, AssemblyDefinition game)
+    {
+        var controls = mod.MainModule.Types.SingleOrDefault(t => t.FullName == "SharedInventory.RavenTestControls");
+        if (controls == null) return;
+        var raven = game.MainModule.Types.Single(t => t.Name == "Raven");
+        var player = game.MainModule.Types.Single(t => t.Name == "Player");
+        var tutorial = game.MainModule.Types.Single(t => t.Name == "Tutorial");
+        void Field(TypeDefinition type, string name, string expected, bool isStatic)
+        {
+            var field = type.Fields.Single(f => f.Name == name);
+            if (field.FieldType.FullName != expected || field.IsStatic != isStatic)
+                throw new Exception("Scoped raven cleanup contract changed: " + type.Name + "." + name);
+        }
+        Field(raven, "m_tempTexts", "System.Collections.Generic.List`1<Raven/RavenText>", true);
+        Field(raven, "m_currentText", "Raven/RavenText", false);
+        Field(player, "m_shownTutorials", "System.Collections.Generic.HashSet`1<System.String>", false);
+        if (!raven.Fields.Single(f => f.Name == "m_tutorialsEnabled").IsPublic ||
+            !tutorial.Fields.Single(f => f.Name == "m_texts").IsPublic)
+            throw new Exception("Native tutorial availability/catalog contract changed");
+        bool Calls(MethodDefinition method, string type, string name) => method.Body.Instructions.Any(i =>
+            i.Operand is MethodReference call && call.DeclaringType.FullName == type && call.Name == name);
+        var show = player.Methods.Single(m => m.Name == "ShowTutorial");
+        var spawn = tutorial.Methods.Single(m => m.Name == "SpawnRaven");
+        if (!Calls(show, "Player", "HaveSeenTutorial") || !Calls(show, "Tutorial", "ShowText") ||
+            !Calls(spawn, "UnityEngine.Object", "Instantiate") || !Calls(spawn, "Raven", "AddTempText") ||
+            !Calls(raven.Methods.Single(m => m.Name == "Talk"), "Player", "SetSeenTutorial"))
+            throw new Exception("Native raven instantiation/acknowledgement path changed");
+        var calls = controls.Methods.Where(m => m.HasBody).SelectMany(m => m.Body.Instructions)
+            .Select(i => i.Operand).OfType<MethodReference>().ToArray();
+        if (!calls.Any(m => m.DeclaringType.FullName == "Player" && m.Name == "ShowTutorial") ||
+            calls.Any(m => m.Name == "ResetSeenTutorials" || m.DeclaringType.FullName == "ZRoutedRpc"))
+            throw new Exception("Raven POC must use the native local tutorial path without global reset or RPCs");
+        System.Console.WriteLine("PASS scoped raven cleanup fields and native instantiate/acknowledge path; POC has no global reset or RPC calls");
+    }
     public static int CheckHarness(string path, bool expected)
     {
         using var mod = AssemblyDefinition.ReadAssembly(path);
         var types = AllTypes(mod.MainModule.Types).ToArray();
-        foreach (var name in new[] { "TestSettings", "TestHarness", "LabMetrics", "TestPanel", "AssetCapture", "ContentAcceptance", "AccessAcceptance", "RitualAcceptance", "RitualTestControls", "RitualTestAction", "RitualOutcomeAcceptance" })
+        foreach (var name in new[] { "TestSettings", "TestHarness", "LabMetrics", "TestPanel", "AssetCapture", "ContentAcceptance", "AccessAcceptance", "RitualAcceptance", "RitualTestControls", "RitualTestAction", "RitualOutcomeAcceptance", "RavenTestControls" })
         {
             var present = types.Any(type => type.FullName == "SharedInventory." + name);
             if (present != expected) throw new Exception("Test harness inclusion mismatch: " + name);
         }
         var literals = types.SelectMany(type => type.Methods).Where(method => method.HasBody)
             .SelectMany(method => method.Body.Instructions).Select(instruction => instruction.Operand).OfType<string>().ToList();
-        foreach (var literal in new[] { "Reset cooldown", "Spawn essence", "Test lightning", "SharedInventory.Ritual.Test.v1.Request" })
+        foreach (var literal in new[] { "Reset cooldown", "Spawn essence", "Test lightning", "SharedInventory.Ritual.Test.v1.Request",
+            "Queue / replay Hugin tutorial (POC)", "local.sharedinventory.testing.raven-poc.v1" })
             if (literals.Contains(literal) != expected) throw new Exception("Ritual test UI/endpoint isolation mismatch: " + literal);
         System.Console.WriteLine(expected ? "PASS test harness included in explicitly opted-in build" : "PASS production DLL contains no test harness types");
         return 0;
@@ -94,6 +129,7 @@ internal static class PatchChecks
         CheckWindowInput(mod, utils);
         CheckChestRadius(game);
         CheckRitualHooks(game);
+        CheckRavenHooks(mod, game);
         var hooks = mod.MainModule.Types.Single(type => type.FullName == "SharedInventory.Crafting");
         var replacements = new Dictionary<string, string>
         {

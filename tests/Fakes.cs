@@ -180,6 +180,18 @@ public sealed class Player
     public static Player m_localPlayer = new Player();
     public Inventory Inventory = new Inventory();
     public bool Dead;
+    public bool Intro, Teleporting;
+    public ZNetView View = new ZNetView();
+    private readonly HashSet<string> m_shownTutorials = new HashSet<string>();
+    public T? GetComponent<T>() where T : class => View as T;
+    public bool InIntro() => Intro;
+    public bool IsTeleporting() => Teleporting;
+    public bool HaveSeenTutorial(string key) => m_shownTutorials.Contains(key);
+    public void SetSeenTutorial(string key) => m_shownTutorials.Add(key);
+    public void ShowTutorial(string key, bool force = false)
+    {
+        if (!HaveSeenTutorial(key)) Tutorial.instance!.ShowText(key, force);
+    }
     public UnityEngine.Transform transform = new UnityEngine.Transform();
     public Inventory GetInventory() => Inventory;
     public bool IsDead() => Dead;
@@ -188,12 +200,14 @@ public sealed class Player
     public void UnequipItem(ItemDrop.ItemData item, bool effects) => item.m_equipped = false;
 }
 
-public static class Game { public static int m_worldLevel; }
+public sealed class Game { public static int m_worldLevel; public static Game? instance = new Game(); }
 public static class MessageHud { public enum MessageType { Center } }
 public sealed class ZNetView : UnityEngine.Component
 {
     public bool Valid = true;
+    public bool Owner = true;
     public bool IsValid() => Valid;
+    public bool IsOwner() => Owner;
 }
 
 namespace SharedInventory

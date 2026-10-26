@@ -53,6 +53,7 @@ internal static partial class Program
         AccessTests();
         RitualTests();
         RitualOutcomeTests();
+        RavenTests();
         Test("Database aggregates unstackable and stackable items without game rules", () =>
         {
             var db = new CountDatabase();

@@ -32,6 +32,38 @@ On a host/server, request delays apply at server receipt and reply delays apply 
 
 The panel shows queue depths, oldest queued/pending ages, pending transfers and crafting batches, cache age, RTT percentiles, reply throughput, traffic rate, frame time, worker wait, and save duration. Exported reports contain settings, counters, latency distributions, a bounded event trace, and cached inventory counts/qualities. Reports are written to `BepInEx/config/SharedInventory-TestReports`; their full paths appear in the BepInEx log. Samples retain the latest 8,192 observations per metric and traces retain the latest 10,000 events. Expired refresh attempts produce terminal refreshExpired events with an Outcome, separate from successful RTT samples and server rejections. Counters refreshTimeouts, refreshRetries, and ignoredRefreshReplies describe recovery. PendingRefreshes and PendingMutations distinguish refreshes from uncertain mutations; client transfer/batch counts remain visible independently. Request correlation retains at most 10,000 entries and emits correlationEvicted if exhausted. Active diagnostics add overhead, so compare equivalent configurations.
 
+## Hugin tutorial proof of concept
+
+With the guarded testing build enabled as above, enter a world with a living,
+fully spawned local test player. Open **F3 → Testing**, scroll below the ritual
+controls, and choose **Queue / replay Hugin tutorial (POC)**. No chest or host
+privileges are required. Close F3, look around on open, safe ground, and interact
+with Hugin normally. The native raven handles landing, animation, interaction,
+dialog and acknowledgement; existing raven messages, enemies, events and landing
+conditions can delay his arrival. The panel reports queued, acknowledged, or a
+specific unavailable reason. Repeated clicks while queued do not add copies.
+
+After acknowledgement, use the same button to replay. Replay replaces only this
+sample, including any still-visible sample dialog. **Tutorials must be enabled
+in Valheim's settings**; this action never overrides that setting. Disabling it,
+dying, teleporting, losing player readiness, switching character/world, or leaving
+the session clears the sample. Queue it manually again when ready. It never starts
+automatically and is absent from production builds.
+
+The fixed key is `local.sharedinventory.testing.raven-poc.v1`. Cleanup removes
+only that key's temporary message/seen state and this controller's tutorial
+definition/current dialog. Vanilla and other mods' messages retain their state
+and queue order. The sample has no journal label, so it adds no Known Text entry.
+It uses native game assets and introduces no dependencies or network messages.
+
+For manual acceptance in the existing isolated install, check the first queue,
+rapid repeated clicks, native interaction/dialog, replay while the previous
+dialog is visible and after it closes, Tutorials off/on, death/respawn, and
+logout/rejoin or character/world switch with a sample pending. Confirm unrelated
+tutorials still appear normally. These are graphical runtime checks; lifecycle
+tests with doubles and installed-game API/IL checks do not establish animation,
+landing, interaction or visual layout acceptance.
+
 ## Disable fault injection and testing
 
 Choose the level of shutdown you need:
