@@ -1,6 +1,6 @@
 {
-  "name": "ThorsKist",
-  "description": "Einherjar Chest: Oden honors a warrior in Valhalla, then sends them back to the tenth realm. Their essence remains as a gift: build chests to share supplies, craft and load machines within 100 metres.",
+  "name": "EinherjarChest",
+  "description": "A shared hoard for your Viking fellowship, with a mystery to discover in the tenth realm. Listen to Hugin, heed the old stones, and find out what Oden has in store.",
   "version_number": "0.11.2",
   "website_url": "https://github.com/sudonym1/kist",
   "dependencies": []

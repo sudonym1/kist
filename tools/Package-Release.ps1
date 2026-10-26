@@ -9,7 +9,7 @@ $manifest = [IO.File]::ReadAllText($manifestPath) | ConvertFrom-Json
 foreach ($field in @('name', 'description', 'version_number', 'website_url', 'dependencies')) {
     if ($manifest.PSObject.Properties.Name -notcontains $field) { throw "Missing manifest field: $field" }
 }
-if ($manifest.name -cne 'ThorsKist') { throw 'Keep the existing ThorsKist package identity when updating its listing.' }
+if ($manifest.name -cne 'EinherjarChest') { throw 'Publish Einherjar Chest under its own EinherjarChest package identity.' }
 if ($manifest.version_number -notmatch '^\d+\.\d+\.\d+$') { throw 'Release version must be Major.Minor.Patch.' }
 if ($manifest.description -isnot [string] -or $manifest.description.Length -gt 256) { throw 'Invalid Hexium description.' }
 if ($manifest.website_url -isnot [string] -or $manifest.dependencies -isnot [Array]) { throw 'Invalid manifest URL or dependencies.' }
@@ -38,7 +38,7 @@ $files = [ordered]@{
 }
 $dist = Join-Path $repo 'dist'
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
-$archivePath = Join-Path $dist ("ThorsKist-" + $manifest.version_number + '.zip')
+$archivePath = Join-Path $dist ($manifest.name + '-' + $manifest.version_number + '.zip')
 $temporaryPath = $archivePath + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
 function Get-StreamHash([IO.Stream]$InputStream) {
     $hasher = [Security.Cryptography.SHA256]::Create()

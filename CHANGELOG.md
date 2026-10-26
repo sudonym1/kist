@@ -2,6 +2,7 @@
 
 ## 0.11.2
 
+- Publish under the separate `EinherjarChest` package identity. Use a spoiler-light mod page and move the full player instructions into a linked guide.
 - Replace raw coordinates in Dimmed Essence tooltips and dropped-item hover with player-relative compass direction, distance and height guidance. Preserve the original site binding and rebuilding range.
 - Clarify that Oden brings the chosen warrior from the tenth realm to Valhalla, then sends them back to finish their saga, leaving an echo of their essence as a gift. Update Hugin, ritual messages, item descriptions and player instructions.
 - Damage destruction now returns one Dimmed Einherjar Essence, preserving the same original world/site and 100-metre rebuilding area as hammer recovery. Legacy chests also recover their Essence after damage destruction.

@@ -5,6 +5,10 @@ Valheim, and an extracted clean BepInEx 5 pack. The mod targets `netstandard2.1`
 the command-line test programs target .NET 8. Game assemblies are local build
 references and are never distributed.
 
+For the spoiler-light mod page, see [README.md](README.md). Full player
+instructions, configuration and compatibility details are in [GUIDE.md](GUIDE.md)
+(contains gameplay spoilers).
+
 ## Daily commands
 
 ```powershell
