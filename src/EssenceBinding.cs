@@ -47,11 +47,32 @@ internal readonly struct EssenceBinding
 
     internal string Describe(long world, Vector3? position)
     {
-        var coordinates = string.Format(CultureInfo.InvariantCulture, "Bound site: X: {0:0}, Y: {1:0}, Z: {2:0}", Origin.x, Origin.y, Origin.z);
-        var status = world == 0 ? "" : world != World ? "\nBound to another world." : !position.HasValue ? "" :
-            Covers(world, position.Value) ? "\nValid at your current position." : "\nOutside bound area.";
-        return coordinates + "\nRebuild within " + Radius + " metres of this site. Rebuilding preserves this binding." + status;
+        var rule = "\nRebuild within " + Radius.ToString(CultureInfo.InvariantCulture) + " metres of this site. Range includes height. Rebuilding preserves this binding.";
+        if (world != 0 && world != World) return "Bound site: another world." + rule + "\nBound to another world.";
+        if (world == 0 || !position.HasValue || !Finite(position.Value.x) || !Finite(position.Value.y) || !Finite(position.Value.z))
+            return "Bound site: direction and distance unavailable." + rule + "\nCurrent position validity unavailable.";
+
+        var here = position.Value;
+        var x = (double)Origin.x - here.x;
+        var y = (double)Origin.y - here.y;
+        var z = (double)Origin.z - here.z;
+        var horizontal = Math.Sqrt(x * x + z * z);
+        var distance = Math.Sqrt(DistanceSquared(here));
+        string guidance;
+        if (distance < 1) guidance = "Bound site: here (less than 1 metre away).";
+        else if (horizontal < 1) guidance = "Bound site: " + Metres(Math.Abs(y)) + (y > 0 ? " above you." : " below you.");
+        else
+        {
+            // Valheim Minimap.WorldToMapPoint maps +X right/east and +Z up/north.
+            var sector = (int)Math.Floor(Math.Atan2(x, z) * 4 / Math.PI + 0.5);
+            var directions = new[] { "north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest" };
+            guidance = "Bound site: " + Metres(distance) + " " + directions[(sector + 8) % 8] + ".";
+            if (Math.Abs(y) >= 1) guidance += "\nSite is " + Metres(Math.Abs(y)) + (y > 0 ? " above you." : " below you.");
+        }
+        return guidance + rule + (Covers(world, here) ? "\nValid at your current position." : "\nOutside bound area.");
     }
+    private static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
+    private static string Metres(double distance) => Math.Ceiling(distance).ToString("0", CultureInfo.InvariantCulture) + (Math.Ceiling(distance) == 1 ? " metre" : " metres");
 }
 
 internal static class EssenceSelection
