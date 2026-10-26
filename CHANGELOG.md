@@ -15,7 +15,7 @@
 
 - Hammer deconstruction returns one purple, nonstackable Dimmed Einherjar Essence. It can rebuild a chest within 20 metres of its original site in the same world; repeated rebuilding preserves that original site. Damage destruction returns nothing.
 - Prefer a valid carried Dimmed Essence when building, falling back to regular carried Essence. The hammer shows the selected ingredient. Invalid placement consumes neither item.
-- Show bound X/Y/Z coordinates, rebuilding radius and current location validity in Dimmed Essence tooltips. Binding travels with the item through ordinary trades, drops and saves.
+- Show player-relative compass direction and distance, height differences, rebuilding radius and current location validity in Dimmed Essence tooltips and dropped-item hover, without coordinates. Binding travels with the item through ordinary trades, drops and saves.
 - Exclude both Essence types from shared storage and apply the existing server portal setting to both. Existing chests bind to their current site on recovery; newly placed free/admin chests cannot create refunds.
 
 ## 0.10.3

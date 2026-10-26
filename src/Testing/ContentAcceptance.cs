@@ -282,14 +282,18 @@ internal static class ContentAcceptance
             "Hammer removal returns exactly one dimmed essence with the original binding");
         Check(refund.GetComponentInChildren<MeshRenderer>().sharedMaterials[3] == Content.Models.DimmedMaterials[3] &&
             Content.Models.DimmedMaterials[3] != Content.Models.Materials[3], "Dimmed world model uses its separate purple material");
+        Check(refund.GetHoverText().Contains(ChestConstruction.BindingText(refund.m_itemData)) &&
+            !refund.GetHoverText().Contains("X:") && !refund.GetHoverText().Contains("Y:") && !refund.GetHoverText().Contains("Z:"),
+            "Dropped essence hover shows the same relative guidance without coordinates");
         refund.Pickup(player);
         yield return new WaitForSeconds(.5f);
         var dimmed = inventory.GetAllItems().Single(item => item.m_dropPrefab == Content.DimmedEssence);
-        Check(dimmed.m_customData[EssenceBinding.Key] == encoded && dimmed.GetTooltip().Contains("Bound site: X:") &&
-            !dimmed.GetTooltip().Contains("Used before"), "Pickup preserves binding and tooltip shows coordinates without priority rules");
+        Check(dimmed.m_customData[EssenceBinding.Key] == encoded && dimmed.GetTooltip().Contains(ChestConstruction.BindingText(dimmed)) &&
+            !dimmed.GetTooltip().Contains("X:") && !dimmed.GetTooltip().Contains("Y:") && !dimmed.GetTooltip().Contains("Z:") &&
+            !dimmed.GetTooltip().Contains("Used before"), "Pickup preserves binding and tooltip shows relative guidance without priority rules");
         Check(player.HaveRequirements(piece, Player.RequirementMode.CanBuild), "Valid dimmed-only inventory satisfies real hammer requirements");
         AccessTools.Method(typeof(Hud), "SetupPieceInfo").Invoke(Hud.instance, new object[] { piece });
-        Check(Hud.instance.m_requirementItems[0].GetComponent<UITooltip>().m_text.Contains("Bound site: X:"),
+        Check(Hud.instance.m_requirementItems[0].GetComponent<UITooltip>().m_text.Contains(ChestConstruction.BindingText(dimmed)),
             "Hammer ingredient slot displays the selected dimmed item and bound tooltip");
         var transfer = new Inventory("Dimmed trade", null, 8, 4);
         transfer.AddItem(dimmed.Clone()); inventory.RemoveItem(dimmed);
@@ -330,6 +334,9 @@ internal static class ContentAcceptance
         refund = UnityEngine.Object.FindObjectsByType<ItemDrop>(FindObjectsSortMode.None)
             .Single(drop => drop.m_itemData.m_dropPrefab == Content.DimmedEssence);
         Check(refund.m_itemData.m_customData[EssenceBinding.Key] == encoded, "Damage destruction of a rebuilt chest returns exactly one essence preserving its original binding");
+        Check(refund.GetHoverText().Contains(ChestConstruction.BindingText(refund.m_itemData)) &&
+            !refund.GetHoverText().Contains("X:") && !refund.GetHoverText().Contains("Y:") && !refund.GetHoverText().Contains("Z:"),
+            "Dropped essence hover shows the same relative guidance without coordinates");
         refund.Pickup(player);
         var pickupDeadline = Time.realtimeSinceStartup + 3;
         while (Items.Count(inventory, ContentIds.DimmedEssence) == 0 && Time.realtimeSinceStartup < pickupDeadline) yield return null;

@@ -89,15 +89,58 @@ internal static partial class Program
             Equal(false, binding.Covers(1, new Vector3(ChestAccess.Radius + 20, 0, 0)));
             Equal(true, EssenceBinding.TryRead(second, out var other)); Equal(500f, other.Origin.x);
         });
-        Test("Tooltip shows coordinates radius and world status without ingredient priority", () =>
+        Test("Compass guidance uses all eight world bearings relative to player", () =>
+        {
+            var directions = new[] { "north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest" };
+            var dx = new[] { 0, 3, 3, 3, 0, -3, -3, -3 };
+            var dz = new[] { 3, 3, 0, -3, -3, -3, 0, 3 };
+            for (var i = 0; i < 8; i++)
+            {
+                var binding = new EssenceBinding(1, new Vector3(1250 + dx[i], 4, -830 + dz[i]));
+                var text = binding.Describe(1, new Vector3(1250, 4, -830));
+                Equal(true, text.StartsWith("Bound site: " + (i % 2 == 0 ? "3" : "5") + " metres " + directions[i] + "."));
+                Equal(false, text.Contains("X:")); Equal(false, text.Contains("Y:")); Equal(false, text.Contains("Z:"));
+            }
+            var site = new EssenceBinding(1, new Vector3(0, 0, 0));
+            Equal(true, site.Describe(1, new Vector3(-240, 0, 0)).StartsWith("Bound site: 240 metres east."));
+            Equal(true, site.Describe(1, new Vector3(240, 0, 0)).StartsWith("Bound site: 240 metres west."));
+            foreach (var angle in new[] { 22.4, 22.6, -22.4, -22.6, 157.4, 157.6, -157.4, -157.6 })
+            {
+                var radians = angle * System.Math.PI / 180;
+                var binding = new EssenceBinding(1, new Vector3((float)(100 * System.Math.Sin(radians)), 0, (float)(100 * System.Math.Cos(radians))));
+                var expected = System.Math.Abs(angle) < 22.5 ? "north" : System.Math.Abs(angle) > 157.5 ? "south" : angle > 0 ? (angle < 90 ? "northeast" : "southeast") : (angle > -90 ? "northwest" : "southwest");
+                Equal(true, binding.Describe(1, new Vector3(0, 0, 0)).Contains(" metres " + expected + "."));
+            }
+        });
+        Test("Guidance handles height proximity and inclusive spherical boundary", () =>
+        {
+            var binding = new EssenceBinding(1, new Vector3(0, 0, 0));
+            Equal(true, binding.Describe(1, binding.Origin).StartsWith("Bound site: here (less than 1 metre away)."));
+            Equal(true, binding.Describe(1, new Vector3(.5f, .5f, 0)).Contains("here (less than 1 metre away)"));
+            Equal(true, binding.Describe(1, new Vector3(0, -120, 0)).StartsWith("Bound site: 120 metres above you."));
+            Equal(true, binding.Describe(1, new Vector3(.5f, 120, 0)).StartsWith("Bound site: 120 metres below you."));
+            var text = binding.Describe(1, new Vector3(-60, -80, 0));
+            Equal(true, text.StartsWith("Bound site: 100 metres east."));
+            Equal(true, text.Contains("Site is 80 metres above you."));
+            Equal(true, text.Contains("Valid at your current position."));
+            Equal(true, text.Contains("Rebuild within 100 metres of this site. Range includes height. Rebuilding preserves this binding."));
+            foreach (var position in new[] { new Vector3(-100, 0, 0), new Vector3(0, 100, 0) })
+                Equal(true, binding.Describe(1, position).Contains("Valid at your current position."));
+            foreach (var position in new[] { new Vector3(-100.001f, 0, 0), new Vector3(0, 100.001f, 0), new Vector3(-60, -80.001f, 0) })
+                Equal(true, binding.Describe(1, position).Contains("Outside bound area."));
+            Equal(true, binding.Describe(1, new Vector3(-1, 0, 0)).StartsWith("Bound site: 1 metre east."));
+        });
+        Test("Unusable positions and other worlds suppress direction and validity claims", () =>
         {
             var binding = new EssenceBinding(1, new Vector3(1250, 4, -830));
-            var text = binding.Describe(1, binding.Origin);
-            Equal(true, text.Contains("X: 1250, Y: 4, Z: -830"));
-            Equal(true, text.Contains(ChestAccess.Radius + " metres")); Equal(true, text.Contains("Valid at your current position"));
-            Equal(true, binding.Describe(2, binding.Origin).Contains("another world"));
-            Equal(true, binding.Describe(1, new Vector3(0, 0, 0)).Contains("Outside bound area"));
-            Equal(false, text.Contains("before")); Equal(false, text.Contains("priority"));
+            Equal(true, binding.Describe(2, binding.Origin).StartsWith("Bound site: another world."));
+            foreach (var text in new[] { binding.Describe(0, binding.Origin), binding.Describe(1, null), binding.Describe(1, new Vector3(float.NaN, 0, 0)), binding.Describe(1, new Vector3(0, float.PositiveInfinity, 0)) })
+            {
+                Equal(true, text.StartsWith("Bound site: direction and distance unavailable."));
+                Equal(true, text.Contains("Current position validity unavailable."));
+                Equal(false, text.Contains("Valid at your current position"));
+                Equal(false, text.Contains("1250"));
+            }
         });
         Test("Dimmed essence cannot be deposited withdrawn or spent from shared counts", () =>
         {
